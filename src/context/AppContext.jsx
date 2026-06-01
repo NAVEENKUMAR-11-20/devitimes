@@ -76,7 +76,7 @@ const seedProducts = [
 
 // Default admin settings
 const defaultSettings = {
-  whatsappNumber: "+919999999999",
+  whatsappNumber: "7358349394",
   storeName: "DEVI TIMES",
   currency: "₹",
   websiteUrl: "http://localhost:5173", // default local dev url
