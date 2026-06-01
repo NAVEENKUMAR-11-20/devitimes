@@ -82,7 +82,7 @@ const AdminProducts = () => {
 
   const handleEditSubmit = (e) => {
     e.preventDefault();
-    if (!editForm.name.trim() || !editForm.modelNumber.trim() || !editForm.size.trim()) {
+    if (!editForm.modelNumber.trim() || !editForm.size.trim()) {
       alert('Please fill in all required fields marked with *');
       return;
     }
@@ -256,21 +256,14 @@ const AdminProducts = () => {
             <thead>
               <tr>
                 <th>Thumbnail</th>
-                <th onClick={() => requestSort('name')} className="sortable-header">
-                  Name{renderSortIndicator('name')}
-                </th>
                 <th onClick={() => requestSort('modelNumber')} className="sortable-header">
                   Model No{renderSortIndicator('modelNumber')}
-                </th>
-                <th onClick={() => requestSort('category')} className="sortable-header">
-                  Category{renderSortIndicator('category')}
                 </th>
                 <th onClick={() => requestSort('salePrice')} className="sortable-header">
                   Price{renderSortIndicator('salePrice')}
                 </th>
                 <th>Dimensions</th>
                 <th>Pkg No</th>
-                <th>Color</th>
                 <th onClick={() => requestSort('stockCount')} className="sortable-header">
                   Stock{renderSortIndicator('stockCount')}
                 </th>
@@ -294,9 +287,7 @@ const AdminProducts = () => {
                   </td>
 
                   {/* Details */}
-                  <td><strong style={{ color: 'var(--text-primary)' }}>{p.name}</strong></td>
                   <td><code>{p.modelNumber}</code></td>
-                  <td><span className="category-tag-cell">{p.category}</span></td>
                   <td>
                     <div className="table-price-stack">
                       <strong>₹{p.salePrice}</strong>
@@ -305,7 +296,6 @@ const AdminProducts = () => {
                   </td>
                   <td>{p.size}</td>
                   <td>{p.packageNo || '-'}</td>
-                  <td>{p.color}</td>
                   <td>
                     <span className={`stock-cell ${p.stockCount <= 0 ? 'out-stock' : p.stockCount <= 5 ? 'low-stock' : ''}`}>
                       {p.stockCount} pcs
@@ -384,31 +374,7 @@ const AdminProducts = () => {
             </h3>
 
             <form onSubmit={handleEditSubmit} className="admin-form edit-product-form">
-              
-              <div className="form-grid-2col">
-                <div className="form-group">
-                  <label className="form-label">PRODUCT NAME *</label>
-                  <input 
-                    type="text" 
-                    className="form-input"
-                    value={editForm.name}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">CATEGORY *</label>
-                  <select 
-                    className="form-input"
-                    value={editForm.category}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, category: e.target.value }))}
-                  >
-                    {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div className="form-grid-3col">
+                            <div className="form-grid-3col">
                 <div className="form-group">
                   <label className="form-label">MODEL NO *</label>
                   <input 
@@ -443,15 +409,6 @@ const AdminProducts = () => {
               </div>
 
               <div className="form-grid-3col">
-                <div className="form-group">
-                  <label className="form-label">COLOR *</label>
-                  <input 
-                    type="text" 
-                    className="form-input"
-                    value={editForm.color}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, color: e.target.value }))}
-                  />
-                </div>
                 <div className="form-group">
                   <label className="form-label">SALE PRICE (₹) *</label>
                   <input 

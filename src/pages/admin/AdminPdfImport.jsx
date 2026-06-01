@@ -416,47 +416,20 @@ const AdminPdfImport = () => {
 
                   {/* Inputs row */}
                   <div className="extracted-inputs font-body">
-                    
-                    {/* Name */}
+
+                    {/* Model only */}
                     <div className="group-field-short">
-                      <label>NAME</label>
+                      <label>MODEL NO</label>
                       <input 
                         type="text" 
-                        value={p.name} 
-                        onChange={(e) => updateCardField(p.tempId, 'name', e.target.value)}
+                        value={p.modelNumber} 
+                        onChange={(e) => updateCardField(p.tempId, 'modelNumber', e.target.value)}
                         disabled={!p.include}
                       />
                     </div>
 
-                    {/* Model & Category */}
+                    {/* Dimensions & Pkg */}
                     <div className="grid-input-row-2">
-                      <div className="group-field-short">
-                        <label>MODEL NO</label>
-                        <input 
-                          type="text" 
-                          value={p.modelNumber} 
-                          onChange={(e) => updateCardField(p.tempId, 'modelNumber', e.target.value)}
-                          disabled={!p.include}
-                        />
-                      </div>
-                      <div className="group-field-short">
-                        <label>CATEGORY</label>
-                        <select 
-                          value={p.category} 
-                          onChange={(e) => updateCardField(p.tempId, 'category', e.target.value)}
-                          disabled={!p.include}
-                        >
-                          <option value="Modern Minimalist">Modern Minimalist</option>
-                          <option value="Contemporary">Contemporary</option>
-                          <option value="Luxury Vintage">Luxury Vintage</option>
-                          <option value="Classic">Classic</option>
-                          <option value="Special Edition">Special Edition</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Dimensions, Pkg & Color */}
-                    <div className="grid-input-row-3">
                       <div className="group-field-short">
                         <label>SIZE</label>
                         <input 
@@ -472,15 +445,6 @@ const AdminPdfImport = () => {
                           type="text" 
                           value={p.packageNo || ''} 
                           onChange={(e) => updateCardField(p.tempId, 'packageNo', e.target.value)}
-                          disabled={!p.include}
-                        />
-                      </div>
-                      <div className="group-field-short">
-                        <label>COLOR</label>
-                        <input 
-                          type="text" 
-                          value={p.color} 
-                          onChange={(e) => updateCardField(p.tempId, 'color', e.target.value)}
                           disabled={!p.include}
                         />
                       </div>
