@@ -116,25 +116,27 @@ const Navbar = () => {
       {/* Styles local to Navbar rendering, configured with root design theme */}
       <style>{`
         .navbar-root {
-          height: var(--navbar-height);
           position: sticky;
           top: 0;
+          left: 0;
+          width: 100%;
           z-index: 1000;
-          transition: background-color var(--transition-speed) ease, border-color var(--transition-speed) ease;
+          background: transparent;
+          border: none;
+          box-shadow: none;
+          padding: 20px 24px;
+          height: auto;
           display: flex;
+          justify-content: center;
           align-items: center;
+          box-sizing: border-box;
+          transition: padding var(--transition-speed) ease;
         }
 
-        .navbar-transparent {
-          background-color: var(--primary-dark-bg);
-          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-          color: var(--text-on-dark);
-        }
-
-        .navbar-light {
-          background-color: var(--card-bg);
-          border-bottom: 1px solid var(--border-color);
-          color: var(--text-primary);
+        @media (max-width: 768px) {
+          .navbar-root {
+            padding: 12px 16px;
+          }
         }
 
         .navbar-container {
@@ -142,9 +144,39 @@ const Navbar = () => {
           width: 100%;
           margin: 0 auto;
           padding: 0 24px;
+          height: 64px;
           display: flex;
           justify-content: space-between;
           align-items: center;
+          border-radius: 20px;
+          transition: all var(--transition-speed) ease;
+          box-sizing: border-box;
+        }
+
+        /* Dark-white luxury glassmorphism appearance (Homepage) */
+        .glass-nav {
+          color: var(--text-on-dark);
+        }
+        .glass-nav .navbar-container {
+          background-color: rgba(255, 255, 255, 0.08);
+          backdrop-filter: blur(18px);
+          -webkit-backdrop-filter: blur(18px);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.25), 
+                      inset 0 1px 1px 0 rgba(255, 255, 255, 0.1);
+        }
+
+        /* Light-theme luxury glassmorphism appearance (Other pages) */
+        .navbar-light {
+          color: var(--text-primary);
+        }
+        .navbar-light .navbar-container {
+          background-color: rgba(255, 255, 255, 0.75);
+          backdrop-filter: blur(18px);
+          -webkit-backdrop-filter: blur(18px);
+          border: 1px solid rgba(26, 35, 50, 0.08);
+          box-shadow: 0 8px 32px 0 rgba(26, 35, 50, 0.06), 
+                      inset 0 1px 1px 0 rgba(255, 255, 255, 0.8);
         }
 
         .navbar-logo {
@@ -155,12 +187,12 @@ const Navbar = () => {
         }
 
         .logo-img {
-          height: 44px;
+          height: 40px;
           width: auto;
           object-fit: contain;
           background-color: #ffffff;
           padding: 2px;
-          border-radius: 4px;
+          border-radius: 6px;
           box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
 
@@ -182,32 +214,48 @@ const Navbar = () => {
           letter-spacing: 0.12em;
           color: inherit;
           position: relative;
-          padding: 4px 0;
+          padding: 6px 0;
+          transition: color 0.25s ease, opacity 0.25s ease, transform 0.25s ease;
+        }
+
+        .nav-link-item::after {
+          content: '';
+          position: absolute;
+          bottom: -2px;
+          left: 0;
+          width: 100%;
+          height: 2px;
+          background-color: currentColor;
+          transform: scaleX(0);
+          transform-origin: right;
+          transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .nav-link-item:hover {
-          opacity: 0.8;
+          opacity: 1;
+          transform: translateY(-1px);
+        }
+
+        .nav-link-item:hover::after {
+          transform: scaleX(1);
+          transform-origin: left;
         }
 
         .active-link {
           color: var(--accent-blue) !important;
         }
         
-        .navbar-transparent .active-link {
+        .glass-nav .active-link {
           color: var(--text-accent-on-dark) !important;
         }
 
         .active-link::after {
-          content: '';
-          position: absolute;
-          bottom: -4px;
-          left: 0;
-          width: 100%;
-          height: 2px;
+          transform: scaleX(1) !important;
+          transform-origin: left !important;
           background-color: var(--accent-blue);
         }
 
-        .navbar-transparent .active-link::after {
+        .glass-nav .active-link::after {
           background-color: var(--text-accent-on-dark);
         }
 
@@ -217,6 +265,11 @@ const Navbar = () => {
           align-items: center;
           justify-content: center;
           position: relative;
+          transition: transform 0.25s ease;
+        }
+
+        .nav-icon-link:hover {
+          transform: scale(1.08);
         }
 
         .cart-badge-wrapper {
@@ -240,6 +293,11 @@ const Navbar = () => {
           justify-content: center;
         }
 
+        .glass-nav .cart-badge-count {
+          background-color: var(--text-accent-on-dark);
+          color: var(--primary-dark-bg);
+        }
+
         .user-session-pill {
           display: flex;
           align-items: center;
@@ -248,7 +306,7 @@ const Navbar = () => {
           padding-left: 16px;
         }
 
-        .navbar-transparent .user-session-pill {
+        .glass-nav .user-session-pill {
           border-left-color: rgba(255, 255, 255, 0.15);
         }
 
@@ -267,6 +325,7 @@ const Navbar = () => {
           padding: 2px 6px;
           border: 1px solid #ef4444;
           border-radius: 2px;
+          background: transparent;
         }
 
         .logout-nav-btn:hover {
@@ -279,6 +338,7 @@ const Navbar = () => {
           flex-direction: column;
           gap: 5px;
           z-index: 1001;
+          color: inherit;
         }
 
         .mobile-hamburger .bar {
@@ -310,18 +370,25 @@ const Navbar = () => {
             right: -100%;
             height: 100vh;
             width: 70%;
-            background-color: var(--primary-dark-bg);
+            background-color: rgba(26, 35, 50, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
             color: #ffffff;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             gap: 40px;
-            transition: 0.4s;
+            transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             box-shadow: -10px 0 30px rgba(0,0,0,0.25);
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
           }
 
           .nav-menu-links.active {
             right: 0;
+          }
+
+          .nav-link-item {
+            font-size: 16px;
           }
 
           .user-session-pill {
