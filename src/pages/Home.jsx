@@ -350,7 +350,7 @@ const Home = () => {
       <style>{`
         /* ── Hero ── */
         .hero-section {
-          background-color: var(--primary-dark-bg);
+          background-color: #01060A;
           color: var(--text-on-dark);
           min-height: 540px;
           display: flex;
@@ -480,8 +480,9 @@ const Home = () => {
         .hero-right-content {
           flex: 0 0 auto;
           display: flex;
-          justify-content: flex-end;
+          justify-content: center;
           align-items: center;
+          margin-right: 140px;
         }
 
         .hero-clock-frame {
@@ -641,7 +642,7 @@ const Home = () => {
             padding-top: 20px;
           }
           .hero-left-content { align-items: center; }
-          .hero-right-content { justify-content: center; }
+          .hero-right-content { justify-content: center; margin-right: 0; }
           .hero-heading { font-size: 36px; }
           .hero-clock-frame { width: 260px; height: 260px; }
           .hero-cta-group { justify-content: center; }

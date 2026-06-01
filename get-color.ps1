@@ -1,0 +1,1 @@
+Add-Type -AssemblyName System.Drawing; $bmp = New-Object System.Drawing.Bitmap("c:\Users\Lenovo\Downloads\clockdevi\public\left_leaf.png"); $color = $bmp.GetPixel(0,0); Write-Host "Hex: #$($color.R.ToString('X2'))$($color.G.ToString('X2'))$($color.B.ToString('X2'))"
