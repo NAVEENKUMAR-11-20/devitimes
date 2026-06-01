@@ -218,6 +218,7 @@ const Home = () => {
 
           {/* Left: Text */}
           <div className="hero-left-content">
+            <div className="hero-text-blob" aria-hidden="true" />
             <span className="hero-tag-label uppercase-label">DEVI TIMES COLLECTION</span>
             <h1 className="hero-heading font-heading">
               Timeless Elegance <br />
@@ -350,7 +351,7 @@ const Home = () => {
       <style>{`
         /* ── Hero ── */
         .hero-section {
-          background-color: #01060A;
+          background: linear-gradient(135deg, var(--secondary-dark) 0%, var(--primary-dark-bg) 100%);
           color: var(--text-on-dark);
           min-height: 540px;
           display: flex;
@@ -419,6 +420,21 @@ const Home = () => {
           flex-direction: column;
           align-items: flex-start;
           gap: 0;
+          position: relative;
+          z-index: 1;
+        }
+
+        .hero-text-blob {
+          position: absolute;
+          top: -40px;
+          left: -40px;
+          width: 500px;
+          height: 360px;
+          background-color: rgba(255, 255, 255, 0.07);
+          border-radius: 46% 54% 43% 57% / 51% 45% 55% 49%;
+          z-index: -1;
+          pointer-events: none;
+          transform: rotate(-3deg);
         }
 
         .hero-tag-label {
@@ -636,16 +652,62 @@ const Home = () => {
         }
 
         @media (max-width: 768px) {
+          .hero-section {
+            min-height: 100vh;
+            padding: 100px 16px 60px 16px;
+          }
+          
+          .hero-section::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(circle at 50% 90%, rgba(26,35,50,0.6) 0%, transparent 70%);
+            z-index: 0;
+            pointer-events: none;
+          }
+
           .hero-container {
             flex-direction: column;
             text-align: center;
-            padding-top: 20px;
+            padding-top: 0;
+            gap: 40px;
           }
           .hero-left-content { align-items: center; }
-          .hero-right-content { justify-content: center; margin-right: 0; }
-          .hero-heading { font-size: 36px; }
-          .hero-clock-frame { width: 260px; height: 260px; }
-          .hero-cta-group { justify-content: center; }
+          
+          .hero-text-blob {
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 120vw;
+            height: 120vw;
+            border-radius: 50%;
+            opacity: 0.15;
+          }
+          
+          .hero-right-content { justify-content: center; margin-right: 0; width: 100%; }
+          .hero-heading { font-size: 38px; line-height: 1.2; margin-bottom: 16px; }
+          .hero-description { font-size: 15px; max-width: 100%; margin-bottom: 0; }
+          .hero-clock-frame { width: 280px; height: 280px; margin: 0 auto; }
+          .hero-cta-group { justify-content: center; align-items: center; }
+
+          .hero-decorative-leaf {
+            bottom: -5%;
+            left: -20%;
+            height: 35%;
+            max-height: 300px;
+            opacity: 0.25;
+            object-fit: contain;
+          }
+
+          .hero-decorative-vase {
+            bottom: 0;
+            right: -15%;
+            height: 30%;
+            max-height: 250px;
+            opacity: 0.35;
+            object-fit: contain;
+          }
+
           .feature-strip-grid { grid-template-columns: 1fr; }
           .feature-item { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.08); }
           .feature-item:last-child { border-bottom: none; }

@@ -114,7 +114,7 @@ const Navbar = () => {
           left: 0;
           width: 100%;
           z-index: 1000;
-          background-color: #032247; /* Blue color matching the 2nd image */
+          background-color: var(--primary-dark-bg);
           border-bottom: 1px solid rgba(255, 255, 255, 0.05);
           height: 64px;
           display: flex;
