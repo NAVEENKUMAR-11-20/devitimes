@@ -2,6 +2,14 @@ import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 
+const sizeOptions = [
+  '200 × 200 MM',
+  '250 × 250 MM',
+  '300 × 300 MM',
+  '350 × 350 MM',
+  '400 × 400 MM',
+];
+
 const AdminPdfImport = () => {
   const { addProduct } = useApp();
 
@@ -17,6 +25,17 @@ const AdminPdfImport = () => {
   // Confirm modal state
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
+  // Cropper modal state
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [cropTargetId, setCropTargetId] = useState(null);
+  const [cropImageSrc, setCropImageSrc] = useState('');
+  const [cropZoom, setCropZoom] = useState(70);
+  const [cropX, setCropX] = useState(0);
+  const [cropY, setCropY] = useState(0);
+
+  const originalCanvasRef = useRef(null);
+  const previewCanvasRef = useRef(null);
+
   const fileInputRef = useRef(null);
 
   // ─── Trigger file picker ───────────────────────────────────────────────────
@@ -29,87 +48,45 @@ const AdminPdfImport = () => {
     // Strategy 1: Join all items with single space
     const spaceJoined = textItems.map(item => item.str).join(' ').replace(/\s+/g, ' ').trim();
 
-    // Strategy 2: Join with no separator (handles split characters like "M" + "NO" + "." + "1271")
+    // Strategy 2: Join with no separator
     const noSpaceJoined = textItems.map(item => item.str).join('').replace(/\s+/g, ' ').trim();
 
-    // Strategy 3: Join with newlines (preserves line breaks)
+    // Strategy 3: Join with newlines
     const lineJoined = textItems.map(item => item.str).join('\n').replace(/[^\S\n]+/g, ' ').trim();
 
-    // Combine all strategies into one search pool
     const searchTexts = [spaceJoined, noSpaceJoined, lineJoined];
 
     let modelNumber = '';
     let size = '';
     let packageNo = '';
 
-    // ── Model Number ──────────────────────────────────────────────────────
-    // Patterns: "M NO. 1271", "M NO: 1271", "M NO 1271", "MNO.1271", "MNO:1271"
-    const modelPatterns = [
-      /M\s*NO\.?\s*:?\s*(\d+)/i,
-      /M\s*N\s*O\.?\s*:?\s*(\d+)/i,
-      /MNO\.?\s*:?\s*(\d+)/i,
-      /MODEL\s*(?:NO\.?)?\s*:?\s*(\d+)/i,
-    ];
+    const modelRegex = /M\s*NO\.?\s*:?\s*(\d+)/i;
+    const sizeRegex = /SIZE\s*:?\s*([0-9]+\s*[Xx×]\s*[0-9]+\s*MM)/i;
+    const pkgRegex = /PKG\s*:?\s*(\d+)/i;
 
+    // Search using the requested regex patterns across all search texts
     for (const text of searchTexts) {
-      if (modelNumber) break;
-      for (const rx of modelPatterns) {
-        const match = text.match(rx);
-        if (match && match[1]) {
-          modelNumber = match[1];
-          break;
-        }
+      if (!modelNumber) {
+        const mMatch = text.match(modelRegex);
+        if (mMatch && mMatch[1]) modelNumber = mMatch[1];
       }
-    }
-
-    // ── Size ──────────────────────────────────────────────────────────────
-    // Patterns: "SIZE : 300 X 300 MM", "SIZE:300X300MM", "SIZE 300 x 300 mm"
-    const sizePatterns = [
-      /SIZE\s*:?\s*([0-9]+\s*[Xx×]\s*[0-9]+\s*MM)/i,
-      /SIZE\s*:?\s*([0-9]+\s*[Xx×]\s*[0-9]+)\s*(MM|CM)/i,
-      /SIZE\s*:?\s*(\d+)\s*[Xx×]\s*(\d+)/i,
-    ];
-
-    for (const text of searchTexts) {
-      if (size) break;
-      for (const rx of sizePatterns) {
-        const match = text.match(rx);
-        if (match) {
-          if (match[1] && /\d+\s*[Xx×]\s*\d+/.test(match[1])) {
-            // Full match like "300 X 300 MM"
-            size = match[1].toUpperCase().replace(/\s*[Xx]\s*/g, ' × ');
-            if (!size.includes('MM') && !size.includes('CM')) {
-              size += ' MM';
-            }
-          } else if (match[1] && match[2]) {
-            // Split capture groups
-            size = `${match[1]} × ${match[2]} MM`.toUpperCase();
+      if (!size) {
+        const sMatch = text.match(sizeRegex);
+        if (sMatch && sMatch[1]) {
+          let rawSize = sMatch[1].toUpperCase();
+          if (rawSize.endsWith('MM') && !rawSize.endsWith(' MM')) {
+            rawSize = rawSize.slice(0, -2) + ' MM';
           }
-          if (size) break;
+          size = rawSize.replace(/\s*[Xx×]\s*/g, ' × ').trim();
         }
+      }
+      if (!packageNo) {
+        const pMatch = text.match(pkgRegex);
+        if (pMatch && pMatch[1]) packageNo = pMatch[1];
       }
     }
 
-    // ── Package Number ────────────────────────────────────────────────────
-    // Patterns: "PKG : 52", "PKG:52", "PKG 52"
-    const pkgPatterns = [
-      /PKG\s*:?\s*(\d+)/i,
-      /PACKAGE\s*:?\s*(\d+)/i,
-    ];
-
-    for (const text of searchTexts) {
-      if (packageNo) break;
-      for (const rx of pkgPatterns) {
-        const match = text.match(rx);
-        if (match && match[1]) {
-          packageNo = match[1];
-          break;
-        }
-      }
-    }
-
-    // ── Fallback: scan individual text items for isolated numbers ─────────
-    // Sometimes PDF.js splits "M NO." and "1271" into completely separate items
+    // Fallback: scan individual text items for split elements
     if (!modelNumber || !size || !packageNo) {
       for (let i = 0; i < textItems.length; i++) {
         const curr = textItems[i].str.trim();
@@ -118,31 +95,34 @@ const AdminPdfImport = () => {
         const combined = `${curr} ${next} ${next2}`;
 
         if (!modelNumber) {
-          const mMatch = combined.match(/M\s*NO\.?\s*:?\s*(\d+)/i);
-          if (mMatch) modelNumber = mMatch[1];
+          const mMatch = combined.match(modelRegex);
+          if (mMatch && mMatch[1]) modelNumber = mMatch[1];
         }
 
         if (!size) {
-          const sMatch = combined.match(/SIZE\s*:?\s*([0-9]+\s*[Xx×]\s*[0-9]+\s*(?:MM|CM)?)/i);
-          if (sMatch) {
-            size = sMatch[1].toUpperCase().replace(/\s*[Xx]\s*/g, ' × ');
-            if (!size.includes('MM') && !size.includes('CM')) size += ' MM';
+          const sMatch = combined.match(sizeRegex);
+          if (sMatch && sMatch[1]) {
+            let rawSize = sMatch[1].toUpperCase();
+            if (rawSize.endsWith('MM') && !rawSize.endsWith(' MM')) {
+              rawSize = rawSize.slice(0, -2) + ' MM';
+            }
+            size = rawSize.replace(/\s*[Xx×]\s*/g, ' × ').trim();
           }
         }
 
         if (!packageNo) {
-          const pMatch = combined.match(/PKG\s*:?\s*(\d+)/i);
-          if (pMatch) packageNo = pMatch[1];
+          const pMatch = combined.match(pkgRegex);
+          if (pMatch && pMatch[1]) packageNo = pMatch[1];
         }
 
         if (modelNumber && size && packageNo) break;
       }
     }
 
+    // Status: Ready or Needs Review based ONLY on whether all required text fields are successfully extracted
     const allFound = modelNumber && size && packageNo;
-    const status = allFound ? 'auto-filled' : 'needs review';
+    const status = allFound ? 'Ready' : 'Needs Review';
 
-    // Include the raw joined text for debug visibility
     return { modelNumber, size, packageNo, status, rawText: spaceJoined };
   };
 
@@ -356,7 +336,18 @@ const AdminPdfImport = () => {
   // ─── Edit a card field inline ──────────────────────────────────────────────
   const updateCardField = (tempId, field, value) => {
     setExtractedProducts(prev =>
-      prev.map(card => card.tempId === tempId ? { ...card, [field]: value } : card)
+      prev.map(card => {
+        if (card.tempId === tempId) {
+          const updatedCard = { ...card, [field]: value };
+          // Dynamically compute status: 'Ready' if modelNumber, size, and packageNo are all filled
+          const allFilled = String(updatedCard.modelNumber || '').trim() !== '' &&
+                            String(updatedCard.size || '').trim() !== '' &&
+                            String(updatedCard.packageNo || '').trim() !== '';
+          updatedCard.status = allFilled ? 'Ready' : 'Needs Review';
+          return updatedCard;
+        }
+        return card;
+      })
     );
   };
 
@@ -365,6 +356,41 @@ const AdminPdfImport = () => {
     setExtractedProducts(prev =>
       prev.map(card => card.tempId === tempId ? { ...card, include: !card.include } : card)
     );
+  };
+
+  // ─── Handle size select dropdown change ─────────────────────────────────────
+  const handleSizeSelectChange = (tempId, selectVal) => {
+    if (selectVal === 'Custom') {
+      updateCardField(tempId, 'size', '');
+    } else {
+      updateCardField(tempId, 'size', selectVal);
+    }
+  };
+
+  // ─── Save single card to catalogue ─────────────────────────────────────────
+  const handleSaveSingle = (p) => {
+    if (!p.modelNumber && !p.size && !p.packageNo) {
+      alert('All fields are empty. Please fill in at least one detail before saving.');
+      return;
+    }
+
+    const { tempId, include, pageNum, status, ...payload } = p;
+    addProduct({
+      ...payload,
+      name: p.modelNumber ? `Clock Model ${p.modelNumber}` : `Catalog Product (Page ${p.pageNum})`,
+    });
+
+    // Remove the saved product from the list
+    setExtractedProducts(prev => prev.filter(card => card.tempId !== p.tempId));
+    
+    // Show alert confirmation
+    alert(`Product ${p.modelNumber ? 'Model ' + p.modelNumber : 'Page ' + p.pageNum} saved successfully!`);
+    
+    // If it was the last card, transition to the success step
+    if (extractedProducts.length <= 1) {
+      setSavedCount(1);
+      setStep(3);
+    }
   };
 
   // ─── Initiate save flow ────────────────────────────────────────────────────
@@ -394,7 +420,6 @@ const AdminPdfImport = () => {
       const { tempId, include, pageNum, status, ...payload } = p;
       addProduct({
         ...payload,
-        // Update name now that model is confirmed
         name: p.modelNumber ? `Clock Model ${p.modelNumber}` : `Catalog Product (Page ${p.pageNum})`,
       });
     });
@@ -403,6 +428,145 @@ const AdminPdfImport = () => {
     setShowConfirmModal(false);
     setStep(3);
   };
+
+  // ─── Image Cropping Handlers & Canvas Render Engine ────────────────────────
+  const handleOpenCropper = (product) => {
+    setCropTargetId(product.tempId);
+    setCropImageSrc(product.images[0]);
+    setCropZoom(70);
+    setCropX(0);
+    setCropY(0);
+    setShowCropModal(true);
+  };
+
+  const handleSaveCrop = () => {
+    const prevCanvas = previewCanvasRef.current;
+    if (!prevCanvas) return;
+
+    // Convert canvas content to base64 image/png
+    const croppedBase64 = prevCanvas.toDataURL('image/png', 1.0);
+
+    // Update the image preview of the target product card
+    setExtractedProducts(prev =>
+      prev.map(p => p.tempId === cropTargetId ? { ...p, images: [croppedBase64] } : p)
+    );
+
+    // Close modal and reset state
+    setShowCropModal(false);
+    setCropTargetId(null);
+    setCropImageSrc('');
+  };
+
+  React.useEffect(() => {
+    if (!showCropModal || !cropImageSrc) return;
+
+    const img = new Image();
+    img.src = cropImageSrc;
+    img.onload = () => {
+      const origCanvas = originalCanvasRef.current;
+      const prevCanvas = previewCanvasRef.current;
+      if (!origCanvas || !prevCanvas) return;
+
+      const origCtx = origCanvas.getContext('2d');
+      const prevCtx = prevCanvas.getContext('2d');
+      if (!origCtx || !prevCtx) return;
+
+      const cw = origCanvas.width;
+      const ch = origCanvas.height;
+
+      // 1. Clear original canvas
+      origCtx.clearRect(0, 0, cw, ch);
+
+      // 2. Draw image scaled and centered to fit cw, ch keeping aspect ratio
+      const imgRatio = img.width / img.height;
+      let drawW = cw;
+      let drawH = ch;
+      let startX = 0;
+      let startY = 0;
+
+      if (imgRatio > 1) {
+        drawH = cw / imgRatio;
+        startY = (ch - drawH) / 2;
+      } else {
+        drawW = ch * imgRatio;
+        startX = (cw - drawW) / 2;
+      }
+
+      // Draw original image on original canvas
+      origCtx.drawImage(img, startX, startY, drawW, drawH);
+
+      // Calculate crop box size based on zoom slider (20 to 100)
+      const minDrawSize = Math.min(drawW, drawH);
+      const boxSize = minDrawSize * (cropZoom / 100);
+
+      // Calculate center of crop box with panning offsets (-100 to 100)
+      const maxOffsetX = (drawW - boxSize) / 2;
+      const maxOffsetY = (drawH - boxSize) / 2;
+      const offsetX = (cropX / 100) * maxOffsetX;
+      const offsetY = (cropY / 100) * maxOffsetY;
+
+      const centerX = startX + drawW / 2 + offsetX;
+      const centerY = startY + drawH / 2 + offsetY;
+
+      // Calculate crop box left & top
+      const cropLeft = centerX - boxSize / 2;
+      const cropTop = centerY - boxSize / 2;
+
+      // 3. Draw semi-transparent dark mask overlay
+      origCtx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+      origCtx.fillRect(0, 0, cw, ch);
+
+      // 4. Cut out the transparent square region (composite operation)
+      origCtx.globalCompositeOperation = 'destination-out';
+      origCtx.fillStyle = '#FFFFFF';
+      origCtx.fillRect(cropLeft, cropTop, boxSize, boxSize);
+      origCtx.globalCompositeOperation = 'source-over';
+
+      // 5. Draw clean white frame with target indicator
+      origCtx.strokeStyle = '#3B82F6'; // premium blue outline
+      origCtx.lineWidth = 2;
+      origCtx.strokeRect(cropLeft, cropTop, boxSize, boxSize);
+
+      // Draw corner crop marks
+      origCtx.fillStyle = '#3B82F6';
+      const markSize = 8;
+      // top-left
+      origCtx.fillRect(cropLeft - 2, cropTop - 2, markSize, 2);
+      origCtx.fillRect(cropLeft - 2, cropTop - 2, 2, markSize);
+      // top-right
+      origCtx.fillRect(cropLeft + boxSize - markSize + 2, cropTop - 2, markSize, 2);
+      origCtx.fillRect(cropLeft + boxSize, cropTop - 2, 2, markSize);
+      // bottom-left
+      origCtx.fillRect(cropLeft - 2, cropTop + boxSize, markSize, 2);
+      origCtx.fillRect(cropLeft - 2, cropTop + boxSize - markSize + 2, 2, markSize);
+      // bottom-right
+      origCtx.fillRect(cropLeft + boxSize - markSize + 2, cropTop + boxSize, markSize, 2);
+      origCtx.fillRect(cropLeft + boxSize, cropTop + boxSize - markSize + 2, 2, markSize);
+
+      // 6. Generate cropped preview
+      // Scale coordinates back to original image pixels
+      const scaleX = img.width / drawW;
+      const scaleY = img.height / drawH;
+
+      // crop coordinates relative to the drawn image bounds startX/startY
+      const relativeCropLeft = cropLeft - startX;
+      const relativeCropTop = cropTop - startY;
+
+      const imgCropX = relativeCropLeft * scaleX;
+      const imgCropY = relativeCropTop * scaleY;
+      const imgCropW = boxSize * scaleX;
+      const imgCropH = boxSize * scaleY;
+
+      // Clear and draw on preview canvas at 480x480 resolution
+      prevCtx.fillStyle = '#FFFFFF';
+      prevCtx.fillRect(0, 0, prevCanvas.width, prevCanvas.height);
+      prevCtx.drawImage(
+        img,
+        imgCropX, imgCropY, imgCropW, imgCropH,
+        0, 0, prevCanvas.width, prevCanvas.height
+      );
+    };
+  }, [showCropModal, cropImageSrc, cropZoom, cropX, cropY]);
 
   const selectedCount = extractedProducts.filter(p => p.include).length;
 
@@ -477,86 +641,138 @@ const AdminPdfImport = () => {
             </button>
           </div>
 
-          {/* Preview table header */}
-          <div className="preview-table-header font-body">
-            <span>THUMBNAIL</span>
-            <span>MODEL NO</span>
-            <span>SIZE</span>
-            <span>PKG NO</span>
-            <span>STATUS</span>
-            <span>ACTION</span>
-          </div>
-
-          {/* Preview rows */}
-          <div className="preview-rows-list">
+          {/* Cards Grid */}
+          <div className="pdf-cards-grid">
             {extractedProducts.map((p, index) => {
-              const isReview = p.status === 'needs review';
+              const isReview = p.status === 'Needs Review';
+              const isStandardSize = sizeOptions.includes(p.size);
+
               return (
                 <div
                   key={p.tempId}
-                  className={`preview-row-item ${p.include ? '' : 'row-skipped'}`}
+                  className={`pdf-product-card ${p.include ? '' : 'card-excluded'} animate-fade-in`}
                 >
-                  {/* Thumbnail */}
-                  <div className="prev-thumb-cell">
-                    <div className="prev-thumb-wrapper">
-                      <img src={p.images[0]} alt={`Page ${index + 1}`} />
-                      {!p.include && <div className="prev-skip-overlay font-body">SKIP</div>}
+                  <div className="card-split-container">
+                    
+                    {/* Left Column: Details form */}
+                    <div className="card-left-form">
+                      <div className="card-header-split">
+                        <span className="card-page-label font-body">PAGE {p.pageNum}</span>
+                        <div className="card-header-actions">
+                          <span className={`card-status-badge font-body ${isReview ? 'status-review' : 'status-ready'}`}>
+                            {isReview ? '⚠ Needs Review' : '✓ Ready'}
+                          </span>
+                          <label className="card-checkbox-label font-body">
+                            <input
+                              type="checkbox"
+                              checked={p.include}
+                              onChange={() => toggleInclude(p.tempId)}
+                            />
+                            <span>Include</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="card-form-fields-split">
+                        {/* Model Number */}
+                        <div className="form-group">
+                          <label className="form-label">MODEL NO *</label>
+                          <input
+                            type="text"
+                            className={`form-input ${!p.modelNumber ? 'input-error-state' : ''}`}
+                            placeholder="Needs Review"
+                            value={p.modelNumber}
+                            onChange={(e) => updateCardField(p.tempId, 'modelNumber', e.target.value)}
+                            disabled={!p.include}
+                          />
+                        </div>
+
+                        {/* Size Selector */}
+                        <div className="form-group">
+                          <label className="form-label">SIZE DIMENSIONS *</label>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <select
+                              className="form-input"
+                              value={isStandardSize ? p.size : (p.size === '' ? 'Custom' : 'Custom')}
+                              onChange={(e) => handleSizeSelectChange(p.tempId, e.target.value)}
+                              disabled={!p.include}
+                            >
+                              <option value="">Select Size</option>
+                              {sizeOptions.map(sz => <option key={sz} value={sz}>{sz}</option>)}
+                              <option value="Custom">Custom</option>
+                            </select>
+
+                            {(!isStandardSize || p.size === '') && (
+                              <input
+                                type="text"
+                                className={`form-input ${!p.size ? 'input-error-state' : ''}`}
+                                placeholder="e.g. 300 × 300 MM"
+                                value={p.size}
+                                onChange={(e) => updateCardField(p.tempId, 'size', e.target.value)}
+                                disabled={!p.include}
+                              />
+                            )}
+                          </div>
+                        </div>
+
+                        {/* PKG No */}
+                        <div className="form-group">
+                          <label className="form-label">PKG NO *</label>
+                          <input
+                            type="text"
+                            className={`form-input ${!p.packageNo ? 'input-error-state' : ''}`}
+                            placeholder="Needs Review"
+                            value={p.packageNo}
+                            onChange={(e) => updateCardField(p.tempId, 'packageNo', e.target.value)}
+                            disabled={!p.include}
+                          />
+                        </div>
+
+                        {/* Stock / Available Products */}
+                        <div className="form-group">
+                          <label className="form-label">STOCK / AVAILABLE PRODUCTS *</label>
+                          <input
+                            type="number"
+                            className={`form-input ${!p.stockCount ? 'input-error-state' : ''}`}
+                            placeholder="e.g. 20"
+                            value={p.stockCount}
+                            onChange={(e) => updateCardField(p.tempId, 'stockCount', Number(e.target.value))}
+                            disabled={!p.include}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Card Level Save Button */}
+                      <div className="card-actions-split">
+                        <button
+                          type="button"
+                          className="btn-primary card-save-btn"
+                          disabled={!p.include || (!p.modelNumber && !p.size && !p.packageNo)}
+                          onClick={() => handleSaveSingle(p)}
+                        >
+                          SAVE TO CATALOGUE
+                        </button>
+                      </div>
                     </div>
-                    <span className="prev-page-label font-body">Page {index + 1}</span>
-                  </div>
 
-                  {/* Model No */}
-                  <div className="prev-field-cell">
-                    <input
-                      type="text"
-                      className={`prev-input font-body ${!p.modelNumber ? 'input-missing' : ''}`}
-                      value={p.modelNumber}
-                      placeholder="Needs Review"
-                      onChange={(e) => updateCardField(p.tempId, 'modelNumber', e.target.value)}
-                      disabled={!p.include}
-                    />
-                  </div>
+                    {/* Right Column: Image Preview & Cropping */}
+                    <div className="card-right-preview">
+                      <div className="card-image-preview-split">
+                        <img src={p.images[0]} alt={`Page ${p.pageNum}`} />
+                        {!p.include && <div className="card-skip-overlay font-body">SKIPPED</div>}
+                      </div>
+                      
+                      <button
+                        type="button"
+                        className="btn-secondary card-edit-image-btn font-body"
+                        onClick={() => handleOpenCropper(p)}
+                        disabled={!p.include}
+                        style={{ marginTop: '12px', width: '100%', height: '36px', fontSize: '11px', fontWeight: '700' }}
+                      >
+                        ✂ EDIT IMAGE
+                      </button>
+                    </div>
 
-                  {/* Size */}
-                  <div className="prev-field-cell">
-                    <input
-                      type="text"
-                      className={`prev-input font-body ${!p.size ? 'input-missing' : ''}`}
-                      value={p.size}
-                      placeholder="Needs Review"
-                      onChange={(e) => updateCardField(p.tempId, 'size', e.target.value)}
-                      disabled={!p.include}
-                    />
-                  </div>
-
-                  {/* PKG No */}
-                  <div className="prev-field-cell">
-                    <input
-                      type="text"
-                      className={`prev-input font-body ${!p.packageNo ? 'input-missing' : ''}`}
-                      value={p.packageNo}
-                      placeholder="Needs Review"
-                      onChange={(e) => updateCardField(p.tempId, 'packageNo', e.target.value)}
-                      disabled={!p.include}
-                    />
-                  </div>
-
-                  {/* Status badge */}
-                  <div className="prev-status-cell">
-                    <span className={`prev-badge font-body ${isReview ? 'badge-review' : 'badge-ok'}`}>
-                      {isReview ? '⚠ Needs Review' : '✓ Auto-filled'}
-                    </span>
-                  </div>
-
-                  {/* Include / Skip toggle */}
-                  <div className="prev-action-cell">
-                    <button
-                      type="button"
-                      onClick={() => toggleInclude(p.tempId)}
-                      className={`prev-toggle-btn font-body ${p.include ? 'toggle-include' : 'toggle-skip'}`}
-                    >
-                      {p.include ? '✓ Include' : '✗ Skip'}
-                    </button>
                   </div>
                 </div>
               );
@@ -627,282 +843,386 @@ const AdminPdfImport = () => {
         </div>
       )}
 
+      {/* ── Crop Modal ────────────────────────────────────────────────── */}
+      {showCropModal && (
+        <div className="modal-overlay">
+          <div className="modal-card animate-fade-in" style={{ maxWidth: '800px', width: '90%' }}>
+            <h3 className="modal-title font-heading">Crop Product Image</h3>
+            <p className="modal-desc font-body" style={{ marginBottom: '16px' }}>
+              Adjust the crop area using the zoom and pan sliders below to frame the clock perfectly.
+            </p>
+
+            <div className="cropper-workspace">
+              {/* Left Column: Original Canvas */}
+              <div className="cropper-panel">
+                <span className="cropper-label font-body">ORIGINAL IMAGE & CROP AREA</span>
+                <div className="canvas-container">
+                  <canvas
+                    ref={originalCanvasRef}
+                    width={360}
+                    height={360}
+                    className="cropper-canvas"
+                  />
+                </div>
+              </div>
+
+              {/* Right Column: Cropped Live Preview */}
+              <div className="cropper-panel">
+                <span className="cropper-label font-body">LIVE CROPPED PREVIEW</span>
+                <div className="canvas-container preview-container">
+                  <canvas
+                    ref={previewCanvasRef}
+                    width={300}
+                    height={300}
+                    className="preview-canvas"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Range Sliders */}
+            <div className="cropper-controls font-body">
+              <div className="control-row">
+                <label>🔍 CROP SIZE (ZOOM)</label>
+                <input
+                  type="range"
+                  min="20"
+                  max="100"
+                  value={cropZoom}
+                  onChange={(e) => setCropZoom(Number(e.target.value))}
+                  className="cropper-slider"
+                />
+              </div>
+
+              <div className="control-row">
+                <label>↔ HORIZONTAL POSITION (X)</label>
+                <input
+                  type="range"
+                  min="-100"
+                  max="100"
+                  value={cropX}
+                  onChange={(e) => setCropX(Number(e.target.value))}
+                  className="cropper-slider"
+                />
+              </div>
+
+              <div className="control-row">
+                <label>↕ VERTICAL POSITION (Y)</label>
+                <input
+                  type="range"
+                  min="-100"
+                  max="100"
+                  value={cropY}
+                  onChange={(e) => setCropY(Number(e.target.value))}
+                  className="cropper-slider"
+                />
+              </div>
+            </div>
+
+            <div className="modal-actions-row" style={{ marginTop: '24px' }}>
+              <button onClick={handleSaveCrop} className="btn-primary modal-btn">
+                Apply & Save Crop
+              </button>
+              <button
+                onClick={() => {
+                  setShowCropModal(false);
+                  setCropTargetId(null);
+                  setCropImageSrc('');
+                }}
+                className="btn-secondary modal-btn"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
-        .admin-pdf-import-root {
+        /* ── Cards Grid Layout ── */
+        .pdf-cards-grid {
+          display: flex;
+          flex-direction: column;
+          gap: 32px;
+          margin-top: 24px;
+          margin-bottom: 120px;
+        }
+
+        .pdf-product-card {
+          background-color: #ffffff;
+          border: 1px solid var(--border-color);
+          border-radius: 6px;
+          padding: 32px;
+          box-shadow: var(--card-shadow);
+          position: relative;
+          transition: transform var(--transition-speed), box-shadow var(--transition-speed), opacity var(--transition-speed);
+        }
+
+        .pdf-product-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
+        }
+
+        .card-excluded {
+          opacity: 0.5;
+        }
+
+        /* Split layout container */
+        .card-split-container {
+          display: grid;
+          grid-template-columns: 1fr 320px;
+          gap: 36px;
           width: 100%;
         }
 
-        /* ── Upload screen ── */
-        .pdf-card-centered {
-          max-width: 520px;
-          margin: 0 auto;
-          text-align: center;
-          padding: 60px 40px;
-        }
-
-        .pdf-big-icon {
-          font-size: 64px;
-          margin-bottom: 20px;
-        }
-
-        .pdf-upload-heading {
-          font-size: 22px;
-          color: var(--text-primary);
-          margin-bottom: 8px;
-        }
-
-        .pdf-upload-desc {
-          font-size: 13px;
-          color: var(--text-muted);
-          margin-bottom: 28px;
-          line-height: 1.6;
-        }
-
-        .select-pdf-btn {
-          height: 48px;
-          font-size: 13px;
-          padding: 0 36px;
-          margin-bottom: 12px;
-        }
-
-        .pdf-size-helper {
-          font-size: 10px;
-          color: var(--text-muted);
-          display: block;
-        }
-
-        /* ── Spinner ── */
-        .loading-spinner-state {
+        .card-left-form {
           display: flex;
           flex-direction: column;
+          gap: 20px;
+        }
+
+        .card-header-split {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 1px solid var(--border-color);
+          padding-bottom: 12px;
+        }
+
+        .card-page-label {
+          font-size: 11px;
+          font-weight: 700;
+          color: var(--text-muted);
+          letter-spacing: 0.05em;
+        }
+
+        .card-header-actions {
+          display: flex;
           align-items: center;
           gap: 16px;
         }
 
-        .pdf-spinner {
-          width: 48px;
-          height: 48px;
-          border: 4px solid var(--border-color);
-          border-top-color: var(--accent-blue);
-          border-radius: 50%;
-          animation: pdfSpin 0.9s linear infinite;
-        }
-
-        @keyframes pdfSpin {
-          to { transform: rotate(360deg); }
-        }
-
-        .spinner-progress-bar {
-          width: 100%;
-          height: 6px;
-          background-color: var(--border-color);
-          border-radius: 3px;
-          overflow: hidden;
-        }
-
-        .progress-fill {
-          height: 100%;
-          background-color: var(--accent-blue);
-          transition: width 0.4s ease;
-        }
-
-        .loading-title {
-          font-size: 15px;
-          color: var(--text-primary);
-        }
-
-        /* ── Preview table layout ── */
-        .preview-table-header {
-          display: grid;
-          grid-template-columns: 100px 1fr 1fr 100px 140px 100px;
-          gap: 12px;
-          padding: 10px 16px;
-          background-color: #F8FAFC;
-          border: 1px solid var(--border-color);
-          border-radius: 4px 4px 0 0;
-          font-size: 9px;
-          font-weight: 700;
-          color: var(--text-muted);
-          letter-spacing: 0.07em;
-          text-transform: uppercase;
-        }
-
-        .preview-rows-list {
-          display: flex;
-          flex-direction: column;
-          border: 1px solid var(--border-color);
-          border-top: none;
-          border-radius: 0 0 4px 4px;
-          margin-bottom: 90px;
-          background: #fff;
-        }
-
-        .preview-row-item {
-          display: grid;
-          grid-template-columns: 100px 1fr 1fr 100px 140px 100px;
-          gap: 12px;
-          padding: 12px 16px;
-          border-bottom: 1px solid var(--border-color);
-          align-items: center;
-          transition: background 0.2s;
-        }
-
-        .preview-row-item:last-child {
-          border-bottom: none;
-        }
-
-        .preview-row-item:hover {
-          background-color: #FAFBFC;
-        }
-
-        .row-skipped {
-          opacity: 0.45;
-        }
-
-        /* Thumbnail cell */
-        .prev-thumb-cell {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 4px;
-        }
-
-        .prev-thumb-wrapper {
-          width: 72px;
-          height: 72px;
-          border-radius: 4px;
-          overflow: hidden;
-          background-color: #F0F2F5;
-          position: relative;
-          border: 1px solid var(--border-color);
-        }
-
-        .prev-thumb-wrapper img {
-          width: 100%;
-          height: 100%;
-          object-fit: contain;
-        }
-
-        .prev-skip-overlay {
-          position: absolute;
-          inset: 0;
-          background: rgba(255,255,255,0.75);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 9px;
-          font-weight: 800;
-          color: var(--text-muted);
-          letter-spacing: 0.08em;
-        }
-
-        .prev-page-label {
-          font-size: 9px;
-          color: var(--text-muted);
-          font-weight: 600;
-        }
-
-        /* Input cells */
-        .prev-field-cell {
-          display: flex;
-          align-items: center;
-        }
-
-        .prev-input {
-          width: 100%;
-          height: 34px;
-          padding: 0 10px;
-          border: 1px solid var(--border-color);
-          border-radius: 3px;
-          font-size: 13px;
-          color: var(--text-primary);
-          background: #fff;
-          outline: none;
-          transition: border-color 0.2s;
-        }
-
-        .prev-input:focus {
-          border-color: var(--accent-blue);
-        }
-
-        .prev-input::placeholder {
-          color: #F59E0B;
-          font-style: italic;
-          font-size: 11px;
-        }
-
-        .input-missing {
-          border-color: #FDE68A;
-          background-color: #FFFBEB;
-        }
-
-        .prev-input:disabled {
-          background-color: #F8FAFC;
-          color: var(--text-muted);
-          cursor: not-allowed;
-        }
-
-        /* Status badge cell */
-        .prev-status-cell {
-          display: flex;
-          align-items: center;
-        }
-
-        .prev-badge {
-          font-size: 9px;
+        .card-status-badge {
+          font-size: 10px;
           font-weight: 700;
           padding: 4px 8px;
-          border-radius: 2px;
+          border-radius: 3px;
           text-transform: uppercase;
           letter-spacing: 0.04em;
         }
 
-        .badge-ok {
+        .status-ready {
           background-color: #D1FAE5;
           color: #065F46;
         }
 
-        .badge-review {
+        .status-review {
           background-color: #FEF3C7;
           color: #92400E;
         }
 
-        /* Toggle button cell */
-        .prev-action-cell {
+        .card-checkbox-label {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 12px;
+          font-weight: 600;
+          color: var(--text-secondary);
+          cursor: pointer;
+        }
+
+        .card-checkbox-label input {
+          width: 16px;
+          height: 16px;
+          accent-color: var(--accent-blue);
+          cursor: pointer;
+        }
+
+        /* Card Form Fields */
+        .card-form-fields-split {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 16px 24px;
+        }
+
+        @media (max-width: 600px) {
+          .card-form-fields-split {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        /* Input error states */
+        .input-error-state {
+          border-color: #EF4444 !important;
+          background-color: #FFF5F5;
+        }
+
+        /* Card actions */
+        .card-actions-split {
+          margin-top: 12px;
+          border-top: 1px solid var(--border-color);
+          padding-top: 20px;
+        }
+
+        .card-save-btn {
+          width: 100%;
+          height: 44px;
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.02em;
+        }
+
+        /* Right Column: Image Preview & Cropping */
+        .card-right-preview {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: flex-start;
+          width: 100%;
+        }
+
+        .card-image-preview-split {
+          width: 100%;
+          aspect-ratio: 1/1;
+          border-radius: 6px;
+          background-color: #F8FAFC;
+          border: 1px solid var(--border-color);
           display: flex;
           align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          position: relative;
         }
 
-        .prev-toggle-btn {
-          height: 30px;
-          padding: 0 10px;
+        .card-image-preview-split img {
+          max-width: 92%;
+          max-height: 92%;
+          object-fit: contain;
+          transition: transform 0.3s ease;
+        }
+
+        .pdf-product-card:hover .card-image-preview-split img {
+          transform: scale(1.03);
+        }
+
+        .card-skip-overlay {
+          position: absolute;
+          inset: 0;
+          background: rgba(255, 255, 255, 0.75);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 14px;
+          font-weight: 800;
+          color: var(--text-muted);
+          letter-spacing: 0.1em;
+        }
+
+        .card-edit-image-btn {
+          border-color: var(--border-color);
+          color: var(--text-secondary);
+          transition: background-color var(--transition-speed), border-color var(--transition-speed);
+        }
+
+        .card-edit-image-btn:hover:not(:disabled) {
+          background-color: #F1F5F9;
+          border-color: var(--text-secondary);
+        }
+
+        /* ── Image Cropper Modal ── */
+        .cropper-workspace {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 24px;
+          margin-bottom: 24px;
+        }
+
+        @media (max-width: 640px) {
+          .cropper-workspace {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        .cropper-panel {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .cropper-label {
           font-size: 10px;
           font-weight: 700;
+          color: var(--text-muted);
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+        }
+
+        .canvas-container {
+          background-color: #F8FAFC;
+          border: 1px solid var(--border-color);
+          border-radius: 6px;
+          padding: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 100%;
+          box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
+        }
+
+        .cropper-canvas {
+          max-width: 100%;
+          height: auto;
+          background: #FFF;
+          border-radius: 4px;
+        }
+
+        .preview-canvas {
+          max-width: 100%;
+          height: auto;
+          background: #FFF;
+          border-radius: 4px;
+          box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        }
+
+        .cropper-controls {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          background-color: #F8FAFC;
+          padding: 16px;
+          border-radius: 6px;
+          border: 1px solid var(--border-color);
+        }
+
+        .control-row {
+          display: grid;
+          grid-template-columns: 180px 1fr;
+          align-items: center;
+          gap: 12px;
+        }
+
+        @media (max-width: 600px) {
+          .control-row {
+            grid-template-columns: 1fr;
+            gap: 4px;
+          }
+        }
+
+        .control-row label {
+          font-size: 11px;
+          font-weight: 700;
+          color: var(--text-secondary);
+        }
+
+        .cropper-slider {
+          width: 100%;
+          height: 6px;
+          background-color: #E2E8F0;
           border-radius: 3px;
-          letter-spacing: 0.03em;
+          outline: none;
+          accent-color: var(--accent-blue);
           cursor: pointer;
-          transition: background 0.2s;
-          white-space: nowrap;
-        }
-
-        .toggle-include {
-          background-color: #EFF6FF;
-          color: #1D4ED8;
-          border: 1px solid #BFDBFE;
-        }
-
-        .toggle-include:hover {
-          background-color: #DBEAFE;
-        }
-
-        .toggle-skip {
-          background-color: #FEF2F2;
-          color: #991B1B;
-          border: 1px solid #FECACA;
-        }
-
-        .toggle-skip:hover {
-          background-color: #FEE2E2;
         }
 
         /* ── Sticky save bar ── */
@@ -971,34 +1291,21 @@ const AdminPdfImport = () => {
 
         /* ── Responsive ── */
         @media (max-width: 900px) {
-          .preview-table-header,
-          .preview-row-item {
-            grid-template-columns: 72px 1fr 1fr 80px;
-          }
-          .prev-status-cell,
-          .preview-table-header span:nth-child(5) {
-            display: none;
-          }
-          .prev-action-cell,
-          .preview-table-header span:nth-child(6) {
-            grid-column: span 1;
+          .bulk-save-action-drawer {
+            left: 0;
+            padding: 14px 20px;
           }
         }
 
-        @media (max-width: 600px) {
-          .preview-table-header,
-          .preview-row-item {
-            grid-template-columns: 64px 1fr 1fr;
+        @media (max-width: 768px) {
+          .card-split-container {
+            grid-template-columns: 1fr;
+            gap: 24px;
           }
-          .preview-table-header span:nth-child(4),
-          .prev-action-cell {
-            display: none;
+          .card-right-preview {
+            order: -1;
           }
-          .bulk-save-action-drawer {
-            left: 0;
-          }
-        }
-      `}</style>
+        }      `}</style>
     </div>
   );
 };
