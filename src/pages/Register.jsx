@@ -42,7 +42,7 @@ const Register = () => {
                 stroke={isQ?"#7EB3E8":"rgba(126,179,232,0.5)"}
                 strokeWidth={isQ?"2.5":"1.2"} strokeLinecap="round"/>;
             })}
-            <text x="100" y="55" textAnchor="middle" fill="#7EB3E8" fontSize="7" fontFamily="Playfair Display,serif" letterSpacing="3" opacity="0.9">LUMIÈRE</text>
+            <text x="100" y="55" textAnchor="middle" fill="#7EB3E8" fontSize="5.5" fontFamily="Playfair Display,serif" letterSpacing="1.5" opacity="0.9">DEVI TIMES</text>
             <line x1="100" y1="100" x2="74" y2="70"  stroke="#fff" strokeWidth="4" strokeLinecap="round"/>
             <line x1="100" y1="100" x2="130" y2="65" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/>
             <line x1="100" y1="112" x2="100" y2="52" stroke="#4A7FC1" strokeWidth="1.2" strokeLinecap="round"/>
@@ -50,7 +50,7 @@ const Register = () => {
             <circle cx="100" cy="100" r="2.5" fill="#1A2332"/>
           </svg>
 
-          <h1 className="auth-panel-brand font-logo">LUMIÈRE</h1>
+          <h1 className="auth-panel-brand font-logo">DEVI TIMES</h1>
           <p className="auth-panel-tagline font-heading">Join Our Exclusive Circle</p>
 
           <div className="auth-panel-divider"/>

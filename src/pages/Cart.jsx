@@ -44,7 +44,7 @@ const Cart = () => {
     });
 
     const message = `━━━━━━━━━━━━━━━━━━━━━
-🕐 LUMIÈRE — NEW ORDER
+🕐 DEVI TIMES — NEW ORDER
 ━━━━━━━━━━━━━━━━━━━━━
 
 👤 CUSTOMER DETAILS
@@ -81,7 +81,7 @@ TOTAL: ₹${grandTotal}
       {/* Navy Page Header */}
       <header className="cart-page-header">
         <div className="container">
-          <span className="uppercase-label" style={{color:'rgba(126,179,232,0.85)',display:'block',marginBottom:'8px'}}>LUMIÈRE</span>
+          <span className="uppercase-label" style={{color:'rgba(126,179,232,0.85)',display:'block',marginBottom:'8px'}}>DEVI TIMES</span>
           <h1 className="cart-page-title font-heading">
             {cart.length === 0 ? 'Your Cart' : `Your Cart (${itemCount})`}
           </h1>

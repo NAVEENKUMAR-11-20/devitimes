@@ -66,12 +66,12 @@ const ClockSvg = ({ model = "1221", category = "Modern Minimalist", color = "Bla
         y="65" 
         textAnchor="middle" 
         fill={fontColor} 
-        fontSize="8" 
+        fontSize="6.5" 
         fontFamily="Playfair Display, Georgia, serif" 
-        letterSpacing="2"
+        letterSpacing="1.5"
         opacity="0.75"
       >
-        LUMIÈRE
+        DEVI TIMES
       </text>
 
       {/* Model number */}

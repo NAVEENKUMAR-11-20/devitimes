@@ -10,9 +10,9 @@ const AdminLayout = () => {
 
   // Page title override for admin panel
   useEffect(() => {
-    document.title = 'Admin — LUMIÈRE';
+    document.title = 'Admin — DEVI TIMES';
     return () => {
-      document.title = 'LUMIÈRE — Luxury Wall Clocks';
+      document.title = 'DEVI TIMES — Luxury Wall Clocks';
     };
   }, []);
 
@@ -57,7 +57,7 @@ const AdminLayout = () => {
             <line x1="50" y1="50" x2="70" y2="50" stroke="#FFFFFF" strokeWidth="5" strokeLinecap="round" />
           </svg>
           <div>
-            <h2 className="sidebar-logo-text font-logo">LUMIÈRE</h2>
+            <h2 className="sidebar-logo-text font-logo">DEVI TIMES</h2>
             <span className="sidebar-badge-admin font-body">ADMIN</span>
           </div>
         </div>

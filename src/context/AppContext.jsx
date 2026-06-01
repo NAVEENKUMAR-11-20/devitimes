@@ -77,7 +77,7 @@ const seedProducts = [
 // Default admin settings
 const defaultSettings = {
   whatsappNumber: "+919999999999",
-  storeName: "LUMIÈRE",
+  storeName: "DEVI TIMES",
   currency: "₹",
   websiteUrl: "http://localhost:5173", // default local dev url
   adminPassword: "lumiere@admin2024"

@@ -10,7 +10,7 @@ const Footer = () => {
           
           {/* Column 1: Brand Info */}
           <div className="footer-col brand-col">
-            <h3 className="footer-logo font-logo">LUMIÈRE</h3>
+            <h3 className="footer-logo font-logo">DEVI TIMES</h3>
             <p className="footer-description font-body">
               Masterfully crafted, premium analog wall clocks designed to elevate every workspace and home.
             </p>
@@ -41,7 +41,7 @@ const Footer = () => {
         {/* Bottom Segment */}
         <div className="footer-bottom">
           <p className="copyright-text">
-            © {new Date().getFullYear()} LUMIÈRE. All rights reserved.
+            © {new Date().getFullYear()} DEVI TIMES. All rights reserved.
           </p>
           <div className="footer-legal-links">
             <a href="#/">Privacy Policy</a>

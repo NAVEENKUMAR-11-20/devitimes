@@ -60,7 +60,7 @@ const Collection = () => {
       {/* 1. Page Header */}
       <header className="collection-header animate-fade-in">
         <div className="container">
-          <span className="uppercase-label" style={{color:'rgba(126,179,232,0.85)',display:'block',marginBottom:'10px'}}>LUMIÈRE</span>
+          <span className="uppercase-label" style={{color:'rgba(126,179,232,0.85)',display:'block',marginBottom:'10px'}}>DEVI TIMES</span>
           <h1 className="collection-title font-heading">Our Collection</h1>
           <p className="collection-subtitle font-body">Discover our curated selection of premium handcrafted wall clocks</p>
         </div>
@@ -206,7 +206,7 @@ const Collection = () => {
         <div className="modal-overlay">
           <div className="modal-card animate-fade-in">
             <h3 className="modal-title font-heading">Sign In Required</h3>
-            <p className="modal-desc font-body">Please sign in to your Lumière account to add items to your cart.</p>
+            <p className="modal-desc font-body">Please sign in to your DEVI TIMES account to add items to your cart.</p>
             
             <div className="modal-actions-row">
               <button 

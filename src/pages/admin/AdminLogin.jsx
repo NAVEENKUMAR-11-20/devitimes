@@ -41,7 +41,7 @@ const AdminLogin = () => {
         {/* Header indicator */}
         <div className="admin-login-header">
           <span className="admin-badge uppercase-label">ADMIN PANEL</span>
-          <h1 className="admin-brand font-logo">LUMIÈRE</h1>
+          <h1 className="admin-brand font-logo">DEVI TIMES</h1>
           <p className="admin-sub font-body">Sign in to control shop inventory</p>
         </div>
 

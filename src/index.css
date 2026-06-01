@@ -362,3 +362,30 @@ button {
 ::-webkit-scrollbar-track { background: var(--page-bg); }
 ::-webkit-scrollbar-thumb { background: #B8C8DC; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #8A9BB0; }
+/* Scroll To Top button */
+.scroll-to-top {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  background: var(--accent-blue);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  font-size: 24px;
+  line-height: 44px;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: var(--card-shadow);
+  opacity: 0.8;
+  transition: opacity var(--transition-speed) ease, transform var(--transition-speed) ease;
+}
+.scroll-to-top:hover {
+  opacity: 1;
+  transform: translateY(-2px);
+}
+.scroll-to-top:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(45,93,161,0.3);
+}

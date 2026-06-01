@@ -25,7 +25,7 @@ const CheckoutSuccess = () => {
       {/* Navy top accent strip */}
       <div className="success-accent-strip">
         <div className="container" style={{textAlign:'center'}}>
-          <span className="uppercase-label" style={{color:'rgba(126,179,232,0.85)', letterSpacing:'0.2em'}}>LUMIÈRE</span>
+          <span className="uppercase-label" style={{color:'rgba(126,179,232,0.85)', letterSpacing:'0.2em'}}>DEVI TIMES</span>
         </div>
       </div>
 

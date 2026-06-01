@@ -41,7 +41,7 @@ const Login = () => {
                 stroke={isQ?"#7EB3E8":"rgba(126,179,232,0.5)"}
                 strokeWidth={isQ?"2.5":"1.2"} strokeLinecap="round"/>;
             })}
-            <text x="100" y="55" textAnchor="middle" fill="#7EB3E8" fontSize="7" fontFamily="Playfair Display,serif" letterSpacing="3" opacity="0.9">LUMIÈRE</text>
+            <text x="100" y="55" textAnchor="middle" fill="#7EB3E8" fontSize="5.5" fontFamily="Playfair Display,serif" letterSpacing="1.5" opacity="0.9">DEVI TIMES</text>
             {/* Hands at 10:10 */}
             <line x1="100" y1="100" x2="74" y2="70"  stroke="#fff" strokeWidth="4" strokeLinecap="round"/>
             <line x1="100" y1="100" x2="130" y2="65" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/>
@@ -50,7 +50,7 @@ const Login = () => {
             <circle cx="100" cy="100" r="2.5" fill="#1A2332"/>
           </svg>
 
-          <h1 className="auth-panel-brand font-logo">LUMIÈRE</h1>
+          <h1 className="auth-panel-brand font-logo">DEVI TIMES</h1>
           <p className="auth-panel-tagline font-heading">Where Every Second Is Art</p>
 
           <div className="auth-panel-divider"/>
@@ -74,7 +74,7 @@ const Login = () => {
           {/* Header */}
           <div className="auth-form-header">
             <h2 className="auth-form-title font-heading">Welcome Back</h2>
-            <p className="auth-form-subtitle font-body">Sign in to your LUMIÈRE account</p>
+            <p className="auth-form-subtitle font-body">Sign in to your DEVI TIMES account</p>
           </div>
 
           {/* Form */}

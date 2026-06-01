@@ -27,7 +27,7 @@ const AdminDashboard = () => {
       {/* Page Title */}
       <div className="dashboard-title-row">
         <h1 className="dashboard-heading font-heading">Dashboard Overview</h1>
-        <p className="dashboard-desc font-body">Real-time statistics and quick controls for Lumière e-commerce.</p>
+        <p className="dashboard-desc font-body">Real-time statistics and quick controls for DEVI TIMES e-commerce.</p>
       </div>
 
       {/* Metrics Row (4 Cards) */}

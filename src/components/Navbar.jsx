@@ -12,7 +12,7 @@ const Navbar = () => {
   
   // Header theme configurations based on whether we are on the dark Hero homepage
   const navClass = isHome 
-    ? 'navbar-transparent' 
+    ? 'glass-nav' 
     : 'navbar-light';
 
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0);
@@ -28,13 +28,8 @@ const Navbar = () => {
         
         {/* Left Side: Logo */}
         <Link to="/" className="navbar-logo" onClick={() => setMobileMenuOpen(false)}>
-          <svg className="logo-svg-clock" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="50" cy="50" r="44" fill="none" stroke="currentColor" strokeWidth="6" />
-            <line x1="50" y1="50" x2="50" y2="24" stroke="currentColor" strokeWidth="6" strokeLinecap="round" />
-            <line x1="50" y1="50" x2="72" y2="50" stroke="currentColor" strokeWidth="5" strokeLinecap="round" />
-            <circle cx="50" cy="50" r="4" fill="currentColor" />
-          </svg>
-          <span className="logo-text font-logo">LUMIÈRE</span>
+          <img src="/logo.png" alt="DEVI TIMES Logo" className="logo-img" />
+          <span className="logo-text font-logo">DEVI TIMES</span>
         </Link>
 
         {/* Hamburger Menu Toggle (Mobile) */}
@@ -159,9 +154,14 @@ const Navbar = () => {
           color: inherit;
         }
 
-        .logo-svg-clock {
-          width: 24px;
-          height: 24px;
+        .logo-img {
+          height: 44px;
+          width: auto;
+          object-fit: contain;
+          background-color: #ffffff;
+          padding: 2px;
+          border-radius: 4px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
 
         .logo-text {

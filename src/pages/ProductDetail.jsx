@@ -215,7 +215,7 @@ const ProductDetail = () => {
         <div className="modal-overlay">
           <div className="modal-card animate-fade-in">
             <h3 className="modal-title font-heading">Sign In Required</h3>
-            <p className="modal-desc font-body">Please sign in to your Lumière account to add items to your cart.</p>
+            <p className="modal-desc font-body">Please sign in to your DEVI TIMES account to add items to your cart.</p>
             
             <div className="modal-actions-row">
               <button onClick={() => { setShowAuthModal(false); navigate('/login'); }} className="btn-primary modal-btn">Sign In</button>

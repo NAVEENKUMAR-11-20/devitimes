@@ -150,12 +150,12 @@ const AnimatedHeroClock = () => {
         x="160" y="108"
         textAnchor="middle"
         fill="#7EB3E8"
-        fontSize="9"
+        fontSize="7.5"
         fontFamily="Playfair Display, Georgia, serif"
-        letterSpacing="4"
+        letterSpacing="2.5"
         opacity="0.9"
       >
-        LUMIÈRE
+        DEVI TIMES
       </text>
 
       {/* Sub-dial decoration line */}
@@ -216,7 +216,7 @@ const Home = () => {
 
           {/* Left: Text */}
           <div className="hero-left-content">
-            <span className="hero-tag-label uppercase-label">LUMIÈRE COLLECTION</span>
+            <span className="hero-tag-label uppercase-label">DEVI TIMES COLLECTION</span>
             <h1 className="hero-heading font-heading">
               Timeless Elegance <br />
               <span className="italic-accent">For Every Wall</span>
