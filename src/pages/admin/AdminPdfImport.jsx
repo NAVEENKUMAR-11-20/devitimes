@@ -60,6 +60,121 @@ const AdminPdfImport = () => {
     return { modelNumber, size, packageNo, status };
   };
 
+  // ─── Smart auto-crop: isolate the clock product from the PDF page ─────────
+  const smartCropProductImage = (sourceCanvas) => {
+    const w = sourceCanvas.width;
+    const h = sourceCanvas.height;
+    const ctx = sourceCanvas.getContext('2d');
+
+    // Step 1: Sample corner pixels to detect the page background color
+    const corners = [
+      ctx.getImageData(5, 5, 1, 1).data,
+      ctx.getImageData(w - 5, 5, 1, 1).data,
+      ctx.getImageData(5, h - 5, 1, 1).data,
+      ctx.getImageData(w - 5, h - 5, 1, 1).data,
+    ];
+    const bgR = Math.round(corners.reduce((s, c) => s + c[0], 0) / 4);
+    const bgG = Math.round(corners.reduce((s, c) => s + c[1], 0) / 4);
+    const bgB = Math.round(corners.reduce((s, c) => s + c[2], 0) / 4);
+
+    // Step 2: Define the scan zone — skip top 15% (logo area), bottom 25% (text area)
+    const scanTop = Math.round(h * 0.15);
+    const scanBottom = Math.round(h * 0.75);
+    const scanLeft = Math.round(w * 0.05);
+    const scanRight = Math.round(w * 0.95);
+
+    // Step 3: Get pixel data for the scan zone
+    const scanW = scanRight - scanLeft;
+    const scanH = scanBottom - scanTop;
+    const imgData = ctx.getImageData(scanLeft, scanTop, scanW, scanH);
+    const pixels = imgData.data;
+
+    // Step 4: Find the bounding box of non-background pixels
+    // A pixel is "content" if it differs significantly from the detected background
+    const colorThreshold = 35; // how different a pixel must be from bg to count as content
+    let minX = scanW, maxX = 0, minY = scanH, maxY = 0;
+    let contentFound = false;
+
+    // Sample every 2nd pixel for speed on large canvases
+    const step = 2;
+    for (let y = 0; y < scanH; y += step) {
+      for (let x = 0; x < scanW; x += step) {
+        const idx = (y * scanW + x) * 4;
+        const dr = Math.abs(pixels[idx] - bgR);
+        const dg = Math.abs(pixels[idx + 1] - bgG);
+        const db = Math.abs(pixels[idx + 2] - bgB);
+
+        if (dr > colorThreshold || dg > colorThreshold || db > colorThreshold) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+          contentFound = true;
+        }
+      }
+    }
+
+    // Step 5: If no content found, fall back to center crop
+    if (!contentFound || maxX - minX < 20 || maxY - minY < 20) {
+      const fallbackSize = Math.min(w, h) * 0.6;
+      minX = (w - fallbackSize) / 2 - scanLeft;
+      minY = (h * 0.15);
+      maxX = minX + fallbackSize;
+      maxY = minY + fallbackSize;
+    }
+
+    // Convert scan-zone-relative coords back to full canvas coords
+    const absLeft = scanLeft + minX;
+    const absTop = scanTop + minY;
+    const absRight = scanLeft + maxX;
+    const absBottom = scanTop + maxY;
+
+    // Step 6: Add balanced padding (8% of the detected region size)
+    const contentW = absRight - absLeft;
+    const contentH = absBottom - absTop;
+    const pad = Math.round(Math.max(contentW, contentH) * 0.08);
+
+    let cropX = Math.max(0, absLeft - pad);
+    let cropY = Math.max(0, absTop - pad);
+    let cropW = Math.min(w - cropX, contentW + pad * 2);
+    let cropH = Math.min(h - cropY, contentH + pad * 2);
+
+    // Step 7: Make the crop region square (centered)
+    if (cropW > cropH) {
+      const diff = cropW - cropH;
+      cropY = Math.max(0, cropY - Math.floor(diff / 2));
+      cropH = cropW;
+      if (cropY + cropH > h) cropY = Math.max(0, h - cropH);
+    } else if (cropH > cropW) {
+      const diff = cropH - cropW;
+      cropX = Math.max(0, cropX - Math.floor(diff / 2));
+      cropW = cropH;
+      if (cropX + cropW > w) cropX = Math.max(0, w - cropW);
+    }
+
+    // Step 8: Render the cropped product to a clean 480×480 output canvas
+    const outputSize = 480;
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = outputSize;
+    outCanvas.height = outputSize;
+    const outCtx = outCanvas.getContext('2d');
+
+    // Fill with clean white background
+    outCtx.fillStyle = '#FFFFFF';
+    outCtx.fillRect(0, 0, outputSize, outputSize);
+
+    // Draw the cropped clock centered with a small inner margin
+    const margin = 16;
+    const drawSize = outputSize - margin * 2;
+    outCtx.drawImage(
+      sourceCanvas,
+      cropX, cropY, cropW, cropH,
+      margin, margin, drawSize, drawSize
+    );
+
+    return outCanvas.toDataURL('image/png', 1.0);
+  };
+
   // ─── Main PDF processing engine ───────────────────────────────────────────
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
@@ -100,27 +215,16 @@ const AdminPdfImport = () => {
 
           const page = await pdf.getPage(pageNum);
 
-          // ── Render full page to canvas ──────────────────────────────────
-          const viewport = page.getViewport({ scale: 1.5 });
+          // ── Render full page to canvas at high quality ──────────────────
+          const viewport = page.getViewport({ scale: 2.0 });
           const fullCanvas = document.createElement('canvas');
           fullCanvas.width = viewport.width;
           fullCanvas.height = viewport.height;
           const fullCtx = fullCanvas.getContext('2d');
           await page.render({ canvasContext: fullCtx, viewport }).promise;
 
-          // ── Crop top 60% of the page — where clock images typically are ─
-          const cropH = Math.round(fullCanvas.height * 0.60);
-          const cropW = fullCanvas.width;
-
-          const thumbCanvas = document.createElement('canvas');
-          thumbCanvas.width = 360;
-          thumbCanvas.height = 360;
-          const thumbCtx = thumbCanvas.getContext('2d');
-          thumbCtx.fillStyle = '#F4F5F7';
-          thumbCtx.fillRect(0, 0, 360, 360);
-          thumbCtx.drawImage(fullCanvas, 0, 0, cropW, cropH, 10, 10, 340, 340);
-
-          const imageBase64 = thumbCanvas.toDataURL('image/jpeg', 0.85);
+          // ── Smart auto-crop: detect the clock product region ──────────
+          const imageBase64 = smartCropProductImage(fullCanvas);
 
           // ── Extract all text from same page ─────────────────────────────
           const textContent = await page.getTextContent();
