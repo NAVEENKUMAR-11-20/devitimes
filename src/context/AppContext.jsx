@@ -19,7 +19,8 @@ const seedProducts = [
     description: "Clean lines and minimalist design. Features a quiet sweeping hand mechanism and a sleek matte finish, making it the perfect focal point for any modern workspace or living room.",
     images: [], // Handled dynamically (or SVG fallback)
     createdAt: new Date().toISOString(),
-    source: "manual"
+    source: "manual",
+    packageNo: ""
   },
   {
     id: "prod_002",
@@ -36,7 +37,8 @@ const seedProducts = [
     description: "Contemporary design with brushed aluminum finish. An elegant addition to any boardroom, dining area, or master bedroom, pairing industrial durability with subtle luxury.",
     images: [],
     createdAt: new Date().toISOString(),
-    source: "manual"
+    source: "manual",
+    packageNo: ""
   },
   {
     id: "prod_003",
@@ -53,7 +55,8 @@ const seedProducts = [
     description: "Vintage-inspired elegance featuring rich gold accents. Brings classic old-world charm to your study or fireplace mantel, meticulously styled to resemble a heritage timepiece.",
     images: [],
     createdAt: new Date().toISOString(),
-    source: "manual"
+    source: "manual",
+    packageNo: ""
   },
   {
     id: "prod_004",
@@ -70,7 +73,8 @@ const seedProducts = [
     description: "Premium modern timepiece with minimalist matrix hour markers. Bold, stark, and expressive, this clock elevates any feature wall with its contrast-heavy styling.",
     images: [],
     createdAt: new Date().toISOString(),
-    source: "manual"
+    source: "manual",
+    packageNo: ""
   }
 ];
 

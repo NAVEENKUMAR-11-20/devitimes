@@ -22,7 +22,7 @@ const AdminProducts = () => {
   // Edit Modal State
   const [editingProduct, setEditingProduct] = useState(null);
   const [editForm, setEditForm] = useState({
-    name: '', category: 'Modern Minimalist', modelNumber: '', size: '',
+    name: '', category: 'Modern Minimalist', modelNumber: '', size: '', packageNo: '',
     color: '', salePrice: 0, originalPrice: 0, stockCount: 0,
     description: '', isOnSale: false, isLive: true, images: []
   });
@@ -269,6 +269,7 @@ const AdminProducts = () => {
                   Price{renderSortIndicator('salePrice')}
                 </th>
                 <th>Dimensions</th>
+                <th>Pkg No</th>
                 <th>Color</th>
                 <th onClick={() => requestSort('stockCount')} className="sortable-header">
                   Stock{renderSortIndicator('stockCount')}
@@ -303,6 +304,7 @@ const AdminProducts = () => {
                     </div>
                   </td>
                   <td>{p.size}</td>
+                  <td>{p.packageNo || '-'}</td>
                   <td>{p.color}</td>
                   <td>
                     <span className={`stock-cell ${p.stockCount <= 0 ? 'out-stock' : p.stockCount <= 5 ? 'low-stock' : ''}`}>
@@ -429,6 +431,19 @@ const AdminProducts = () => {
                 </div>
 
                 <div className="form-group">
+                  <label className="form-label">PKG NO *</label>
+                  <input 
+                    type="text" 
+                    className="form-input"
+                    value={editForm.packageNo || ''}
+                    placeholder="e.g. 52"
+                    onChange={(e) => setEditForm(prev => ({ ...prev, packageNo: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="form-grid-3col">
+                <div className="form-group">
                   <label className="form-label">COLOR *</label>
                   <input 
                     type="text" 
@@ -437,9 +452,6 @@ const AdminProducts = () => {
                     onChange={(e) => setEditForm(prev => ({ ...prev, color: e.target.value }))}
                   />
                 </div>
-              </div>
-
-              <div className="form-grid-3col">
                 <div className="form-group">
                   <label className="form-label">SALE PRICE (₹) *</label>
                   <input 

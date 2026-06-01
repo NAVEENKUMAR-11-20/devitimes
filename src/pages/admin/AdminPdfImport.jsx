@@ -119,6 +119,7 @@ const AdminPdfImport = () => {
             category: parsedInfo.category,
             modelNumber: parsedInfo.modelNumber,
             size: parsedInfo.size,
+            packageNo: parsedInfo.packageNo,
             color: parsedInfo.color,
             salePrice: parsedInfo.salePrice,
             originalPrice: parsedInfo.originalPrice,
@@ -149,33 +150,26 @@ const AdminPdfImport = () => {
   const runTextParsingHeuristics = (text, pageNum) => {
     const cleanedText = text.replace(/\s+/g, ' ');
 
-    let modelNumber = `LUM-${1200 + pageNum}`;
+    let modelNumber = '';
     let salePrice = 99;
     let originalPrice = null;
-    let size = '300 × 300 MM';
+    let size = '';
+    let packageNo = '';
     let color = 'Black';
     let category = 'Modern Minimalist';
-    let name = `Catalog Design ${pageNum}`;
+    let name = '';
     let description = 'Premium luxury timepiece with silent sweeping hands.';
 
     // Status matching tags
     let matchedFieldsCount = 0;
 
-    // 1. Model Number Heuristic (find Model No: 1221 or Model 1231 or 4-digit code)
-    const modelRegexes = [
-      /model\s*no\.?\s*[:\-]?\s*([a-zA-Z0-9\-]+)/i,
-      /model\s*[:\-]?\s*([a-zA-Z0-9\-]+)/i,
-      /ref\.?\s*[:\-]?\s*([a-zA-Z0-9\-]+)/i,
-      /\b([12][0-9]{3})\b/ // 4 digit codes starting with 1 or 2
-    ];
-
-    for (const rx of modelRegexes) {
-      const match = cleanedText.match(rx);
-      if (match && match[1]) {
-        modelNumber = match[1].toUpperCase();
-        matchedFieldsCount++;
-        break;
-      }
+    // 1. Model Number Heuristic (Match exact formats)
+    const modelRegex = /m\s*no\.?\s*[:\-]?\s*([a-zA-Z0-9\-]+)/i;
+    const modelMatch = cleanedText.match(modelRegex);
+    if (modelMatch && modelMatch[1]) {
+      modelNumber = modelMatch[1].toUpperCase();
+      name = `Catalog Design ${modelNumber}`;
+      matchedFieldsCount++;
     }
 
     // 2. Price Heuristic (find ₹ 89 or Rs. 89 or Price: 89)
@@ -195,26 +189,26 @@ const AdminPdfImport = () => {
       }
     }
 
-    // 3. Size Heuristic (find 300x300 or 300 x 300 or 30cm or 12 inches)
-    const sizeRegexes = [
-      /(\d{3}\s*×\s*\d{3})/i,
-      /(\d{3}\s*x\s*\d{3})/i,
-      /(\d{2,3})\s*(?:mm|cm|inches|inch)/i
-    ];
-
-    for (const rx of sizeRegexes) {
-      const match = cleanedText.match(rx);
-      if (match && match[1]) {
-        size = match[1].toUpperCase().replace('X', '×');
-        if (!size.includes('MM') && !size.includes('CM')) {
-          size += ' MM';
-        }
-        matchedFieldsCount++;
-        break;
+    // 3. Size Heuristic (Match exact formats like SIZE : 300 X 300 MM)
+    const sizeRegex = /size\s*[:\-]?\s*(\d{3}\s*[x×]\s*\d{3}\s*(?:mm|cm)?)/i;
+    const sizeMatch = cleanedText.match(sizeRegex);
+    if (sizeMatch && sizeMatch[1]) {
+      size = sizeMatch[1].toUpperCase().replace('X', '×');
+      if (!size.includes('MM') && !size.includes('CM')) {
+        size += ' MM';
       }
+      matchedFieldsCount++;
     }
 
-    // 4. Color finish checks
+    // 4. Package Number Heuristic (Match PKG : 52)
+    const pkgRegex = /pkg\s*[:\-]?\s*([a-zA-Z0-9]+)/i;
+    const pkgMatch = cleanedText.match(pkgRegex);
+    if (pkgMatch && pkgMatch[1]) {
+      packageNo = pkgMatch[1];
+      matchedFieldsCount++;
+    }
+
+    // 5. Color finish checks
     const colorsList = ['Black', 'White', 'Silver', 'Gold', 'Bronze', 'Navy', 'Brown', 'Gray'];
     for (const col of colorsList) {
       if (cleanedText.toLowerCase().includes(col.toLowerCase())) {
@@ -224,7 +218,7 @@ const AdminPdfImport = () => {
       }
     }
 
-    // 5. Category checks
+    // 6. Category checks
     if (cleanedText.toLowerCase().includes('vintage') || cleanedText.toLowerCase().includes('retro')) {
       category = 'Luxury Vintage';
       matchedFieldsCount++;
@@ -233,27 +227,17 @@ const AdminPdfImport = () => {
       matchedFieldsCount++;
     }
 
-    // 6. Name Heuristic (crop first 2-4 words or find bold text headings)
-    // Avoid pure numbers and common words
-    const words = cleanedText.split(' ').filter(w => w.length > 2 && !/\d/.test(w));
-    if (words.length >= 2) {
-      // capital first letter headings
-      const candidateName = words.slice(0, 3).join(' ');
-      if (candidateName.length < 30) {
-        name = candidateName.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"");
-        matchedFieldsCount++;
-      }
-    }
-
     // Determine status badge
     let status = 'needs review';
-    if (matchedFieldsCount >= 4) {
+    if (!modelNumber || !size || !packageNo) {
+      status = 'needs review';
+    } else if (matchedFieldsCount >= 4) {
       status = 'auto-filled';
-    } else if (matchedFieldsCount <= 1) {
+    } else {
       status = 'manual';
     }
 
-    return { modelNumber, salePrice, originalPrice, size, color, category, name, description, status };
+    return { modelNumber, salePrice, originalPrice, size, packageNo, color, category, name, description, status };
   };
 
   // Modify fields in cards dynamically
@@ -289,6 +273,15 @@ const AdminPdfImport = () => {
   const handleConfirmBulkSave = () => {
     const selected = extractedProducts.filter(p => p.include);
     
+    // Validation before saving
+    for (const p of selected) {
+      if (!p.modelNumber || !p.size || !p.packageNo || !p.name) {
+        alert('Validation failed: Ensure all selected products have a valid Name, Model No, Size, and Package No before saving.');
+        setShowConfirmModal(false);
+        return;
+      }
+    }
+
     // Save items into AppContext database
     selected.forEach(p => {
       // Remove temp id, send clean payload
@@ -462,14 +455,23 @@ const AdminPdfImport = () => {
                       </div>
                     </div>
 
-                    {/* Dimensions & Color */}
-                    <div className="grid-input-row-2">
+                    {/* Dimensions, Pkg & Color */}
+                    <div className="grid-input-row-3">
                       <div className="group-field-short">
                         <label>SIZE</label>
                         <input 
                           type="text" 
                           value={p.size} 
                           onChange={(e) => updateCardField(p.tempId, 'size', e.target.value)}
+                          disabled={!p.include}
+                        />
+                      </div>
+                      <div className="group-field-short">
+                        <label>PKG NO</label>
+                        <input 
+                          type="text" 
+                          value={p.packageNo || ''} 
+                          onChange={(e) => updateCardField(p.tempId, 'packageNo', e.target.value)}
                           disabled={!p.include}
                         />
                       </div>
