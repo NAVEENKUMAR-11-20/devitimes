@@ -24,40 +24,126 @@ const AdminPdfImport = () => {
     if (fileInputRef.current) fileInputRef.current.click();
   };
 
-  // ─── Accurate text parser — extracts ONLY what is explicitly in the PDF ───
-  const extractFromPageText = (rawText) => {
-    // Collapse all whitespace to single space for reliable regex matching
-    const text = rawText.replace(/\s+/g, ' ').trim();
+  // ─── Accurate text parser — uses multiple strategies to find fields ────────
+  const extractFromPageText = (textItems) => {
+    // Strategy 1: Join all items with single space
+    const spaceJoined = textItems.map(item => item.str).join(' ').replace(/\s+/g, ' ').trim();
+
+    // Strategy 2: Join with no separator (handles split characters like "M" + "NO" + "." + "1271")
+    const noSpaceJoined = textItems.map(item => item.str).join('').replace(/\s+/g, ' ').trim();
+
+    // Strategy 3: Join with newlines (preserves line breaks)
+    const lineJoined = textItems.map(item => item.str).join('\n').replace(/[^\S\n]+/g, ' ').trim();
+
+    // Combine all strategies into one search pool
+    const searchTexts = [spaceJoined, noSpaceJoined, lineJoined];
 
     let modelNumber = '';
     let size = '';
     let packageNo = '';
 
-    // 1. Model Number — patterns: "M NO. 1271", "M NO: 1271", "M NO 1271"
-    //    Must start with "M" then "NO" (with optional space), then optional separator, then the number
-    const modelMatch = text.match(/\bm\s*n\s*o\.?\s*[:\-]?\s*(\d{3,6})\b/i);
-    if (modelMatch) {
-      modelNumber = modelMatch[1];
+    // ── Model Number ──────────────────────────────────────────────────────
+    // Patterns: "M NO. 1271", "M NO: 1271", "M NO 1271", "MNO.1271", "MNO:1271"
+    const modelPatterns = [
+      /M\s*NO\.?\s*:?\s*(\d+)/i,
+      /M\s*N\s*O\.?\s*:?\s*(\d+)/i,
+      /MNO\.?\s*:?\s*(\d+)/i,
+      /MODEL\s*(?:NO\.?)?\s*:?\s*(\d+)/i,
+    ];
+
+    for (const text of searchTexts) {
+      if (modelNumber) break;
+      for (const rx of modelPatterns) {
+        const match = text.match(rx);
+        if (match && match[1]) {
+          modelNumber = match[1];
+          break;
+        }
+      }
     }
 
-    // 2. Size — pattern: "SIZE : 300 X 300 MM" or "SIZE: 300X300MM"
-    const sizeMatch = text.match(/\bsize\s*[:\-]?\s*(\d{2,4})\s*[xX×]\s*(\d{2,4})\s*(mm|cm)?/i);
-    if (sizeMatch) {
-      const unit = sizeMatch[3] ? sizeMatch[3].toUpperCase() : 'MM';
-      size = `${sizeMatch[1]} × ${sizeMatch[2]} ${unit}`;
+    // ── Size ──────────────────────────────────────────────────────────────
+    // Patterns: "SIZE : 300 X 300 MM", "SIZE:300X300MM", "SIZE 300 x 300 mm"
+    const sizePatterns = [
+      /SIZE\s*:?\s*([0-9]+\s*[Xx×]\s*[0-9]+\s*MM)/i,
+      /SIZE\s*:?\s*([0-9]+\s*[Xx×]\s*[0-9]+)\s*(MM|CM)/i,
+      /SIZE\s*:?\s*(\d+)\s*[Xx×]\s*(\d+)/i,
+    ];
+
+    for (const text of searchTexts) {
+      if (size) break;
+      for (const rx of sizePatterns) {
+        const match = text.match(rx);
+        if (match) {
+          if (match[1] && /\d+\s*[Xx×]\s*\d+/.test(match[1])) {
+            // Full match like "300 X 300 MM"
+            size = match[1].toUpperCase().replace(/\s*[Xx]\s*/g, ' × ');
+            if (!size.includes('MM') && !size.includes('CM')) {
+              size += ' MM';
+            }
+          } else if (match[1] && match[2]) {
+            // Split capture groups
+            size = `${match[1]} × ${match[2]} MM`.toUpperCase();
+          }
+          if (size) break;
+        }
+      }
     }
 
-    // 3. Package Number — pattern: "PKG : 52" or "PKG: 52" or "PKG 52"
-    const pkgMatch = text.match(/\bpkg\s*[:\-]?\s*(\d+)\b/i);
-    if (pkgMatch) {
-      packageNo = pkgMatch[1];
+    // ── Package Number ────────────────────────────────────────────────────
+    // Patterns: "PKG : 52", "PKG:52", "PKG 52"
+    const pkgPatterns = [
+      /PKG\s*:?\s*(\d+)/i,
+      /PACKAGE\s*:?\s*(\d+)/i,
+    ];
+
+    for (const text of searchTexts) {
+      if (packageNo) break;
+      for (const rx of pkgPatterns) {
+        const match = text.match(rx);
+        if (match && match[1]) {
+          packageNo = match[1];
+          break;
+        }
+      }
     }
 
-    // Status: auto-filled only when all 3 fields are found; otherwise needs review
+    // ── Fallback: scan individual text items for isolated numbers ─────────
+    // Sometimes PDF.js splits "M NO." and "1271" into completely separate items
+    if (!modelNumber || !size || !packageNo) {
+      for (let i = 0; i < textItems.length; i++) {
+        const curr = textItems[i].str.trim();
+        const next = textItems[i + 1]?.str?.trim() || '';
+        const next2 = textItems[i + 2]?.str?.trim() || '';
+        const combined = `${curr} ${next} ${next2}`;
+
+        if (!modelNumber) {
+          const mMatch = combined.match(/M\s*NO\.?\s*:?\s*(\d+)/i);
+          if (mMatch) modelNumber = mMatch[1];
+        }
+
+        if (!size) {
+          const sMatch = combined.match(/SIZE\s*:?\s*([0-9]+\s*[Xx×]\s*[0-9]+\s*(?:MM|CM)?)/i);
+          if (sMatch) {
+            size = sMatch[1].toUpperCase().replace(/\s*[Xx]\s*/g, ' × ');
+            if (!size.includes('MM') && !size.includes('CM')) size += ' MM';
+          }
+        }
+
+        if (!packageNo) {
+          const pMatch = combined.match(/PKG\s*:?\s*(\d+)/i);
+          if (pMatch) packageNo = pMatch[1];
+        }
+
+        if (modelNumber && size && packageNo) break;
+      }
+    }
+
     const allFound = modelNumber && size && packageNo;
     const status = allFound ? 'auto-filled' : 'needs review';
 
-    return { modelNumber, size, packageNo, status };
+    // Include the raw joined text for debug visibility
+    return { modelNumber, size, packageNo, status, rawText: spaceJoined };
   };
 
   // ─── Smart auto-crop: isolate the clock product from the PDF page ─────────
@@ -226,12 +312,11 @@ const AdminPdfImport = () => {
           // ── Smart auto-crop: detect the clock product region ──────────
           const imageBase64 = smartCropProductImage(fullCanvas);
 
-          // ── Extract all text from same page ─────────────────────────────
+          // ── Extract all text items from same page ──────────────────────
           const textContent = await page.getTextContent();
-          const rawText = textContent.items.map(item => item.str).join(' ');
 
-          // ── Parse exactly: Model No, Size, PKG No ───────────────────────
-          const parsed = extractFromPageText(rawText);
+          // ── Parse: pass raw items so parser can try multiple join strategies
+          const parsed = extractFromPageText(textContent.items);
 
           parsedItems.push({
             tempId: `pg_${pageNum}_${Date.now()}`,
