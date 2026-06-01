@@ -122,10 +122,10 @@ const AnimatedHeroClock = () => {
       {/* Dial numerals */}
       {[12, 3, 6, 9].map((num, i) => {
         const positions = [
-          { x: 160, y: 46 },
-          { x: 272, y: 164 },
-          { x: 160, y: 282 },
-          { x: 48, y: 164 },
+          { x: 160, y: 58 },
+          { x: 260, y: 162 },
+          { x: 160, y: 262 },
+          { x: 60, y: 162 },
         ];
         return (
           <text
@@ -164,21 +164,19 @@ const AnimatedHeroClock = () => {
       {/* Hour hand */}
       <line
         ref={hourHandRef}
-        x1="160" y1="160" x2="160" y2="95"
-        stroke="#FFFFFF"
-        strokeWidth="5"
+        x1="160" y1="160" x2="160" y2="100"
+        stroke="#7EB3E8"
+        strokeWidth="4.5"
         strokeLinecap="round"
-        filter="url(#glow)"
       />
 
       {/* Minute hand */}
       <line
         ref={minuteHandRef}
-        x1="160" y1="160" x2="160" y2="72"
-        stroke="#FFFFFF"
-        strokeWidth="3"
+        x1="160" y1="160" x2="160" y2="70"
+        stroke="#7EB3E8"
+        strokeWidth="2.5"
         strokeLinecap="round"
-        filter="url(#glow)"
       />
 
       {/* Second hand */}
@@ -212,6 +210,10 @@ const Home = () => {
         <div className="hero-orb hero-orb-1" aria-hidden="true" />
         <div className="hero-orb hero-orb-2" aria-hidden="true" />
 
+        {/* Decorative Plants & Vases */}
+        <img src="/left_leaf.png" className="hero-decorative-leaf" alt="" aria-hidden="true" />
+        <img src="/vase_books.png" className="hero-decorative-vase" alt="" aria-hidden="true" />
+
         <div className="container hero-container">
 
           {/* Left: Text */}
@@ -225,7 +227,14 @@ const Home = () => {
               Discover premium clocks crafted with beautiful designs and perfect finishing.
               Elevate your space with our masterfully crafted timepieces.
             </p>
-            <div className="hero-cta-group">
+          </div>
+
+          {/* Right: Live Animated Clock */}
+          <div className="hero-right-content" style={{ flexDirection: 'column', gap: '32px' }}>
+            <div className="hero-clock-frame">
+              <AnimatedHeroClock />
+            </div>
+            <div className="hero-cta-group" style={{ justifyContent: 'center', flexDirection: 'column' }}>
               <Link to="/collection" className="btn-primary hero-cta-btn">
                 EXPLORE COLLECTION &nbsp; →
               </Link>
@@ -235,37 +244,9 @@ const Home = () => {
             </div>
           </div>
 
-          {/* Right: Live Animated Clock */}
-          <div className="hero-right-content">
-            <div className="hero-clock-frame">
-              <AnimatedHeroClock />
-            </div>
-          </div>
-
         </div>
       </section>
 
-      {/* ── Feature Strip ── */}
-      <section className="feature-strip">
-        <div className="container">
-          <div className="feature-strip-grid">
-            {[
-              { icon: '⧗', title: 'Premium Quality', desc: 'Crafted from finest materials' },
-              { icon: '◈', title: 'Elegant Design', desc: 'Award-winning aesthetics' },
-              { icon: '◉', title: 'Expert Finishing', desc: 'Precision crafted by artisans' },
-              { icon: '◇', title: 'WhatsApp Orders', desc: 'Easy checkout in seconds' },
-            ].map((f, i) => (
-              <div key={i} className="feature-item">
-                <span className="feature-icon">{f.icon}</span>
-                <div>
-                  <div className="feature-title">{f.title}</div>
-                  <div className="feature-desc">{f.desc}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
 
       {/* ── Collection Preview ── */}
       <section className="collection-preview-section">
@@ -394,6 +375,32 @@ const Home = () => {
           width: 280px; height: 280px;
           left: 10%; bottom: -100px;
           background: radial-gradient(circle, rgba(74,127,193,0.12) 0%, transparent 70%);
+        }
+
+        /* Decorative Images */
+        .hero-decorative-leaf {
+          position: absolute;
+          left: -4%;
+          bottom: -10%;
+          height: 90%;
+          max-height: 500px;
+          object-fit: contain;
+          opacity: 0.85;
+          z-index: 0;
+          pointer-events: none;
+          filter: brightness(0.85);
+        }
+
+        .hero-decorative-vase {
+          position: absolute;
+          right: 2%;
+          bottom: -5%;
+          height: 65%;
+          max-height: 380px;
+          object-fit: contain;
+          opacity: 0.95;
+          z-index: 0;
+          pointer-events: none;
         }
 
         .hero-container {

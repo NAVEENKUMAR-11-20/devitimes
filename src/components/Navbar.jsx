@@ -8,13 +8,6 @@ const Navbar = () => {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const isHome = location.pathname === '/';
-  
-  // Header theme configurations based on whether we are on the dark Hero homepage
-  const navClass = isHome 
-    ? 'glass-nav' 
-    : 'navbar-light';
-
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0);
 
   const handleLogout = () => {
@@ -23,7 +16,7 @@ const Navbar = () => {
   };
 
   return (
-    <nav className={`navbar-root ${navClass}`}>
+    <nav className="navbar-root">
       <div className="navbar-container">
         
         {/* Left Side: Logo */}
@@ -121,22 +114,14 @@ const Navbar = () => {
           left: 0;
           width: 100%;
           z-index: 1000;
-          background: transparent;
-          border: none;
-          box-shadow: none;
-          padding: 20px 24px;
-          height: auto;
+          background-color: #032247; /* Blue color matching the 2nd image */
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+          height: 64px;
           display: flex;
           justify-content: center;
           align-items: center;
           box-sizing: border-box;
-          transition: padding var(--transition-speed) ease;
-        }
-
-        @media (max-width: 768px) {
-          .navbar-root {
-            padding: 12px 16px;
-          }
+          color: #ffffff;
         }
 
         .navbar-container {
@@ -144,39 +129,11 @@ const Navbar = () => {
           width: 100%;
           margin: 0 auto;
           padding: 0 24px;
-          height: 64px;
+          height: 100%;
           display: flex;
           justify-content: space-between;
           align-items: center;
-          border-radius: 20px;
-          transition: all var(--transition-speed) ease;
           box-sizing: border-box;
-        }
-
-        /* Dark-white luxury glassmorphism appearance (Homepage) */
-        .glass-nav {
-          color: var(--text-on-dark);
-        }
-        .glass-nav .navbar-container {
-          background-color: rgba(255, 255, 255, 0.08);
-          backdrop-filter: blur(18px);
-          -webkit-backdrop-filter: blur(18px);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.25), 
-                      inset 0 1px 1px 0 rgba(255, 255, 255, 0.1);
-        }
-
-        /* Light-theme luxury glassmorphism appearance (Other pages) */
-        .navbar-light {
-          color: var(--text-primary);
-        }
-        .navbar-light .navbar-container {
-          background-color: rgba(255, 255, 255, 0.75);
-          backdrop-filter: blur(18px);
-          -webkit-backdrop-filter: blur(18px);
-          border: 1px solid rgba(26, 35, 50, 0.08);
-          box-shadow: 0 8px 32px 0 rgba(26, 35, 50, 0.06), 
-                      inset 0 1px 1px 0 rgba(255, 255, 255, 0.8);
         }
 
         .navbar-logo {
@@ -187,13 +144,10 @@ const Navbar = () => {
         }
 
         .logo-img {
-          height: 40px;
+          height: 32px;
           width: auto;
           object-fit: contain;
-          background-color: #ffffff;
-          padding: 2px;
-          border-radius: 6px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+          filter: brightness(0) invert(1);
         }
 
         .logo-text {
@@ -242,20 +196,12 @@ const Navbar = () => {
         }
 
         .active-link {
-          color: var(--accent-blue) !important;
-        }
-        
-        .glass-nav .active-link {
           color: var(--text-accent-on-dark) !important;
         }
 
         .active-link::after {
           transform: scaleX(1) !important;
           transform-origin: left !important;
-          background-color: var(--accent-blue);
-        }
-
-        .glass-nav .active-link::after {
           background-color: var(--text-accent-on-dark);
         }
 
@@ -281,8 +227,8 @@ const Navbar = () => {
           position: absolute;
           top: -6px;
           right: -8px;
-          background-color: var(--accent-blue);
-          color: #ffffff;
+          background-color: var(--text-accent-on-dark);
+          color: var(--primary-dark-bg);
           font-size: 9px;
           font-weight: 700;
           width: 16px;
@@ -293,21 +239,12 @@ const Navbar = () => {
           justify-content: center;
         }
 
-        .glass-nav .cart-badge-count {
-          background-color: var(--text-accent-on-dark);
-          color: var(--primary-dark-bg);
-        }
-
         .user-session-pill {
           display: flex;
           align-items: center;
           gap: 12px;
-          border-left: 1px solid var(--border-color);
+          border-left: 1px solid rgba(255, 255, 255, 0.15);
           padding-left: 16px;
-        }
-
-        .glass-nav .user-session-pill {
-          border-left-color: rgba(255, 255, 255, 0.15);
         }
 
         .user-session-name {
