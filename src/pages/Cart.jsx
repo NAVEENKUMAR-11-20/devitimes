@@ -40,7 +40,12 @@ const Cart = () => {
     let orderItemsText = '';
 
     cart.forEach(item => {
-      orderItemsText += `• ${item.productName}\n  Model: ${item.modelNumber}\n  Category: ${item.category}\n  Size: ${item.size}\n  Color: ${item.color || 'Default'}\n  Qty: ${item.quantity}\n  Price: ₹${item.unitPrice} × ${item.quantity} = ₹${item.unitPrice * item.quantity}\n\n`;
+      // Ensure image URL is absolute and public-facing for WhatsApp
+      const baseUrl = (settings.websiteUrl || 'https://devi-times.com').replace(/\/$/, '');
+      let imgPath = item.image || `/images/clock-${item.modelNumber}.png`;
+      const absoluteImageUrl = imgPath.startsWith('http') ? imgPath : `${baseUrl}${imgPath.startsWith('/') ? '' : '/'}${imgPath}`;
+
+      orderItemsText += `• ${item.productName}\n  Model: ${item.modelNumber}\n  Category: ${item.category}\n  Size: ${item.size}\n  Color: ${item.color || 'Default'}\n  Qty: ${item.quantity}\n  Price: ₹${item.unitPrice} × ${item.quantity} = ₹${item.unitPrice * item.quantity}\n  Product Image:\n  ${absoluteImageUrl}\n\n`;
     });
 
     const message = `━━━━━━━━━━━━━━━━━━━━━
