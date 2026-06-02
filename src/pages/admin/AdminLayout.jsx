@@ -7,6 +7,12 @@ const AdminLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [time, setTime] = useState(new Date());
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Close sidebar on route change for mobile
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
 
   // Page title override for admin panel
   useEffect(() => {
@@ -46,8 +52,16 @@ const AdminLayout = () => {
   return (
     <div className="admin-layout-root">
       
+      {/* Mobile Sidebar Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="admin-sidebar-overlay" 
+          onClick={() => setIsMobileMenuOpen(false)}
+        ></div>
+      )}
+
       {/* 1. Left Sidebar Navigation */}
-      <aside className="admin-sidebar">
+      <aside className={`admin-sidebar ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
         
         {/* Sidebar Logo */}
         <div className="sidebar-logo-block">
@@ -60,6 +74,13 @@ const AdminLayout = () => {
             <h2 className="sidebar-logo-text font-logo">DEVI TIMES</h2>
             <span className="sidebar-badge-admin font-body">ADMIN</span>
           </div>
+          <button 
+            className="mobile-close-sidebar-btn" 
+            onClick={() => setIsMobileMenuOpen(false)}
+            aria-label="Close Sidebar"
+          >
+            ✕
+          </button>
         </div>
 
         {/* Navigation Items */}
@@ -127,11 +148,20 @@ const AdminLayout = () => {
         
         {/* Top Header Information bar */}
         <header className="admin-topbar">
-          <div className="topbar-welcome font-heading">
-            Welcome, <span>Admin</span>
+          <div className="topbar-left-section" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <button 
+              className="mobile-menu-btn" 
+              onClick={() => setIsMobileMenuOpen(true)}
+              aria-label="Open Menu"
+            >
+              ☰
+            </button>
+            <div className="topbar-welcome font-heading">
+              Welcome, <span>Admin</span>
+            </div>
           </div>
           <div className="topbar-clock font-body">
-            🕒 {time.toLocaleDateString()} &nbsp;|&nbsp; {time.toLocaleTimeString()}
+            🕒 {time.toLocaleDateString()} <span className="hide-mobile">&nbsp;|&nbsp; {time.toLocaleTimeString()}</span>
           </div>
         </header>
 
@@ -285,33 +315,86 @@ const AdminLayout = () => {
           overflow-y: auto;
         }
 
-        @media (max-width: 1024px) {
+        .mobile-menu-btn {
+          display: none;
+          background: none;
+          border: none;
+          font-size: 24px;
+          cursor: pointer;
+          color: var(--text-primary);
+          padding: 0;
+        }
+
+        .mobile-close-sidebar-btn {
+          display: none;
+          background: none;
+          border: none;
+          font-size: 20px;
+          color: #ffffff;
+          cursor: pointer;
+          margin-left: auto;
+          opacity: 0.7;
+        }
+
+        .admin-sidebar-overlay {
+          display: none;
+          position: fixed;
+          inset: 0;
+          background-color: rgba(15, 23, 42, 0.6);
+          backdrop-filter: blur(4px);
+          z-index: 45;
+        }
+        
+        .hide-mobile {
+          display: inline;
+        }
+
+        @media (max-width: 768px) {
+          .mobile-menu-btn {
+            display: block;
+          }
+          .hide-mobile {
+            display: none;
+          }
+          .mobile-close-sidebar-btn {
+            display: block;
+          }
+          .admin-sidebar-overlay {
+            display: block;
+          }
+          
           .admin-sidebar {
-            width: 72px;
+            transform: translateX(-100%);
+            width: 260px;
+            transition: transform 0.3s ease-in-out;
+            box-shadow: 4px 0 24px rgba(0,0,0,0.3);
+            border-right: none;
           }
-          .sidebar-logo-block div, 
-          .nav-sidebar-item text,
-          .sidebar-logo-text, 
-          .sidebar-badge-admin {
-            display: none;
+          
+          .admin-sidebar.mobile-open {
+            transform: translateX(0);
           }
-          .admin-sidebar span {
-            display: none;
-          }
+
           .admin-main-viewport {
-            margin-left: 72px;
+            margin-left: 0;
           }
+
+          .sidebar-logo-block {
+            padding: 20px 16px;
+          }
+
           .nav-sidebar-item {
-            justify-content: center;
-            padding: 16px 0;
+            padding: 16px 20px;
+            font-size: 14px;
+            white-space: nowrap;
           }
+
           .active-sidebar-item {
-            border-left: none;
-            border-bottom: 3px solid var(--text-accent-on-dark);
+            padding-left: 16px;
           }
-          .nav-icon {
-            margin-right: 0;
-            font-size: 18px;
+
+          .admin-topbar {
+            padding: 0 20px;
           }
         }
       `}</style>
