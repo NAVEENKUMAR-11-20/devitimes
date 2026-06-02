@@ -1,11 +1,50 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import ClockSvg from '../components/ClockSvg';
 
 const Collection = () => {
-  const { products, currentUser, addToCart } = useApp();
+  const { products: contextProducts, currentUser, addToCart } = useApp();
   const navigate = useNavigate();
+
+  // Local state for auto-refreshing products
+  const [liveProducts, setLiveProducts] = useState(contextProducts);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  // Sync with context on load
+  useEffect(() => {
+    setLiveProducts(contextProducts);
+  }, [contextProducts]);
+
+  // Loading state timeout for first page load
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsInitialLoad(false);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Poll for updates in background (auto-fetch) every 5 seconds
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      try {
+        const saved = localStorage.getItem('lumiere_products');
+        if (saved) {
+          const parsedProducts = JSON.parse(saved);
+          setLiveProducts(prev => {
+            if (JSON.stringify(parsedProducts) !== JSON.stringify(prev)) {
+              return parsedProducts;
+            }
+            return prev;
+          });
+        }
+      } catch (err) {
+        console.error('Error polling products:', err);
+      }
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, []);
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -22,7 +61,7 @@ const Collection = () => {
 
   // Filter products in real time
   const filteredProducts = useMemo(() => {
-    return products.filter(p => {
+    return liveProducts.filter(p => {
       // Only show live products to customers
       if (!p.isLive) return false;
 
@@ -39,7 +78,7 @@ const Collection = () => {
 
       return matchesCategory && matchesSearch;
     });
-  }, [products, activeCategory, searchQuery]);
+  }, [liveProducts, activeCategory, searchQuery]);
 
   // Handle click on "ORDER" button
   const handleOrder = (product) => {
@@ -118,7 +157,16 @@ const Collection = () => {
       {/* 4. Product Grid */}
       <section className="products-grid-section">
         <div className="container">
-          {filteredProducts.length === 0 ? (
+          {isInitialLoad ? (
+            <div className="empty-results-box font-body" style={{ border: 'none', background: 'transparent' }}>
+              <div className="loading-spinner" style={{ 
+                width: '40px', height: '40px', border: '3px solid #E2E8F0', 
+                borderTop: '3px solid var(--accent-blue)', borderRadius: '50%', 
+                margin: '0 auto 16px auto', animation: 'spin 1s linear infinite' 
+              }}></div>
+              <p>Loading latest collection...</p>
+            </div>
+          ) : filteredProducts.length === 0 ? (
             <div className="empty-results-box font-body">
               <p>No products match your search or filter criteria.</p>
               <button 
@@ -436,6 +484,11 @@ const Collection = () => {
         }
 
         .modal-close-btn:hover { color: var(--text-primary); }
+
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
       `}</style>
     </div>
   );
