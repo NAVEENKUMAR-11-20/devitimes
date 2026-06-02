@@ -1393,6 +1393,16 @@ const AdminPdfImport = () => {
           .card-right-preview {
             order: -1;
           }
+          .crop-modal-content {
+            flex-direction: column;
+            overflow-y: auto;
+          }
+          .crop-preview-side {
+            width: 100%;
+          }
+          .form-grid-2col {
+            grid-template-columns: 1fr;
+          }
         }      `}</style>
     </div>
   );

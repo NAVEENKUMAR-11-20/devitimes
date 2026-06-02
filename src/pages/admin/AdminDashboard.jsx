@@ -175,9 +175,29 @@ const AdminDashboard = () => {
           }
         }
 
-        @media (max-width: 640px) {
+        @media (max-width: 768px) {
+          .dashboard-heading {
+            font-size: 24px;
+          }
           .metrics-row-grid {
             grid-template-columns: 1fr;
+            gap: 16px;
+          }
+          .actions-buttons-grid {
+            flex-direction: column;
+          }
+          .quick-action-btn {
+            width: 100%;
+            height: 48px;
+          }
+          .dashboard-view-wrapper {
+            gap: 20px;
+          }
+          .metric-card {
+            padding: 16px 20px;
+          }
+          .activity-card-panel {
+            padding: 16px 20px;
           }
         }
 

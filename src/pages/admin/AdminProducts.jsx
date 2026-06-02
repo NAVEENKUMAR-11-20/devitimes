@@ -1003,6 +1003,50 @@ const AdminProducts = () => {
           border-color: var(--accent-blue);
           color: var(--text-primary);
         }
+
+        @media (max-width: 768px) {
+          .products-header-row {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 16px;
+          }
+          .products-header-row button {
+            width: 100%;
+          }
+          .filters-tabs-row {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+          .status-tabs-group {
+            width: 100%;
+            overflow-x: auto;
+            padding-bottom: 8px;
+          }
+          .search-control-wrapper {
+            width: 100%;
+          }
+          .search-catalogue-input, .category-select-filter {
+            width: 100%;
+          }
+          .table-container-card {
+            overflow-x: auto;
+          }
+          .admin-table {
+            white-space: nowrap;
+          }
+          .admin-table th, .admin-table td {
+            padding: 12px 16px;
+          }
+          .pagination-bar {
+            flex-direction: column;
+            gap: 16px;
+            align-items: flex-start;
+          }
+          .modal-card {
+            width: 95vw;
+            padding: 20px;
+          }
+        }
       `}</style>
     </div>
   );

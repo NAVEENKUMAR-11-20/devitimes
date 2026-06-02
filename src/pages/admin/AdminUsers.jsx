@@ -555,6 +555,47 @@ Login at: ${settings.websiteUrl}/#/login`;
           padding: 4px 8px;
           letter-spacing: 0.05em;
         }
+
+        @media (max-width: 768px) {
+          .products-header-row {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 16px;
+          }
+          .products-header-row button {
+            width: 100%;
+          }
+          .users-tabs-bar {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+          .subtabs-group {
+            width: 100%;
+            overflow-x: auto;
+            padding-bottom: 8px;
+            gap: 16px;
+          }
+          .search-users-wrapper, .search-users-input {
+            width: 100%;
+          }
+          .table-container-card {
+            overflow-x: auto;
+            width: 100%;
+          }
+          .admin-table {
+            white-space: nowrap;
+          }
+          .admin-table th, .admin-table td {
+            padding: 12px 16px;
+          }
+          .modal-card {
+            width: 95vw !important;
+            padding: 20px;
+          }
+          .form-group input, .form-group .form-input {
+            width: 100%;
+          }
+        }
       `}</style>
     </div>
   );

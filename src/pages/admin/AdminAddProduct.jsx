@@ -700,10 +700,24 @@ const AdminAddProduct = () => {
           gap: 16px;
         }
 
-        @media (max-width: 600px) {
+        @media (max-width: 768px) {
           .form-grid-3col {
             grid-template-columns: 1fr;
-            gap: 0;
+            gap: 16px;
+          }
+          .radio-group {
+            flex-direction: column;
+            gap: 12px;
+          }
+          .admin-form {
+            padding: 20px;
+          }
+          .crop-modal-content {
+            flex-direction: column;
+            overflow-y: auto;
+          }
+          .crop-preview-side {
+            width: 100%;
           }
         }
 

@@ -296,6 +296,15 @@ const AdminSettings = () => {
           font-size: 13px;
           animation: fadeIn 0.2s ease;
         }
+
+        @media (max-width: 768px) {
+          .add-product-title-row {
+            margin-bottom: 16px !important;
+          }
+          .admin-form .btn-primary {
+            width: 100%;
+          }
+        }
       `}</style>
     </div>
   );
