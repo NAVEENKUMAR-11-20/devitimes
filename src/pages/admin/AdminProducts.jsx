@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import ClockSvg from '../../components/ClockSvg';
@@ -29,6 +29,18 @@ const AdminProducts = () => {
 
   // Delete Confirmation Modal State
   const [deletingProductId, setDeletingProductId] = useState(null);
+
+  // Disable body scroll when delete modal is open
+  useEffect(() => {
+    if (deletingProductId) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [deletingProductId]);
 
   // Instant notification feedback state
   const [toastMessage, setToastMessage] = useState('');
@@ -527,6 +539,13 @@ const AdminProducts = () => {
       {deletingProductId && (
         <div className="modal-overlay">
           <div className="modal-card animate-fade-in" style={{ maxWidth: '380px' }}>
+            <button 
+              className="modal-close-btn" 
+              onClick={() => setDeletingProductId(null)}
+              aria-label="Close"
+            >
+              ✕
+            </button>
             <h3 className="modal-title font-heading">Delete Product</h3>
             <p className="modal-desc font-body">Are you sure you want to delete this timepiece? This action cannot be undone.</p>
             
@@ -543,6 +562,49 @@ const AdminProducts = () => {
       )}
 
       <style>{`
+        /* ── Delete Modal Styles ── */
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100vw;
+          height: 100vh;
+          background-color: rgba(15, 23, 42, 0.6);
+          backdrop-filter: blur(4px);
+          z-index: 9999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .modal-close-btn {
+          position: absolute;
+          top: 16px;
+          right: 16px;
+          width: 32px;
+          height: 32px;
+          border: none;
+          background: #F1F5F9;
+          color: #64748B;
+          border-radius: 50%;
+          font-size: 16px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .modal-close-btn:hover {
+          background: #E2E8F0;
+          color: #0F172A;
+        }
+        .modal-card {
+          background-color: #ffffff;
+          border-radius: 12px;
+          padding: 32px;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+          position: relative;
+        }
+
         .admin-products-root {
           display: flex;
           flex-direction: column;
