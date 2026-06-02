@@ -457,6 +457,18 @@ const AdminPdfImport = () => {
     setCropImageSrc('');
   };
 
+  // Disable body scroll when modal is open
+  React.useEffect(() => {
+    if (showCropModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [showCropModal]);
+
   React.useEffect(() => {
     if (!showCropModal || !cropImageSrc) return;
 
@@ -847,6 +859,17 @@ const AdminPdfImport = () => {
       {showCropModal && (
         <div className="modal-overlay">
           <div className="modal-card animate-fade-in" style={{ maxWidth: '800px', width: '90%' }}>
+            <button 
+              className="modal-close-btn" 
+              onClick={() => {
+                setShowCropModal(false);
+                setCropTargetId(null);
+                setCropImageSrc('');
+              }}
+              aria-label="Close"
+            >
+              ✕
+            </button>
             <h3 className="modal-title font-heading">Crop Product Image</h3>
             <p className="modal-desc font-body" style={{ marginBottom: '16px' }}>
               Adjust the crop area using the zoom and pan sliders below to frame the clock perfectly.
@@ -939,6 +962,73 @@ const AdminPdfImport = () => {
       )}
 
       <style>{`
+        /* ── Crop Modal Popup Styles ── */
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100vw;
+          height: 100vh;
+          background-color: rgba(15, 23, 42, 0.6);
+          backdrop-filter: blur(4px);
+          z-index: 9999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .modal-card {
+          background-color: #ffffff;
+          border-radius: 12px;
+          padding: 32px;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+          position: relative;
+          max-height: 90vh;
+          overflow-y: auto;
+        }
+        
+        .modal-close-btn {
+          position: absolute;
+          top: 20px;
+          right: 20px;
+          width: 32px;
+          height: 32px;
+          border: none;
+          background: #F1F5F9;
+          color: #64748B;
+          border-radius: 50%;
+          font-size: 16px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        
+        .modal-close-btn:hover {
+          background: #E2E8F0;
+          color: #0F172A;
+        }
+
+        .modal-title {
+          font-size: 20px;
+          color: var(--text-primary);
+          margin-top: 0;
+          margin-bottom: 8px;
+        }
+
+        .modal-desc {
+          color: var(--text-secondary);
+          font-size: 14px;
+        }
+
+        .modal-actions-row {
+          display: flex;
+          justify-content: flex-end;
+          gap: 16px;
+          margin-top: 24px;
+        }
+
         /* ── Cards Grid Layout ── */
         .pdf-cards-grid {
           display: flex;
