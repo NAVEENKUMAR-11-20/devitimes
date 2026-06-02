@@ -1035,7 +1035,7 @@ const AdminPdfImport = () => {
           flex-direction: column;
           gap: 32px;
           margin-top: 24px;
-          margin-bottom: 120px;
+          margin-bottom: 24px;
         }
 
         .pdf-product-card {
@@ -1315,20 +1315,16 @@ const AdminPdfImport = () => {
           cursor: pointer;
         }
 
-        /* ── Sticky save bar ── */
+        /* ── Static save bar ── */
         .bulk-save-action-drawer {
-          position: fixed;
-          bottom: 0;
-          left: 260px;
-          right: 0;
-          background-color: #fff;
-          border-top: 1px solid var(--border-color);
-          padding: 14px 32px;
+          background-color: #F8FAFC;
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          padding: 24px 32px;
           display: flex;
           justify-content: space-between;
           align-items: center;
-          z-index: 100;
-          box-shadow: 0 -4px 16px rgba(0,0,0,0.07);
+          margin-top: 16px;
         }
 
         .bulk-drawer-info {
@@ -1380,14 +1376,16 @@ const AdminPdfImport = () => {
         }
 
         /* ── Responsive ── */
-        @media (max-width: 900px) {
-          .bulk-save-action-drawer {
-            left: 0;
-            padding: 14px 20px;
-          }
-        }
-
         @media (max-width: 768px) {
+          .bulk-save-action-drawer {
+            flex-direction: column;
+            gap: 16px;
+            text-align: center;
+            padding: 20px;
+          }
+          .bulk-save-drawer-btn {
+            width: 100%;
+          }
           .card-split-container {
             grid-template-columns: 1fr;
             gap: 24px;
