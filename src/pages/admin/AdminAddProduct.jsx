@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useApp } from '../../context/AppContext';
+import { createProduct } from '../../lib/productsService';
 
 // Canvas-based image compression helper as specified in the prompt
 function compressImage(file, maxWidth = 800, quality = 0.75) {
@@ -42,7 +42,8 @@ function compressImage(file, maxWidth = 800, quality = 0.75) {
 }
 
 const AdminAddProduct = () => {
-  const { addProduct } = useApp();
+  // PocketBase: no context needed — save directly
+  const [isSaving, setIsSaving] = useState(false);
 
   // Success state indicators
   const [isSuccess, setIsSuccess] = useState(false);
@@ -67,7 +68,7 @@ const AdminAddProduct = () => {
   const [description, setDescription] = useState('');
   const [isOnSale, setIsOnSale] = useState(false);
   const [isLive, setIsLive] = useState(true); // default live
-  const [images, setImages] = useState([]); // array of base64 strings
+  const [images, setImages] = useState([]); // array of { url: string, file: File }
 
   // Swatch colors helper list
   const swatchOptions = [
@@ -89,7 +90,7 @@ const AdminAddProduct = () => {
     'Custom'
   ];
 
-  // Upload trigger
+  // Upload trigger — store both preview URL and original File
   const handleImageFileChange = async (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
@@ -100,13 +101,14 @@ const AdminAddProduct = () => {
     }
 
     setCompressing(true);
-    const compressedPromises = files.map(file => compressImage(file));
-    
     try {
-      const results = await Promise.all(compressedPromises);
-      setImages(prev => [...prev, ...results]);
+      const newEntries = files.map(file => ({
+        url: URL.createObjectURL(file),
+        file,
+      }));
+      setImages(prev => [...prev, ...newEntries]);
     } catch (err) {
-      console.error('Error compressing images', err);
+      console.error('Error adding images', err);
     } finally {
       setCompressing(false);
     }
@@ -149,51 +151,44 @@ const AdminAddProduct = () => {
     setIsSuccess(false);
   };
 
-  // Submit product
-  const handleSubmit = (e, forceDraft = false) => {
+  // Submit product — save to PocketBase
+  const handleSubmit = async (e, forceDraft = false) => {
     e.preventDefault();
     setErrors({});
 
     const newErrors = {};
-
-    // Validate inputs
-    if (!name.trim()) newErrors.name = 'Product name is required.';
     if (!modelNumber.trim()) newErrors.modelNumber = 'Model number is required.';
-    
     const finalSize = sizeType === 'Custom' ? customSize.trim() : sizeType;
     if (!finalSize) newErrors.size = 'Product size is required.';
-
-    if (!color.trim()) newErrors.color = 'Product color finish is required.';
     if (!salePrice) newErrors.salePrice = 'Sale price is required.';
     if (!stockCount) newErrors.stockCount = 'Available pieces count is required.';
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
-      // Scroll to top of form
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
-    const payload = {
-      name: name.trim(),
-      category,
-      modelNumber: modelNumber.trim(),
-      size: finalSize,
-      color: color.trim(),
-      salePrice: Number(salePrice),
-      originalPrice: originalPrice ? Number(originalPrice) : null,
-      isOnSale,
-      stockCount: Number(stockCount),
-      description: description.trim(),
-      isLive: forceDraft ? false : isLive,
-      images,
-      source: "manual"
-    };
-
-    addProduct(payload);
-    setSuccessProductName(name.trim());
-    setIsSuccess(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setIsSaving(true);
+    try {
+      await createProduct({
+        MODEL_NUMBER:    modelNumber.trim(),
+        SIZE_DIMENSIONS: finalSize,
+        package_no:      '',
+        price:           Number(salePrice),
+        stock_count:     Number(stockCount),
+        is_live:         forceDraft ? false : isLive,
+        imageFile:       images.length > 0 ? images[0].file : null,
+      });
+      setSuccessProductName(modelNumber.trim());
+      setIsSuccess(true);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      console.error('[PB] createProduct error:', err);
+      alert('Failed to save product to PocketBase. Make sure PocketBase is running on http://127.0.0.1:8090');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -263,7 +258,7 @@ const AdminAddProduct = () => {
                       <div key={idx} className="preview-thumb-card">
                         
                         <div className="preview-image-wrapper">
-                          <img src={img} alt={`Preview ${idx + 1}`} />
+                          <img src={img.url} alt={`Preview ${idx + 1}`} />
                           {isCover && <span className="cover-label uppercase-label">Cover</span>}
                         </div>
 
@@ -499,13 +494,14 @@ const AdminAddProduct = () => {
 
             {/* Form Footer Action button block */}
             <div className="form-submit-row" style={{ marginTop: '32px' }}>
-              <button type="submit" className="btn-primary form-action-submit-btn">
-                SAVE PRODUCT
+              <button type="submit" className="btn-primary form-action-submit-btn" disabled={isSaving}>
+                {isSaving ? 'SAVING...' : 'SAVE PRODUCT'}
               </button>
               <button 
                 type="button" 
                 className="btn-secondary form-action-draft-btn"
                 onClick={(e) => handleSubmit(e, true)}
+                disabled={isSaving}
               >
                 SAVE AS DRAFT
               </button>

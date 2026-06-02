@@ -1,10 +1,34 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useApp } from '../../context/AppContext';
 import ClockSvg from '../../components/ClockSvg';
+import {
+  fetchAllProducts,
+  updateProduct as pbUpdateProduct,
+  deleteProduct as pbDeleteProduct,
+} from '../../lib/productsService';
+import pb from '../../lib/pocketbase';
 
 const AdminProducts = () => {
-  const { products, deleteProduct, updateProduct, toggleProductLive } = useApp();
+  // ── PocketBase state ──────────────────────────────────────────────────────
+  const [products, setProducts]   = useState([]);
+  const [pbLoading, setPbLoading] = useState(true);
+  const [pbError,   setPbError]   = useState('');
+
+  const loadProducts = async () => {
+    try {
+      setPbLoading(true);
+      setPbError('');
+      const data = await fetchAllProducts();
+      setProducts(data);
+    } catch (err) {
+      setPbError('Failed to load products from PocketBase.');
+      console.error(err);
+    } finally {
+      setPbLoading(false);
+    }
+  };
+
+  useEffect(() => { loadProducts(); }, []);
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -67,10 +91,18 @@ const AdminProducts = () => {
     }
   };
 
-  // Instant status toggle
-  const handleToggleLive = (id, currentStatus) => {
-    toggleProductLive(id);
-    triggerToast(currentStatus ? 'Product set to HIDDEN' : 'Product set to LIVE');
+  // Instant status toggle — update is_live in PocketBase
+  const handleToggleLive = async (id, currentStatus) => {
+    const product = products.find(p => p.id === id);
+    if (!product) return;
+    try {
+      await pbUpdateProduct(product.pbId || id, { is_live: !currentStatus });
+      await loadProducts();
+      triggerToast(currentStatus ? 'Product set to HIDDEN' : 'Product set to LIVE');
+    } catch (err) {
+      triggerToast('Error updating status');
+      console.error(err);
+    }
   };
 
   // Trigger Delete confirmation
@@ -78,51 +110,62 @@ const AdminProducts = () => {
     setDeletingProductId(id);
   };
 
-  const handleConfirmDelete = () => {
-    if (deletingProductId) {
-      deleteProduct(deletingProductId);
+  const handleConfirmDelete = async () => {
+    if (!deletingProductId) return;
+    const product = products.find(p => p.id === deletingProductId);
+    try {
+      await pbDeleteProduct(product?.pbId || deletingProductId);
       setDeletingProductId(null);
       triggerToast('Product deleted successfully');
+      await loadProducts();
+    } catch (err) {
+      triggerToast('Error deleting product');
+      console.error(err);
     }
   };
 
   // Trigger Edit Form
   const triggerEdit = (product) => {
     setEditingProduct(product);
-    setEditForm({ ...product });
+    setEditForm({ ...product, _newImageFile: null });
   };
 
-  const handleEditSubmit = (e) => {
+  const handleEditSubmit = async (e) => {
     e.preventDefault();
     if (!editForm.modelNumber.trim() || !editForm.size.trim()) {
       alert('Please fill in all required fields marked with *');
       return;
     }
-    
-    updateProduct({
-      ...editForm,
-      salePrice: Number(editForm.salePrice),
-      originalPrice: editForm.originalPrice ? Number(editForm.originalPrice) : null,
-      stockCount: Number(editForm.stockCount)
-    });
-    setEditingProduct(null);
-    triggerToast('Product updated successfully');
+    try {
+      const pbId = editForm.pbId || editForm.id;
+      await pbUpdateProduct(pbId, {
+        MODEL_NUMBER:    editForm.modelNumber,
+        SIZE_DIMENSIONS: editForm.size,
+        package_no:      editForm.packageNo || '',
+        price:           Number(editForm.salePrice),
+        stock_count:     Number(editForm.stockCount),
+        is_live:         editForm.isLive,
+        imageFile:       editForm._newImageFile || undefined,
+      });
+      setEditingProduct(null);
+      triggerToast('Product updated successfully');
+      await loadProducts();
+    } catch (err) {
+      triggerToast('Error saving product');
+      console.error(err);
+    }
   };
 
   // Image helpers for Edit Modal
   const handleImageUpload = (e) => {
-    const files = Array.from(e.target.files);
-    
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setEditForm(prev => ({
-          ...prev,
-          images: [...prev.images, event.target.result]
-        }));
-      };
-      reader.readAsDataURL(file);
-    });
+    const file = e.target.files[0];
+    if (!file) return;
+    const previewUrl = URL.createObjectURL(file);
+    setEditForm(prev => ({
+      ...prev,
+      images: [previewUrl, ...prev.images.slice(1)],
+      _newImageFile: file,
+    }));
   };
 
   const removeEditImage = (indexToRemove) => {
@@ -179,6 +222,18 @@ const AdminProducts = () => {
 
   return (
     <div className="admin-products-root font-body">
+
+      {/* PocketBase loading / error */}
+      {pbLoading && (
+        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
+          Loading products from PocketBase…
+        </div>
+      )}
+      {!pbLoading && pbError && (
+        <div style={{ padding: '16px', background: '#FEF2F2', color: '#B91C1C', borderRadius: '4px', marginBottom: '16px' }}>
+          ⚠️ {pbError} — Make sure PocketBase is running on http://127.0.0.1:8090
+        </div>
+      )}
       
       {/* Toast Alert popup */}
       {toastMessage && (
