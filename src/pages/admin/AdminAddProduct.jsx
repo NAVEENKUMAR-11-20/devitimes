@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { createProduct } from '../../lib/productsService';
 
 // Canvas-based image compression helper as specified in the prompt
@@ -42,6 +42,7 @@ function compressImage(file, maxWidth = 800, quality = 0.75) {
 }
 
 const AdminAddProduct = () => {
+  const navigate = useNavigate();
   // PocketBase: no context needed — save directly
   const [isSaving, setIsSaving] = useState(false);
 
