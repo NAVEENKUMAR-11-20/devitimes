@@ -197,48 +197,6 @@ const AdminProducts = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleBulkHide = async () => {
-    if (!window.confirm(`Are you sure you want to HIDE ALL ${products.length} products?`)) return;
-    setBulkProcessing(true);
-    setBulkProgress({ current: 0, total: products.length, type: 'Hiding' });
-    triggerToast('Bulk hide started... Please wait.');
-    try {
-      await processInBatches(products, async (p) => {
-        if (p.isLive !== false) {
-          await pbUpdateProduct(p.pbId || p.id, { is_live: false });
-        }
-      }, 10);
-      triggerToast('All products hidden successfully!');
-      await loadProducts();
-    } catch (err) {
-      triggerToast('Error during bulk hide.');
-      console.error(err);
-    } finally {
-      setBulkProcessing(false);
-    }
-  };
-
-  const handleBulkLive = async () => {
-    if (!window.confirm(`Are you sure you want to set ALL ${products.length} products to LIVE?`)) return;
-    setBulkProcessing(true);
-    setBulkProgress({ current: 0, total: products.length, type: 'Publishing' });
-    triggerToast('Bulk live started... Please wait.');
-    try {
-      await processInBatches(products, async (p) => {
-        if (p.isLive !== true) {
-          await pbUpdateProduct(p.pbId || p.id, { is_live: true });
-        }
-      }, 10);
-      triggerToast('All products set to live successfully!');
-      await loadProducts();
-    } catch (err) {
-      triggerToast('Error during bulk live.');
-      console.error(err);
-    } finally {
-      setBulkProcessing(false);
-    }
-  };
-
   // Metrics summary
   const totalCount = products.length;
   const liveCount = products.filter(p => p.isLive).length;
@@ -462,22 +420,6 @@ const AdminProducts = () => {
             )}
           </div>
 
-          <button 
-            onClick={handleBulkHide} 
-            disabled={bulkProcessing || products.length === 0}
-            className="btn-secondary font-body" 
-            style={{ height: '40px', padding: '0 16px', fontSize: '12px' }}
-          >
-            {bulkProcessing && bulkProgress.type.includes('Hid') ? `${bulkProgress.type} ${bulkProgress.current}/${bulkProgress.total}...` : '👁️‍🗨️ Hide All'}
-          </button>
-          <button 
-            onClick={handleBulkLive} 
-            disabled={bulkProcessing || products.length === 0}
-            className="btn-secondary font-body" 
-            style={{ height: '40px', padding: '0 16px', fontSize: '12px', background: '#ECFDF5', color: '#047857', borderColor: '#A7F3D0' }}
-          >
-            {bulkProcessing && bulkProgress.type.includes('Publish') ? `${bulkProgress.type} ${bulkProgress.current}/${bulkProgress.total}...` : '✅ Live All'}
-          </button>
           <Link to="/admin/add-product" className="btn-primary font-body" style={{ height: '40px', padding: '0 20px', fontSize: '12px' }}>
             ➕ &nbsp; ADD NEW PRODUCT
           </Link>
