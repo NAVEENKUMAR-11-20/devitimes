@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { fetchAllProducts } from '../lib/productsService';
+import { fetchAllUsers, fetchPendingRegistrations, createRegistration as pbCreateRegistration, deleteRegistration as pbDeleteRegistration, updateRegistrationStatus as pbUpdateRegistrationStatus, createUser as pbCreateUser, deleteUser as pbDeleteUser } from '../lib/usersService';
 
 const AppContext = createContext();
 
@@ -32,15 +33,22 @@ export const AppProvider = ({ children }) => {
     loadProducts();
   }, []);
 
-  const [users, setUsers] = useState(() => {
-    const saved = localStorage.getItem('lumiere_users');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [users, setUsers] = useState([]);
+  const [pendingRegistrations, setPendingRegistrations] = useState([]);
 
-  const [pendingRegistrations, setPendingRegistrations] = useState(() => {
-    const saved = localStorage.getItem('lumiere_registrations');
-    return saved ? JSON.parse(saved) : [];
-  });
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const pbUsers = await fetchAllUsers();
+        setUsers(pbUsers);
+        const pbRegs = await fetchPendingRegistrations();
+        setPendingRegistrations(pbRegs);
+      } catch (err) {
+        console.error('[AppContext] Failed to load user data from PocketBase:', err);
+      }
+    };
+    loadUserData();
+  }, []);
 
   const [settings, setSettings] = useState(() => {
     const saved = localStorage.getItem('lumiere_settings');
@@ -82,13 +90,7 @@ export const AppProvider = ({ children }) => {
 
   // Products are now fetched from PocketBase — no localStorage sync needed
 
-  useEffect(() => {
-    localStorage.setItem('lumiere_users', JSON.stringify(users));
-  }, [users]);
-
-  useEffect(() => {
-    localStorage.setItem('lumiere_registrations', JSON.stringify(pendingRegistrations));
-  }, [pendingRegistrations]);
+  // Products and Users are fetched from PocketBase — no localStorage sync needed
 
   useEffect(() => {
     localStorage.setItem('lumiere_settings', JSON.stringify(settings));
@@ -130,54 +132,76 @@ export const AppProvider = ({ children }) => {
   };
 
   // --- Registration / User Management Actions ---
-  const registerUser = (name, mobile) => {
-    const newReg = {
-      id: `reg_${Date.now()}`,
-      name,
-      mobile,
-      registeredAt: new Date().toISOString(),
-      status: "pending"
-    };
-    setPendingRegistrations(prev => [newReg, ...prev]);
-    return newReg;
+  const registerUser = async (name, mobile) => {
+    try {
+      const newReg = await pbCreateRegistration(name, mobile);
+      setPendingRegistrations(prev => [newReg, ...prev]);
+      return newReg;
+    } catch (err) {
+      console.error('Failed to register user in PocketBase:', err);
+      throw err;
+    }
   };
 
-  const approveRegistration = (regId, customUserId, password) => {
+  const approveRegistration = async (regId, customUserId, password) => {
     const reg = pendingRegistrations.find(r => r.id === regId);
     if (!reg) return null;
 
-    const newUser = {
-      userId: customUserId,
-      name: reg.name,
-      mobile: reg.mobile,
-      password: password,
-      status: "active",
-      createdAt: new Date().toISOString()
-    };
+    try {
+      const newUser = await pbCreateUser({
+        userId: customUserId,
+        name: reg.name,
+        mobile: reg.mobile,
+        password: password
+      });
 
-    setUsers(prev => [newUser, ...prev]);
-    setPendingRegistrations(prev => prev.filter(r => r.id !== regId));
-    return newUser;
+      await pbUpdateRegistrationStatus(regId, "approved");
+
+      setUsers(prev => [newUser, ...prev]);
+      setPendingRegistrations(prev => prev.filter(r => r.id !== regId));
+      return newUser;
+    } catch (err) {
+      console.error('Failed to approve registration:', err);
+      alert('Failed to approve registration via PocketBase');
+      return null;
+    }
   };
 
-  const deleteRegistrationRequest = (regId) => {
-    setPendingRegistrations(prev => prev.filter(r => r.id !== regId));
+  const deleteRegistrationRequest = async (regId) => {
+    try {
+      await pbDeleteRegistration(regId);
+      setPendingRegistrations(prev => prev.filter(r => r.id !== regId));
+    } catch (err) {
+      console.error('Failed to delete registration request:', err);
+      alert('Failed to delete registration from PocketBase');
+    }
   };
 
-  const createUser = (user) => {
-    const newUser = {
-      ...user,
-      createdAt: new Date().toISOString()
-    };
-    setUsers(prev => [newUser, ...prev]);
+  const createUser = async (user) => {
+    try {
+      const newUser = await pbCreateUser(user);
+      setUsers(prev => [newUser, ...prev]);
+    } catch (err) {
+      console.error('Failed to create user:', err);
+      alert('Failed to create user in PocketBase');
+    }
   };
 
   const updateUserStatus = (userId, status) => {
     setUsers(prev => prev.map(u => u.userId === userId ? { ...u, status } : u));
   };
 
-  const deleteUser = (userId) => {
-    setUsers(prev => prev.filter(u => u.userId !== userId));
+  const deleteUser = async (userId) => {
+    try {
+      const user = users.find(u => u.userId === userId);
+      if (user && user.pbId) {
+        await pbDeleteUser(user.pbId);
+      }
+      setUsers(prev => prev.filter(u => u.userId !== userId));
+    } catch (err) {
+      console.error('Failed to delete user:', err);
+      alert('Failed to delete user from PocketBase');
+    }
   };
 
   // --- User Authentication Actions ---
