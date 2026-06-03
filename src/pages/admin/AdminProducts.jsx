@@ -89,8 +89,25 @@ const AdminProducts = () => {
   const [bulkProcessing, setBulkProcessing] = useState(false);
   const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0, type: '' });
   const [deleteDropdownOpen, setDeleteDropdownOpen] = useState(false);
+  
+  // Custom Modal States
+  const [bulkDeleteTarget, setBulkDeleteTarget] = useState(null); 
+  const [failedIds, setFailedIds] = useState([]); 
+  const [successCountTracker, setSuccessCountTracker] = useState(0);
 
-  const processInBatches = async (items, processItem, batchSize = 20) => {
+  const ensurePbAuth = async () => {
+    if (!pb.authStore.isValid) {
+      const email = import.meta.env.VITE_PB_ADMIN_EMAIL || 'admin@devitimes.com';
+      const password = import.meta.env.VITE_PB_ADMIN_PASSWORD || 'admin12345';
+      try {
+        await pb.admins.authWithPassword(email, password);
+      } catch (e) {
+        console.error('PB Auth Error:', e);
+      }
+    }
+  };
+
+  const processInBatches = async (items, processItem, batchSize = 10) => {
     let completed = 0;
     const failedItems = [];
     for (let i = 0; i < items.length; i += batchSize) {
@@ -100,7 +117,7 @@ const AdminProducts = () => {
       results.forEach((res, idx) => {
         if (res.status === 'rejected') {
           failedItems.push({ item: batch[idx], error: res.reason });
-          console.error('[PB] Batch item failed:', batch[idx].id, res.reason);
+          console.error('[PB] Batch item failed:', batch[idx].id || batch[idx], res.reason);
         }
       });
       
@@ -111,23 +128,38 @@ const AdminProducts = () => {
   };
 
   const executeDeletionBatch = async (itemsToDelete) => {
-    const failed = await processInBatches(itemsToDelete, (p) => pbDeleteProduct(p.pbId || p.id), 30);
-    const successCount = itemsToDelete.length - failed.length;
+    setBulkProcessing(true);
+    setBulkProgress({ current: 0, total: itemsToDelete.length, type: 'Deleting' });
+    triggerToast('Bulk delete started... Please wait.');
     
-    if (failed.length > 0) {
-      if (window.confirm(`${successCount} deleted, ${failed.length} failed. Do you want to retry the failed deletions?`)) {
-        const retryItems = failed.map(f => f.item);
-        setBulkProgress({ current: 0, total: retryItems.length, type: 'Retrying' });
-        await executeDeletionBatch(retryItems);
+    await ensurePbAuth();
+
+    try {
+      const failed = await processInBatches(
+        itemsToDelete, 
+        (p) => pb.collection('products').delete(p.pbId || p.id), 
+        10
+      );
+      const successCount = itemsToDelete.length - failed.length;
+      
+      setSuccessCountTracker(prev => prev + successCount);
+      
+      if (failed.length > 0) {
+        setFailedIds(failed); // Trigger the retry modal
       } else {
-        triggerToast(`Completed with ${failed.length} errors.`);
+        triggerToast(`${successCountTracker + successCount} products deleted successfully!`);
+        await loadProducts();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
-    } else {
-      triggerToast(`${successCount} products deleted successfully!`);
+    } catch (err) {
+      triggerToast('Critical error during bulk delete.');
+      console.error(err);
+    } finally {
+      setBulkProcessing(false);
     }
   };
 
-  const handleBulkDelete = async (countOption) => {
+  const handleBulkDelete = (countOption) => {
     setDeleteDropdownOpen(false);
     
     let targetList = products;
@@ -137,22 +169,32 @@ const AdminProducts = () => {
     
     if (targetList.length === 0) return;
 
-    if (!window.confirm(`Are you sure you want to completely DELETE ${countOption === 'ALL' ? 'ALL' : 'the first ' + targetList.length} products? This cannot be undone.`)) return;
-    
-    setBulkProcessing(true);
-    setBulkProgress({ current: 0, total: targetList.length, type: 'Deleting' });
-    triggerToast('Bulk delete started... Please wait.');
-    
-    try {
-      await executeDeletionBatch(targetList);
-      await loadProducts();
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (err) {
-      triggerToast('Critical error during bulk delete.');
-      console.error(err);
-    } finally {
-      setBulkProcessing(false);
+    // Trigger the initial confirmation modal
+    setBulkDeleteTarget({ items: targetList, countOption });
+    setSuccessCountTracker(0); // reset success tracker
+  };
+
+  const confirmInitialDelete = async () => {
+    const target = bulkDeleteTarget?.items;
+    setBulkDeleteTarget(null);
+    if (target) {
+      await executeDeletionBatch(target);
     }
+  };
+
+  const confirmRetryDelete = async () => {
+    const target = failedIds.map(f => f.item);
+    setFailedIds([]);
+    if (target.length > 0) {
+      await executeDeletionBatch(target);
+    }
+  };
+
+  const cancelRetryDelete = async () => {
+    triggerToast(`Completed with ${failedIds.length} errors.`);
+    setFailedIds([]);
+    await loadProducts();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleBulkHide = async () => {
@@ -246,14 +288,16 @@ const AdminProducts = () => {
     
     // Optimistic update
     setProducts(prev => prev.filter(p => p.id !== idToDelete));
-    triggerToast('Product deleted successfully');
+    triggerToast('Deleting product...');
     
     try {
-      await pbDeleteProduct(product?.pbId || idToDelete);
+      await ensurePbAuth();
+      await pb.collection('products').delete(product?.pbId || idToDelete);
+      triggerToast('Product deleted successfully');
     } catch (err) {
-      // Revert on error
-      if (product) setProducts(prev => [...prev, product]);
-      triggerToast('Error deleting product');
+      // Revert on error at exact position if possible
+      if (product) setProducts(prev => [product, ...prev]);
+      triggerToast(`Error deleting product: ${err.message || 'Unknown error'}`);
       console.error(err);
     }
   };
@@ -793,6 +837,68 @@ const AdminProducts = () => {
               </button>
               <button onClick={() => setDeletingProductId(null)} className="btn-secondary modal-btn">
                 CANCEL
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- BULK DELETE CONFIRM MODAL --- */}
+      {bulkDeleteTarget && (
+        <div className="modal-overlay">
+          <div className="modal-card animate-fade-in" style={{ maxWidth: '400px', padding: '24px' }}>
+            <h3 className="font-heading" style={{ color: '#B91C1C', marginTop: 0 }}>Confirm Deletion</h3>
+            <p className="font-body" style={{ margin: '16px 0', lineHeight: '1.5' }}>
+              Are you sure you want to delete {bulkDeleteTarget.countOption === 'ALL' ? 'ALL' : `the first ${bulkDeleteTarget.items.length}`} products?
+              <br /><br />
+              <strong>This action cannot be undone.</strong>
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+              <button 
+                onClick={() => setBulkDeleteTarget(null)} 
+                className="btn-secondary font-body"
+                style={{ padding: '8px 16px' }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={confirmInitialDelete} 
+                className="btn-primary font-body"
+                style={{ padding: '8px 16px', background: '#B91C1C', borderColor: '#B91C1C' }}
+              >
+                Yes, Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- BULK DELETE RETRY MODAL --- */}
+      {failedIds.length > 0 && (
+        <div className="modal-overlay">
+          <div className="modal-card animate-fade-in" style={{ maxWidth: '450px', padding: '24px' }}>
+            <h3 className="font-heading" style={{ color: '#F59E0B', marginTop: 0 }}>Incomplete Deletion</h3>
+            <p className="font-body" style={{ margin: '16px 0', lineHeight: '1.5' }}>
+              <strong>{successCountTracker}</strong> products deleted successfully.<br />
+              <strong style={{ color: '#B91C1C' }}>{failedIds.length}</strong> products failed to delete.
+            </p>
+            <p className="font-body" style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+              This usually happens due to network timeouts or rate limits. Do you want to retry deleting the {failedIds.length} failed products?
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+              <button 
+                onClick={cancelRetryDelete} 
+                className="btn-secondary font-body"
+                style={{ padding: '8px 16px' }}
+              >
+                Skip Retry
+              </button>
+              <button 
+                onClick={confirmRetryDelete} 
+                className="btn-primary font-body"
+                style={{ padding: '8px 16px', background: '#F59E0B', borderColor: '#F59E0B', color: 'black' }}
+              >
+                Retry Failed
               </button>
             </div>
           </div>
