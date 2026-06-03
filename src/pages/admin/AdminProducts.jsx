@@ -33,7 +33,16 @@ const AdminProducts = () => {
   useEffect(() => { loadProducts(); }, []);
 
   // Search & Filter State
+  const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchQuery(searchInput);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
   const [statusFilter, setStatusFilter] = useState('ALL'); // ALL, LIVE, HIDDEN
   const [categoryFilter, setCategoryFilter] = useState('ALL'); // ALL, or specific categories
 
@@ -78,24 +87,68 @@ const AdminProducts = () => {
 
   // Bulk Actions State & Logic
   const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0, type: '' });
+  const [deleteDropdownOpen, setDeleteDropdownOpen] = useState(false);
 
-  const processInBatches = async (items, processItem, batchSize = 10) => {
+  const processInBatches = async (items, processItem, batchSize = 20) => {
+    let completed = 0;
+    const failedItems = [];
     for (let i = 0; i < items.length; i += batchSize) {
       const batch = items.slice(i, i + batchSize);
-      await Promise.allSettled(batch.map(processItem));
+      const results = await Promise.allSettled(batch.map(processItem));
+      
+      results.forEach((res, idx) => {
+        if (res.status === 'rejected') {
+          failedItems.push({ item: batch[idx], error: res.reason });
+          console.error('[PB] Batch item failed:', batch[idx].id, res.reason);
+        }
+      });
+      
+      completed += batch.length;
+      setBulkProgress(prev => ({ ...prev, current: Math.min(completed, items.length) }));
+    }
+    return failedItems;
+  };
+
+  const executeDeletionBatch = async (itemsToDelete) => {
+    const failed = await processInBatches(itemsToDelete, (p) => pbDeleteProduct(p.pbId || p.id), 30);
+    const successCount = itemsToDelete.length - failed.length;
+    
+    if (failed.length > 0) {
+      if (window.confirm(`${successCount} deleted, ${failed.length} failed. Do you want to retry the failed deletions?`)) {
+        const retryItems = failed.map(f => f.item);
+        setBulkProgress({ current: 0, total: retryItems.length, type: 'Retrying' });
+        await executeDeletionBatch(retryItems);
+      } else {
+        triggerToast(`Completed with ${failed.length} errors.`);
+      }
+    } else {
+      triggerToast(`${successCount} products deleted successfully!`);
     }
   };
 
-  const handleBulkDelete = async () => {
-    if (!window.confirm(`Are you sure you want to completely DELETE ALL ${products.length} products? This cannot be undone.`)) return;
+  const handleBulkDelete = async (countOption) => {
+    setDeleteDropdownOpen(false);
+    
+    let targetList = products;
+    if (countOption !== 'ALL') {
+      targetList = products.slice(0, countOption);
+    }
+    
+    if (targetList.length === 0) return;
+
+    if (!window.confirm(`Are you sure you want to completely DELETE ${countOption === 'ALL' ? 'ALL' : 'the first ' + targetList.length} products? This cannot be undone.`)) return;
+    
     setBulkProcessing(true);
+    setBulkProgress({ current: 0, total: targetList.length, type: 'Deleting' });
     triggerToast('Bulk delete started... Please wait.');
+    
     try {
-      await processInBatches(products, (p) => pbDeleteProduct(p.pbId || p.id), 10);
-      triggerToast('All products deleted successfully!');
+      await executeDeletionBatch(targetList);
       await loadProducts();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
-      triggerToast('Error during bulk delete.');
+      triggerToast('Critical error during bulk delete.');
       console.error(err);
     } finally {
       setBulkProcessing(false);
@@ -105,13 +158,13 @@ const AdminProducts = () => {
   const handleBulkHide = async () => {
     if (!window.confirm(`Are you sure you want to HIDE ALL ${products.length} products?`)) return;
     setBulkProcessing(true);
+    setBulkProgress({ current: 0, total: products.length, type: 'Hiding' });
     triggerToast('Bulk hide started... Please wait.');
     try {
-      await processInBatches(products, (p) => {
+      await processInBatches(products, async (p) => {
         if (p.isLive !== false) {
-          return pbUpdateProduct(p.pbId || p.id, { is_live: false });
+          await pbUpdateProduct(p.pbId || p.id, { is_live: false });
         }
-        return Promise.resolve();
       }, 10);
       triggerToast('All products hidden successfully!');
       await loadProducts();
@@ -126,13 +179,13 @@ const AdminProducts = () => {
   const handleBulkLive = async () => {
     if (!window.confirm(`Are you sure you want to set ALL ${products.length} products to LIVE?`)) return;
     setBulkProcessing(true);
+    setBulkProgress({ current: 0, total: products.length, type: 'Publishing' });
     triggerToast('Bulk live started... Please wait.');
     try {
-      await processInBatches(products, (p) => {
+      await processInBatches(products, async (p) => {
         if (p.isLive !== true) {
-          return pbUpdateProduct(p.pbId || p.id, { is_live: true });
+          await pbUpdateProduct(p.pbId || p.id, { is_live: true });
         }
-        return Promise.resolve();
       }, 10);
       triggerToast('All products set to live successfully!');
       await loadProducts();
@@ -165,11 +218,16 @@ const AdminProducts = () => {
   const handleToggleLive = async (id, currentStatus) => {
     const product = products.find(p => p.id === id);
     if (!product) return;
+    
+    // Optimistic update
+    setProducts(prev => prev.map(p => p.id === id ? { ...p, isLive: !currentStatus } : p));
+    triggerToast(currentStatus ? 'Product set to HIDDEN' : 'Product set to LIVE');
+    
     try {
       await pbUpdateProduct(product.pbId || id, { is_live: !currentStatus });
-      await loadProducts();
-      triggerToast(currentStatus ? 'Product set to HIDDEN' : 'Product set to LIVE');
     } catch (err) {
+      // Revert on error
+      setProducts(prev => prev.map(p => p.id === id ? { ...p, isLive: currentStatus } : p));
       triggerToast('Error updating status');
       console.error(err);
     }
@@ -182,13 +240,19 @@ const AdminProducts = () => {
 
   const handleConfirmDelete = async () => {
     if (!deletingProductId) return;
-    const product = products.find(p => p.id === deletingProductId);
+    const idToDelete = deletingProductId;
+    const product = products.find(p => p.id === idToDelete);
+    setDeletingProductId(null);
+    
+    // Optimistic update
+    setProducts(prev => prev.filter(p => p.id !== idToDelete));
+    triggerToast('Product deleted successfully');
+    
     try {
-      await pbDeleteProduct(product?.pbId || deletingProductId);
-      setDeletingProductId(null);
-      triggerToast('Product deleted successfully');
-      await loadProducts();
+      await pbDeleteProduct(product?.pbId || idToDelete);
     } catch (err) {
+      // Revert on error
+      if (product) setProducts(prev => [...prev, product]);
       triggerToast('Error deleting product');
       console.error(err);
     }
@@ -324,21 +388,43 @@ const AdminProducts = () => {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end', marginTop: '12px' }}>
-          <button 
-            onClick={handleBulkDelete} 
-            disabled={bulkProcessing || products.length === 0}
-            className="btn-secondary font-body" 
-            style={{ height: '40px', padding: '0 16px', fontSize: '12px', background: '#FEF2F2', color: '#B91C1C', borderColor: '#FECACA' }}
-          >
-            {bulkProcessing ? 'Processing...' : '🗑️ Delete All Products'}
-          </button>
+          
+          <div style={{ position: 'relative' }}>
+            <button 
+              onClick={() => setDeleteDropdownOpen(!deleteDropdownOpen)} 
+              disabled={bulkProcessing || products.length === 0}
+              className="btn-secondary font-body" 
+              style={{ height: '40px', padding: '0 16px', fontSize: '12px', background: '#FEF2F2', color: '#B91C1C', borderColor: '#FECACA' }}
+            >
+              {bulkProcessing && bulkProgress.type.includes('Delet') ? (
+                <>
+                  <span className="loading-spinner" style={{ width: '12px', height: '12px', border: '2px solid #FECACA', borderTop: '2px solid #B91C1C', borderRadius: '50%', display: 'inline-block', marginRight: '6px', animation: 'spin 1s linear infinite', verticalAlign: 'middle' }}></span>
+                  {`${bulkProgress.type} ${bulkProgress.current}/${bulkProgress.total}...`}
+                </>
+              ) : '🗑️ DELETE PRODUCTS ▼'}
+            </button>
+            
+            {deleteDropdownOpen && !bulkProcessing && (
+              <div style={{ position: 'absolute', top: '44px', right: '0', background: 'white', border: '1px solid #E2E8F0', borderRadius: '4px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 50, minWidth: '200px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                {[200, 400, 600, 800, 1000].map(count => (
+                  <button key={count} onClick={() => handleBulkDelete(count)} style={{ padding: '12px 16px', textAlign: 'left', border: 'none', borderBottom: '1px solid #F1F5F9', fontSize: '12px', cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)', fontWeight: '500' }}>
+                    Delete first {count} products
+                  </button>
+                ))}
+                <button onClick={() => handleBulkDelete('ALL')} style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', cursor: 'pointer', background: '#FEF2F2', color: '#B91C1C', fontWeight: 'bold', border: 'none' }}>
+                  Delete ALL products
+                </button>
+              </div>
+            )}
+          </div>
+
           <button 
             onClick={handleBulkHide} 
             disabled={bulkProcessing || products.length === 0}
             className="btn-secondary font-body" 
             style={{ height: '40px', padding: '0 16px', fontSize: '12px' }}
           >
-            {bulkProcessing ? 'Processing...' : '👁️‍🗨️ Hide All'}
+            {bulkProcessing ? `${bulkProgress.type} ${bulkProgress.current}/${bulkProgress.total}...` : '👁️‍🗨️ Hide All'}
           </button>
           <button 
             onClick={handleBulkLive} 
@@ -346,7 +432,7 @@ const AdminProducts = () => {
             className="btn-secondary font-body" 
             style={{ height: '40px', padding: '0 16px', fontSize: '12px', background: '#ECFDF5', color: '#047857', borderColor: '#A7F3D0' }}
           >
-            {bulkProcessing ? 'Processing...' : '✅ Live All'}
+            {bulkProcessing ? `${bulkProgress.type} ${bulkProgress.current}/${bulkProgress.total}...` : '✅ Live All'}
           </button>
           <Link to="/admin/add-product" className="btn-primary font-body" style={{ height: '40px', padding: '0 20px', fontSize: '12px' }}>
             ➕ &nbsp; ADD NEW PRODUCT
@@ -363,8 +449,8 @@ const AdminProducts = () => {
             type="text" 
             placeholder="Search catalogue by name, category, or model..."
             className="form-input search-catalogue-input"
-            value={searchQuery}
-            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
           />
         </div>
 
