@@ -27,8 +27,8 @@ function mapRecord(record) {
     isOnSale: false,
     stockCount: Number(record.stock) || 0,
     isLive: record.is_live !== undefined ? record.is_live : true,
-    images: record.prodimage
-      ? [pb.files.getURL(record, record.prodimage)]
+    images: getProductImageUrl(record)
+      ? [getProductImageUrl(record)]
       : [],
     _rawImageName: record.prodimage || '',    // original filename for updates
     name: record.MODEL_NUMBER || record.id,   // fallback display name

@@ -20,10 +20,11 @@ const AdminProducts = () => {
       setPbError('');
       const data = await fetchAllProducts();
       console.log('[PB] Fetched products for AdminProducts:', data);
-      setProducts(data);
+      setProducts(data || []);
     } catch (err) {
       setPbError('Failed to load products from PocketBase.');
       console.error(err);
+      setProducts([]);
     } finally {
       setPbLoading(false);
     }
@@ -188,13 +189,15 @@ const AdminProducts = () => {
         if (categoryFilter !== 'ALL' && p.category !== categoryFilter) return false;
         // Search text check
         const q = searchQuery.toLowerCase().trim();
-        return p.name.toLowerCase().includes(q) ||
-               p.modelNumber.toLowerCase().includes(q) ||
-               p.category.toLowerCase().includes(q);
+        const safeName = (p.name || '').toString().toLowerCase();
+        const safeModel = (p.modelNumber || '').toString().toLowerCase();
+        const safeCat = (p.category || '').toString().toLowerCase();
+        
+        return safeName.includes(q) || safeModel.includes(q) || safeCat.includes(q);
       })
       .sort((a, b) => {
-        let valA = a[sortField];
-        let valB = b[sortField];
+        let valA = a[sortField] !== undefined && a[sortField] !== null ? a[sortField] : '';
+        let valB = b[sortField] !== undefined && b[sortField] !== null ? b[sortField] : '';
 
         // Format strings or numbers for comparison
         if (typeof valA === 'string') valA = valA.toLowerCase();
