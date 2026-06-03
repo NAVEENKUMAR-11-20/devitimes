@@ -212,12 +212,7 @@ const Collection = () => {
                     {/* Image Viewport */}
                     <div className="card-image-area">
                       {isSale && <span className="badge-sale absolute-badge">SALE</span>}
-                      {product?.prodimage ? (
-                        <img 
-                          src={pb.files.getURL(product, product.prodimage)} 
-                          alt={product.name || 'Product'} 
-                        />
-                      ) : product?.images && product.images.length > 0 ? (
+                      {product?.images && product.images.length > 0 ? (
                         <img 
                           src={product.images[0]} 
                           alt={product.name || 'Product'} 
