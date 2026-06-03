@@ -144,7 +144,7 @@ const AdminProducts = () => {
         SIZE_DIMENSIONS: editForm.size,
         package_no:      editForm.packageNo || '',
         price:           Number(editForm.salePrice),
-        stock_count:     Number(editForm.stockCount),
+        stock:           Number(editForm.stockCount),
         is_live:         editForm.isLive,
         imageFile:       editForm._newImageFile || undefined,
       });

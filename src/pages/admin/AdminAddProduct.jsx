@@ -177,7 +177,7 @@ const AdminAddProduct = () => {
         SIZE_DIMENSIONS: finalSize,
         package_no:      '',
         price:           Number(salePrice),
-        stock_count:     Number(stockCount),
+        stock:           Number(stockCount),
         is_live:         forceDraft ? false : isLive,
         imageFile:       images.length > 0 ? images[0].file : null,
       });

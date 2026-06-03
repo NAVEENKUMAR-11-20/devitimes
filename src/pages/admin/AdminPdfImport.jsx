@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { Link } from 'react-router-dom';
-import { useApp } from '../../context/AppContext';
+import { Link, useNavigate } from 'react-router-dom';
+import { createProduct } from '../../lib/productsService';
 
 const sizeOptions = [
   '200 × 200 MM',
@@ -11,7 +11,17 @@ const sizeOptions = [
 ];
 
 const AdminPdfImport = () => {
-  const { addProduct } = useApp();
+  const navigate = useNavigate();
+
+  // Helper: convert a base64 data-URL to a File object for FormData upload
+  const base64ToFile = (base64, filename = 'product.png') => {
+    const [header, data] = base64.split(',');
+    const mime = header.match(/:(.*?);/)?.[1] || 'image/png';
+    const binary = atob(data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new File([bytes], filename, { type: mime });
+  };
 
   // Step: 1=Upload, 2=Preview, 3=Success
   const [step, setStep] = useState(1);
@@ -367,29 +377,45 @@ const AdminPdfImport = () => {
     }
   };
 
-  // ─── Save single card to catalogue ─────────────────────────────────────────
-  const handleSaveSingle = (p) => {
+  // ─── Save single card to catalogue (PocketBase) ────────────────────────────
+  const handleSaveSingle = async (p) => {
     if (!p.modelNumber && !p.size && !p.packageNo) {
       alert('All fields are empty. Please fill in at least one detail before saving.');
       return;
     }
 
-    const { tempId, include, pageNum, status, ...payload } = p;
-    addProduct({
-      ...payload,
-      name: p.modelNumber ? `Clock Model ${p.modelNumber}` : `Catalog Product (Page ${p.pageNum})`,
-    });
+    try {
+      // Build the image File from the base64 data URL captured from the PDF page
+      let imageFile = null;
+      if (p.images && p.images[0]) {
+        imageFile = base64ToFile(p.images[0], `product_${p.modelNumber || p.pageNum}.png`);
+      }
 
-    // Remove the saved product from the list
-    setExtractedProducts(prev => prev.filter(card => card.tempId !== p.tempId));
-    
-    // Show alert confirmation
-    alert(`Product ${p.modelNumber ? 'Model ' + p.modelNumber : 'Page ' + p.pageNum} saved successfully!`);
-    
-    // If it was the last card, transition to the success step
-    if (extractedProducts.length <= 1) {
-      setSavedCount(1);
-      setStep(3);
+      await createProduct({
+        MODEL_NUMBER:    p.modelNumber || '',
+        SIZE_DIMENSIONS: p.size || '',
+        package_no:      p.packageNo || '',
+        price:           Number(p.salePrice) || 0,
+        stock:           Number(p.stockCount) || 0,
+        status:          'LIVE',
+        is_live:         true,
+        category:        p.category || 'Clock',
+        imageFile,
+      });
+
+      // Remove the saved product from the list
+      setExtractedProducts(prev => prev.filter(card => card.tempId !== p.tempId));
+
+      alert(`Product ${p.modelNumber ? 'Model ' + p.modelNumber : 'Page ' + p.pageNum} saved to PocketBase!`);
+
+      // If it was the last card, transition to the success step
+      if (extractedProducts.length <= 1) {
+        setSavedCount(1);
+        setStep(3);
+      }
+    } catch (err) {
+      console.error('[PB] handleSaveSingle error:', err);
+      alert('Failed to save product to PocketBase. Make sure PocketBase is running on http://127.0.0.1:8090');
     }
   };
 
@@ -403,8 +429,8 @@ const AdminPdfImport = () => {
     setShowConfirmModal(true);
   };
 
-  // ─── Confirm & save ────────────────────────────────────────────────────────
-  const handleConfirmSave = () => {
+  // ─── Confirm & save (PocketBase bulk) ───────────────────────────────────────
+  const handleConfirmSave = async () => {
     const selected = extractedProducts.filter(p => p.include);
 
     // Validation: model, size, and packageNo must not all be empty
@@ -416,17 +442,34 @@ const AdminPdfImport = () => {
       }
     }
 
-    selected.forEach(p => {
-      const { tempId, include, pageNum, status, ...payload } = p;
-      addProduct({
-        ...payload,
-        name: p.modelNumber ? `Clock Model ${p.modelNumber}` : `Catalog Product (Page ${p.pageNum})`,
-      });
-    });
+    try {
+      for (const p of selected) {
+        let imageFile = null;
+        if (p.images && p.images[0]) {
+          imageFile = base64ToFile(p.images[0], `product_${p.modelNumber || p.pageNum}.png`);
+        }
 
-    setSavedCount(selected.length);
-    setShowConfirmModal(false);
-    setStep(3);
+        await createProduct({
+          MODEL_NUMBER:    p.modelNumber || '',
+          SIZE_DIMENSIONS: p.size || '',
+          package_no:      p.packageNo || '',
+          price:           Number(p.salePrice) || 0,
+          stock:           Number(p.stockCount) || 0,
+          status:          'LIVE',
+          is_live:         true,
+          category:        p.category || 'Clock',
+          imageFile,
+        });
+      }
+
+      setSavedCount(selected.length);
+      setShowConfirmModal(false);
+      setStep(3);
+    } catch (err) {
+      console.error('[PB] handleConfirmSave error:', err);
+      alert('Failed to save products to PocketBase. Make sure PocketBase is running on http://127.0.0.1:8090');
+      setShowConfirmModal(false);
+    }
   };
 
   // ─── Image Cropping Handlers & Canvas Render Engine ────────────────────────

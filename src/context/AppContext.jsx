@@ -1,82 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { fetchAllProducts } from '../lib/productsService';
 
 const AppContext = createContext();
 
-// Sample Seed Products
-const seedProducts = [
-  {
-    id: "prod_001",
-    name: "Obsidian Classic",
-    category: "Modern Minimalist",
-    modelNumber: "1221",
-    size: "300 × 300 MM",
-    color: "Black",
-    salePrice: 89,
-    originalPrice: 120,
-    isOnSale: true,
-    stockCount: 30,
-    isLive: true,
-    description: "Clean lines and minimalist design. Features a quiet sweeping hand mechanism and a sleek matte finish, making it the perfect focal point for any modern workspace or living room.",
-    images: [], // Handled dynamically (or SVG fallback)
-    createdAt: new Date().toISOString(),
-    source: "manual",
-    packageNo: ""
-  },
-  {
-    id: "prod_002",
-    name: "Silver Frost Elite",
-    category: "Contemporary",
-    modelNumber: "1231",
-    size: "300 × 300 MM",
-    color: "Black & Silver",
-    salePrice: 110,
-    originalPrice: 150,
-    isOnSale: true,
-    stockCount: 20,
-    isLive: true,
-    description: "Contemporary design with brushed aluminum finish. An elegant addition to any boardroom, dining area, or master bedroom, pairing industrial durability with subtle luxury.",
-    images: [],
-    createdAt: new Date().toISOString(),
-    source: "manual",
-    packageNo: ""
-  },
-  {
-    id: "prod_003",
-    name: "Emerald Vintage",
-    category: "Luxury Vintage",
-    modelNumber: "1241",
-    size: "300 × 300 MM",
-    color: "Navy Blue",
-    salePrice: 149,
-    originalPrice: 200,
-    isOnSale: true,
-    stockCount: 15,
-    isLive: true,
-    description: "Vintage-inspired elegance featuring rich gold accents. Brings classic old-world charm to your study or fireplace mantel, meticulously styled to resemble a heritage timepiece.",
-    images: [],
-    createdAt: new Date().toISOString(),
-    source: "manual",
-    packageNo: ""
-  },
-  {
-    id: "prod_004",
-    name: "Stealth Matrix",
-    category: "Modern Minimalist",
-    modelNumber: "1271",
-    size: "300 × 300 MM",
-    color: "Navy & Gold",
-    salePrice: 129,
-    originalPrice: 180,
-    isOnSale: true,
-    stockCount: 10,
-    isLive: true,
-    description: "Premium modern timepiece with minimalist matrix hour markers. Bold, stark, and expressive, this clock elevates any feature wall with its contrast-heavy styling.",
-    images: [],
-    createdAt: new Date().toISOString(),
-    source: "manual",
-    packageNo: ""
-  }
-];
+// (seedProducts removed — all products now come from PocketBase)
 
 // Default admin settings
 const defaultSettings = {
@@ -88,11 +15,22 @@ const defaultSettings = {
 };
 
 export const AppProvider = ({ children }) => {
-  // State Initialization from LocalStorage
-  const [products, setProducts] = useState(() => {
-    const saved = localStorage.getItem('lumiere_products');
-    return saved ? JSON.parse(saved) : seedProducts;
-  });
+  // Products — fetched from PocketBase on mount (no more localStorage/seedProducts)
+  const [products, setProducts] = useState([]);
+
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        const pbProducts = await fetchAllProducts();
+        console.log('[AppContext] Loaded products from PocketBase:', pbProducts.length);
+        setProducts(pbProducts);
+      } catch (err) {
+        console.error('[AppContext] Failed to fetch products from PocketBase:', err);
+        setProducts([]);
+      }
+    };
+    loadProducts();
+  }, []);
 
   const [users, setUsers] = useState(() => {
     const saved = localStorage.getItem('lumiere_users');
@@ -142,10 +80,7 @@ export const AppProvider = ({ children }) => {
     }
   }, [currentUser]);
 
-  // Sync state modifications to LocalStorage
-  useEffect(() => {
-    localStorage.setItem('lumiere_products', JSON.stringify(products));
-  }, [products]);
+  // Products are now fetched from PocketBase — no localStorage sync needed
 
   useEffect(() => {
     localStorage.setItem('lumiere_users', JSON.stringify(users));

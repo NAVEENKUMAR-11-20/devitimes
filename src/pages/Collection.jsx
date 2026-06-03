@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import ClockSvg from '../components/ClockSvg';
+import { fetchAllProducts } from '../lib/productsService';
 
 const Collection = () => {
   const { products: contextProducts, currentUser, addToCart } = useApp();
@@ -24,24 +25,16 @@ const Collection = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Poll for updates in background (auto-fetch) every 5 seconds
+  // Poll PocketBase for updates every 10 seconds (replaces old localStorage polling)
   useEffect(() => {
-    const intervalId = setInterval(() => {
+    const intervalId = setInterval(async () => {
       try {
-        const saved = localStorage.getItem('lumiere_products');
-        if (saved) {
-          const parsedProducts = JSON.parse(saved);
-          setLiveProducts(prev => {
-            if (JSON.stringify(parsedProducts) !== JSON.stringify(prev)) {
-              return parsedProducts;
-            }
-            return prev;
-          });
-        }
+        const pbProducts = await fetchAllProducts();
+        setLiveProducts(pbProducts);
       } catch (err) {
-        console.error('Error polling products:', err);
+        console.error('[Collection] Error polling products from PocketBase:', err);
       }
-    }, 5000);
+    }, 10000);
 
     return () => clearInterval(intervalId);
   }, []);
