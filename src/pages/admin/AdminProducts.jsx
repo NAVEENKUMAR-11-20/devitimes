@@ -234,7 +234,7 @@ const AdminProducts = () => {
       )}
       {!pbLoading && pbError && (
         <div style={{ padding: '16px', background: '#FEF2F2', color: '#B91C1C', borderRadius: '4px', marginBottom: '16px' }}>
-          ⚠️ {pbError} — Make sure PocketBase is running on http://127.0.0.1:8090
+          ⚠️ {pbError} — Make sure PocketBase is running on https://pocketbase-production-ec1e.up.railway.app
         </div>
       )}
       

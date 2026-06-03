@@ -186,7 +186,7 @@ const AdminAddProduct = () => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       console.error('[PB] createProduct error:', err);
-      alert('Failed to save product to PocketBase. Make sure PocketBase is running on http://127.0.0.1:8090');
+      alert('Failed to save product to PocketBase. Make sure PocketBase is running on https://pocketbase-production-ec1e.up.railway.app');
     } finally {
       setIsSaving(false);
     }
