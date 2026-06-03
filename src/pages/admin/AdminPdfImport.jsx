@@ -31,9 +31,11 @@ const AdminPdfImport = () => {
   // Extracted product cards state
   const [extractedProducts, setExtractedProducts] = useState([]);
   const [savedCount, setSavedCount] = useState(0);
+  const [failedCount, setFailedCount] = useState(0);
 
   // Confirm modal state
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [saveProcessing, setSaveProcessing] = useState(false);
 
   // Cropper modal state
   const [showCropModal, setShowCropModal] = useState(false);
@@ -437,13 +439,18 @@ const AdminPdfImport = () => {
     for (const p of selected) {
       if (!p.modelNumber && !p.size && !p.packageNo) {
         alert(`Page ${p.pageNum}: All fields are empty. Please fill in at least one detail before saving.`);
-        setShowConfirmModal(false);
         return;
       }
     }
 
-    try {
-      for (const p of selected) {
+    setShowConfirmModal(false);
+    setSaveProcessing(true);
+
+    let success = 0;
+    let failed = 0;
+
+    for (const p of selected) {
+      try {
         let imageFile = null;
         if (p.images && p.images[0]) {
           imageFile = base64ToFile(p.images[0], `product_${p.modelNumber || p.pageNum}.png`);
@@ -460,16 +467,17 @@ const AdminPdfImport = () => {
           category:        p.category || 'Clock',
           imageFile,
         });
+        success++;
+      } catch (err) {
+        console.error('[PB] Failed to save product:', p.modelNumber, err);
+        failed++;
       }
-
-      setSavedCount(selected.length);
-      setShowConfirmModal(false);
-      setStep(3);
-    } catch (err) {
-      console.error('[PB] handleConfirmSave error:', err);
-      alert('Failed to save products to PocketBase. Make sure PocketBase is running on https://pocketbase-production-ec1e.up.railway.app');
-      setShowConfirmModal(false);
     }
+
+    setSavedCount(success);
+    setFailedCount(failed);
+    setSaveProcessing(false);
+    setStep(3);
   };
 
   // ─── Image Cropping Handlers & Canvas Render Engine ────────────────────────
@@ -856,19 +864,24 @@ const AdminPdfImport = () => {
       {/* ── STEP 3: Success ─────────────────────────────────────────────── */}
       {step === 3 && (
         <div className="success-banner-panel animate-fade-in">
-          <div className="success-icon-badge">✓</div>
+          <div className="success-icon-badge" style={{ backgroundColor: failedCount === 0 ? '#D1FAE5' : '#FEF3C7', color: failedCount === 0 ? '#065F46' : '#92400E' }}>
+            {failedCount === 0 ? '✓' : '⚠'}
+          </div>
           <h2 className="font-heading" style={{ fontSize: '26px', color: 'var(--text-primary)', marginBottom: '8px' }}>
-            Products Saved Successfully!
+            Import Complete
           </h2>
-          <p className="font-body" style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
-            <strong>{savedCount} product{savedCount !== 1 ? 's' : ''}</strong> have been added to your live catalogue.
+          <p className="font-body" style={{ color: 'var(--text-secondary)', marginBottom: '24px', fontSize: '16px' }}>
+            {failedCount === 0 
+              ? `${savedCount} of ${savedCount} products added to catalogue successfully.`
+              : `${savedCount} of ${savedCount + failedCount} added successfully, ${failedCount} failed.`
+            }
           </p>
           <div className="success-actions" style={{ width: '100%', maxWidth: '500px' }}>
             <Link to="/admin/products" className="btn-primary success-btn">
               View Products
             </Link>
             <button
-              onClick={() => { setStep(1); setExtractedProducts([]); setSavedCount(0); }}
+              onClick={() => { setStep(1); setExtractedProducts([]); setSavedCount(0); setFailedCount(0); }}
               className="btn-secondary success-btn"
             >
               Upload Another PDF
@@ -894,6 +907,17 @@ const AdminPdfImport = () => {
                 Cancel
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Save Processing Overlay ──────────────────────────────────────────────── */}
+      {saveProcessing && (
+        <div className="modal-overlay">
+          <div className="modal-card animate-fade-in" style={{ maxWidth: '400px', textAlign: 'center', padding: '32px' }}>
+             <span className="loading-spinner" style={{ width: '32px', height: '32px', border: '3px solid #E2E8F0', borderTop: '3px solid var(--accent-blue)', borderRadius: '50%', display: 'inline-block', marginBottom: '16px', animation: 'spin 1s linear infinite' }}></span>
+             <h3 className="font-heading" style={{ fontSize: '18px', color: 'var(--text-primary)' }}>Saving Products...</h3>
+             <p className="font-body" style={{ color: 'var(--text-secondary)', marginTop: '8px' }}>Saving products to catalogue, please wait...</p>
           </div>
         </div>
       )}

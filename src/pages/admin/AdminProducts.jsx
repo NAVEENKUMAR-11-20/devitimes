@@ -468,7 +468,7 @@ const AdminProducts = () => {
             className="btn-secondary font-body" 
             style={{ height: '40px', padding: '0 16px', fontSize: '12px' }}
           >
-            {bulkProcessing ? `${bulkProgress.type} ${bulkProgress.current}/${bulkProgress.total}...` : '👁️‍🗨️ Hide All'}
+            {bulkProcessing && bulkProgress.type.includes('Hid') ? `${bulkProgress.type} ${bulkProgress.current}/${bulkProgress.total}...` : '👁️‍🗨️ Hide All'}
           </button>
           <button 
             onClick={handleBulkLive} 
@@ -476,7 +476,7 @@ const AdminProducts = () => {
             className="btn-secondary font-body" 
             style={{ height: '40px', padding: '0 16px', fontSize: '12px', background: '#ECFDF5', color: '#047857', borderColor: '#A7F3D0' }}
           >
-            {bulkProcessing ? `${bulkProgress.type} ${bulkProgress.current}/${bulkProgress.total}...` : '✅ Live All'}
+            {bulkProcessing && bulkProgress.type.includes('Publish') ? `${bulkProgress.type} ${bulkProgress.current}/${bulkProgress.total}...` : '✅ Live All'}
           </button>
           <Link to="/admin/add-product" className="btn-primary font-body" style={{ height: '40px', padding: '0 20px', fontSize: '12px' }}>
             ➕ &nbsp; ADD NEW PRODUCT
