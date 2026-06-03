@@ -76,6 +76,74 @@ const AdminProducts = () => {
     setTimeout(() => setToastMessage(''), 1500);
   };
 
+  // Bulk Actions State & Logic
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+
+  const processInBatches = async (items, processItem, batchSize = 10) => {
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize);
+      await Promise.allSettled(batch.map(processItem));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!window.confirm(`Are you sure you want to completely DELETE ALL ${products.length} products? This cannot be undone.`)) return;
+    setBulkProcessing(true);
+    triggerToast('Bulk delete started... Please wait.');
+    try {
+      await processInBatches(products, (p) => pbDeleteProduct(p.pbId || p.id), 10);
+      triggerToast('All products deleted successfully!');
+      await loadProducts();
+    } catch (err) {
+      triggerToast('Error during bulk delete.');
+      console.error(err);
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
+  const handleBulkHide = async () => {
+    if (!window.confirm(`Are you sure you want to HIDE ALL ${products.length} products?`)) return;
+    setBulkProcessing(true);
+    triggerToast('Bulk hide started... Please wait.');
+    try {
+      await processInBatches(products, (p) => {
+        if (p.isLive !== false) {
+          return pbUpdateProduct(p.pbId || p.id, { is_live: false });
+        }
+        return Promise.resolve();
+      }, 10);
+      triggerToast('All products hidden successfully!');
+      await loadProducts();
+    } catch (err) {
+      triggerToast('Error during bulk hide.');
+      console.error(err);
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
+  const handleBulkLive = async () => {
+    if (!window.confirm(`Are you sure you want to set ALL ${products.length} products to LIVE?`)) return;
+    setBulkProcessing(true);
+    triggerToast('Bulk live started... Please wait.');
+    try {
+      await processInBatches(products, (p) => {
+        if (p.isLive !== true) {
+          return pbUpdateProduct(p.pbId || p.id, { is_live: true });
+        }
+        return Promise.resolve();
+      }, 10);
+      triggerToast('All products set to live successfully!');
+      await loadProducts();
+    } catch (err) {
+      triggerToast('Error during bulk live.');
+      console.error(err);
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
   // Metrics summary
   const totalCount = products.length;
   const liveCount = products.filter(p => p.isLive).length;
@@ -255,9 +323,35 @@ const AdminProducts = () => {
             <span style={{ color: '#6B7280', fontWeight: '600' }}>{hiddenCount} hidden</span>
           </p>
         </div>
-        <Link to="/admin/add-product" className="btn-primary font-body" style={{ height: '40px', padding: '0 20px', fontSize: '12px' }}>
-          ➕ &nbsp; ADD NEW PRODUCT
-        </Link>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end', marginTop: '12px' }}>
+          <button 
+            onClick={handleBulkDelete} 
+            disabled={bulkProcessing || products.length === 0}
+            className="btn-secondary font-body" 
+            style={{ height: '40px', padding: '0 16px', fontSize: '12px', background: '#FEF2F2', color: '#B91C1C', borderColor: '#FECACA' }}
+          >
+            {bulkProcessing ? 'Processing...' : '🗑️ Delete All Products'}
+          </button>
+          <button 
+            onClick={handleBulkHide} 
+            disabled={bulkProcessing || products.length === 0}
+            className="btn-secondary font-body" 
+            style={{ height: '40px', padding: '0 16px', fontSize: '12px' }}
+          >
+            {bulkProcessing ? 'Processing...' : '👁️‍🗨️ Hide All'}
+          </button>
+          <button 
+            onClick={handleBulkLive} 
+            disabled={bulkProcessing || products.length === 0}
+            className="btn-secondary font-body" 
+            style={{ height: '40px', padding: '0 16px', fontSize: '12px', background: '#ECFDF5', color: '#047857', borderColor: '#A7F3D0' }}
+          >
+            {bulkProcessing ? 'Processing...' : '✅ Live All'}
+          </button>
+          <Link to="/admin/add-product" className="btn-primary font-body" style={{ height: '40px', padding: '0 20px', fontSize: '12px' }}>
+            ➕ &nbsp; ADD NEW PRODUCT
+          </Link>
+        </div>
       </div>
 
       {/* Search and Filters deck */}
