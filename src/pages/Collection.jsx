@@ -54,20 +54,23 @@ const Collection = () => {
 
   // Filter products in real time
   const filteredProducts = useMemo(() => {
-    return liveProducts.filter(p => {
+    return (liveProducts || []).filter(p => {
       // Only show live products to customers
       if (!p.isLive) return false;
 
       // Category check
+      const safeCat = (p.category || '').toUpperCase();
       const matchesCategory = 
         activeCategory === 'ALL' || 
-        p.category.toUpperCase() === activeCategory;
+        safeCat === activeCategory;
 
       // Search query check
       const query = searchQuery.toLowerCase().trim();
+      const safeName = (p.name || '').toLowerCase();
+      const safeModel = (p.modelNumber || '').toString().toLowerCase();
       const matchesSearch = 
-        p.name.toLowerCase().includes(query) || 
-        p.modelNumber.toLowerCase().includes(query);
+        safeName.includes(query) || 
+        safeModel.includes(query);
 
       return matchesCategory && matchesSearch;
     });

@@ -3,6 +3,7 @@ import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Pages
 import Home from './pages/Home';
@@ -37,39 +38,41 @@ const ClientLayout = ({ children }) => {
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        
-        {/* PUBLIC & CLIENT PORTAL ROUTES (WITH NAVBAR/FOOTER) */}
-        <Route path="/" element={<ClientLayout><Home /></ClientLayout>} />
-        <Route path="/collection" element={<ClientLayout><Collection /></ClientLayout>} />
-        <Route path="/product/:id" element={<ClientLayout><ProductDetail /></ClientLayout>} />
-        <Route path="/register" element={<ClientLayout><Register /></ClientLayout>} />
-        <Route path="/login" element={<ClientLayout><Login /></ClientLayout>} />
-        
-        {/* PROTECTED CLIENT ROUTES */}
-        <Route path="/cart" element={<ClientLayout><Cart /></ClientLayout>} />
-        <Route path="/checkout/success" element={<ClientLayout><CheckoutSuccess /></ClientLayout>} />
+    <ErrorBoundary>
+      <Router>
+        <Routes>
+          
+          {/* PUBLIC & CLIENT PORTAL ROUTES (WITH NAVBAR/FOOTER) */}
+          <Route path="/" element={<ClientLayout><Home /></ClientLayout>} />
+          <Route path="/collection" element={<ClientLayout><Collection /></ClientLayout>} />
+          <Route path="/product/:id" element={<ClientLayout><ProductDetail /></ClientLayout>} />
+          <Route path="/register" element={<ClientLayout><Register /></ClientLayout>} />
+          <Route path="/login" element={<ClientLayout><Login /></ClientLayout>} />
+          
+          {/* PROTECTED CLIENT ROUTES */}
+          <Route path="/cart" element={<ClientLayout><Cart /></ClientLayout>} />
+          <Route path="/checkout/success" element={<ClientLayout><CheckoutSuccess /></ClientLayout>} />
 
-        {/* ADMIN ROUTES (TOTALLY ISOLATED - NO CLIENT LAYOUT) */}
-        <Route path="/admin/login" element={<AdminLogin />} />
-        
-        <Route path="/admin" element={<AdminLayout />}>
-          <Route index element={<Navigate to="dashboard" replace />} />
-          <Route path="dashboard" element={<AdminDashboard />} />
-          <Route path="products" element={<AdminProducts />} />
-          <Route path="add-product" element={<AdminAddProduct />} />
-          <Route path="add-via-pdf" element={<AdminPdfImport />} />
-          <Route path="users" element={<AdminUsers initialTab="USERS" />} />
-          <Route path="registrations" element={<AdminUsers initialTab="PENDING" />} />
-          <Route path="settings" element={<AdminSettings />} />
-        </Route>
+          {/* ADMIN ROUTES (TOTALLY ISOLATED - NO CLIENT LAYOUT) */}
+          <Route path="/admin/login" element={<AdminLogin />} />
+          
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<AdminDashboard />} />
+            <Route path="products" element={<AdminProducts />} />
+            <Route path="add-product" element={<AdminAddProduct />} />
+            <Route path="add-via-pdf" element={<AdminPdfImport />} />
+            <Route path="users" element={<AdminUsers initialTab="USERS" />} />
+            <Route path="registrations" element={<AdminUsers initialTab="PENDING" />} />
+            <Route path="settings" element={<AdminSettings />} />
+          </Route>
 
-        {/* Catch-all redirect */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+          {/* Catch-all redirect */}
+          <Route path="*" element={<Navigate to="/" replace />} />
 
-      </Routes>
-    </Router>
+        </Routes>
+      </Router>
+    </ErrorBoundary>
   );
 }
 
