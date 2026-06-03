@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import ClockSvg from '../components/ClockSvg';
 import { fetchAllProducts } from '../lib/productsService';
+import pb from '../lib/pocketbase';
 
 const Collection = () => {
   const { products: contextProducts, currentUser, addToCart } = useApp();
@@ -27,16 +28,39 @@ const Collection = () => {
 
   // Poll PocketBase for updates every 10 seconds
   useEffect(() => {
-    const intervalId = setInterval(async () => {
+    const fetchProducts = async () => {
       try {
-        const pbProducts = await fetchAllProducts();
-        setLiveProducts(Array.isArray(pbProducts) ? pbProducts : []);
-      } catch (err) {
-        console.error('Collection page fetch error:', err);
+        const records = await pb.collection("products").getFullList({
+          sort: "-created",
+        });
+        
+        // Map PocketBase fields safely to match what the UI expects
+        const mappedRecords = (records || []).map(record => ({
+          id: record.id,
+          name: record.MODEL_NUMBER || record.id || 'Unnamed Product',
+          modelNumber: record.MODEL_NUMBER || '',
+          category: record.category || 'Uncategorized',
+          size: record.SIZE_DIMENSIONS || '',
+          packageNo: record.package_no || '',
+          salePrice: Number(record.price) || 0,
+          originalPrice: null,
+          isOnSale: false,
+          stockCount: Number(record.stock) || 0,
+          isLive: record.is_live !== undefined ? record.is_live : true,
+          color: '',
+          prodimage: record.prodimage || null, // preserve raw property
+          images: record.prodimage ? [pb.files.getURL(record, record.prodimage)] : []
+        }));
+
+        setLiveProducts(mappedRecords);
+      } catch (error) {
+        console.error("Collection page fetch error:", error);
         setLiveProducts([]);
       }
-    }, 10000);
+    };
 
+    fetchProducts(); // Initial fetch
+    const intervalId = setInterval(fetchProducts, 10000);
     return () => clearInterval(intervalId);
   }, []);
 
@@ -56,6 +80,7 @@ const Collection = () => {
   // Filter products in real time
   const filteredProducts = useMemo(() => {
     return (liveProducts || []).filter(p => {
+      if (!p) return false;
       // Only show live products to customers
       if (!p.isLive) return false;
 
@@ -187,10 +212,23 @@ const Collection = () => {
                     {/* Image Viewport */}
                     <div className="card-image-area">
                       {isSale && <span className="badge-sale absolute-badge">SALE</span>}
-                      {product.images && product.images.length > 0 ? (
-                        <img src={product.images[0]} alt={product.name || 'Product'} />
+                      {product?.prodimage ? (
+                        <img 
+                          src={pb.files.getURL(product, product.prodimage)} 
+                          alt={product.name || 'Product'} 
+                        />
+                      ) : product?.images && product.images.length > 0 ? (
+                        <img 
+                          src={product.images[0]} 
+                          alt={product.name || 'Product'} 
+                        />
                       ) : (
-                        <ClockSvg model={product.modelNumber || ''} category={product.category || ''} color={product.color || ''} size={160} />
+                        <ClockSvg 
+                          model={product.modelNumber || ''} 
+                          category={product.category || ''} 
+                          color={product.color || ''} 
+                          size={160} 
+                        />
                       )}
                     </div>
 
