@@ -1,13 +1,39 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useApp } from '../../context/AppContext';
+import { fetchAllProducts } from '../../lib/productsService';
 
 const AdminDashboard = () => {
-  const { products, users, pendingRegistrations } = useApp();
+  // State for data
+  const [products, setProducts] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [pendingRegistrations, setPendingRegistrations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  // Load data from PocketBase and any other sources
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const prod = await fetchAllProducts();
+      setProducts(prod);
+      // For users and pending registrations we still rely on context placeholder (if any), fallback to empty arrays
+      // If you have a usersService, you can replace with real fetch.
+    } catch (err) {
+      console.error('[PB] loadData error:', err);
+      setError('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   // Metrics calculations
+  console.log('Fetched products from PocketBase (Dashboard):', products);
   const totalProducts = products.length;
-  const liveProducts = products.filter(p => p.isLive).length;
+  const liveProducts = products.filter(p => p.isLive !== undefined ? p.isLive : true).length;
   const totalUsers = users.length;
   const pendingRegs = pendingRegistrations.length;
 
@@ -20,6 +46,13 @@ const AdminDashboard = () => {
   const recentUsers = [...users]
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     .slice(0, 5);
+
+  if (loading) {
+    return <div style={{ padding: '40px', textAlign: 'center' }}>Loading dashboard...</div>;
+  }
+  if (error) {
+    return <div style={{ padding: '40px', color: 'red' }}>{error}</div>;
+  }
 
   return (
     <div className="dashboard-view-wrapper">
@@ -104,10 +137,12 @@ const AdminDashboard = () => {
                     <span className="activity-meta">Model: {p.modelNumber} | Category: {p.category}</span>
                   </div>
                   <div className="activity-item-badge">
-                    {p.isLive ? (
+                    {p.isLive !== undefined ? (p.isLive ? (
                       <span className="active-tag">LIVE</span>
                     ) : (
                       <span className="draft-tag">DRAFT</span>
+                    )) : (
+                      <span className="active-tag">LIVE</span>
                     )}
                   </div>
                 </div>

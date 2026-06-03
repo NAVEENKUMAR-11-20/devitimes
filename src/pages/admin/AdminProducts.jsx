@@ -19,6 +19,7 @@ const AdminProducts = () => {
       setPbLoading(true);
       setPbError('');
       const data = await fetchAllProducts();
+      console.log('[PB] Fetched products for AdminProducts:', data);
       setProducts(data);
     } catch (err) {
       setPbError('Failed to load products from PocketBase.');
@@ -179,17 +180,16 @@ const AdminProducts = () => {
   const sortedFilteredProducts = useMemo(() => {
     return products
       .filter(p => {
-        // Status checks
-        if (statusFilter === 'LIVE' && !p.isLive) return false;
-        if (statusFilter === 'HIDDEN' && p.isLive) return false;
-
+        // Status checks – treat undefined isLive as true (LIVE)
+        const isLive = p.isLive !== undefined ? p.isLive : true;
+        if (statusFilter === 'LIVE' && !isLive) return false;
+        if (statusFilter === 'HIDDEN' && isLive) return false;
         // Category checks
         if (categoryFilter !== 'ALL' && p.category !== categoryFilter) return false;
-
         // Search text check
         const q = searchQuery.toLowerCase().trim();
-        return p.name.toLowerCase().includes(q) || 
-               p.modelNumber.toLowerCase().includes(q) || 
+        return p.name.toLowerCase().includes(q) ||
+               p.modelNumber.toLowerCase().includes(q) ||
                p.category.toLowerCase().includes(q);
       })
       .sort((a, b) => {
