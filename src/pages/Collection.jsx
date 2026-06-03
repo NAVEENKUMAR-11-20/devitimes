@@ -9,12 +9,12 @@ const Collection = () => {
   const navigate = useNavigate();
 
   // Local state for auto-refreshing products
-  const [liveProducts, setLiveProducts] = useState(contextProducts);
+  const [liveProducts, setLiveProducts] = useState(Array.isArray(contextProducts) ? contextProducts : []);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Sync with context on load
   useEffect(() => {
-    setLiveProducts(contextProducts);
+    setLiveProducts(Array.isArray(contextProducts) ? contextProducts : []);
   }, [contextProducts]);
 
   // Loading state timeout for first page load
@@ -25,14 +25,15 @@ const Collection = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Poll PocketBase for updates every 10 seconds (replaces old localStorage polling)
+  // Poll PocketBase for updates every 10 seconds
   useEffect(() => {
     const intervalId = setInterval(async () => {
       try {
         const pbProducts = await fetchAllProducts();
-        setLiveProducts(pbProducts);
+        setLiveProducts(Array.isArray(pbProducts) ? pbProducts : []);
       } catch (err) {
-        console.error('[Collection] Error polling products from PocketBase:', err);
+        console.error('Collection page fetch error:', err);
+        setLiveProducts([]);
       }
     }, 10000);
 
@@ -162,7 +163,7 @@ const Collection = () => {
               }}></div>
               <p>Loading latest collection...</p>
             </div>
-          ) : filteredProducts.length === 0 ? (
+          ) : !Array.isArray(filteredProducts) || filteredProducts.length === 0 ? (
             <div className="empty-results-box font-body">
               <p>No products match your search or filter criteria.</p>
               <button 
@@ -175,34 +176,35 @@ const Collection = () => {
             </div>
           ) : (
             <div className="grid-products">
-              {filteredProducts.map((product) => {
+              {(Array.isArray(filteredProducts) ? filteredProducts : []).map((product) => {
+                if (!product) return null;
                 const isSale = product.isOnSale;
                 const isAdded = addedProductId === product.id;
 
                 return (
-                  <div key={product.id} className="card-product animate-fade-in">
+                  <div key={product.id || Math.random()} className="card-product animate-fade-in">
                     
                     {/* Image Viewport */}
                     <div className="card-image-area">
                       {isSale && <span className="badge-sale absolute-badge">SALE</span>}
                       {product.images && product.images.length > 0 ? (
-                        <img src={product.images[0]} alt={product.name} />
+                        <img src={product.images[0]} alt={product.name || 'Product'} />
                       ) : (
-                        <ClockSvg model={product.modelNumber} category={product.category} color={product.color} size={160} />
+                        <ClockSvg model={product.modelNumber || ''} category={product.category || ''} color={product.color || ''} size={160} />
                       )}
                     </div>
 
                     {/* Product Details Section */}
                     <div className="card-text-area">
                       <div>
-                        <span className="category-label">{product.category}</span>
-                        <h2 className="product-name font-heading" style={{ marginTop: '4px', fontSize: '17px' }}>{product.name}</h2>
+                        <span className="category-label">{product.category || 'Uncategorized'}</span>
+                        <h2 className="product-name font-heading" style={{ marginTop: '4px', fontSize: '17px' }}>{product.name || 'Unnamed Product'}</h2>
                         
                         <div style={{ marginTop: '8px', fontSize: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>
                           MODEL NUMBER
                         </div>
                         <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)' }}>
-                          {product.modelNumber}
+                          {product.modelNumber || 'N/A'}
                         </div>
                         
                         <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
