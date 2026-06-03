@@ -36,20 +36,21 @@ const Collection = () => {
         
         // Map PocketBase fields safely to match what the UI expects
         const mappedRecords = (records || []).map(record => ({
-          id: record.id,
-          name: record.MODEL_NUMBER || record.id || 'Unnamed Product',
-          modelNumber: record.MODEL_NUMBER || '',
-          category: record.category || 'Uncategorized',
-          size: record.SIZE_DIMENSIONS || '',
-          packageNo: record.package_no || '',
-          salePrice: Number(record.price) || 0,
+          id: record?.id || Math.random().toString(),
+          name: record?.name || record?.MODEL_NUMBER || "Wall Clock",
+          modelNumber: record?.MODEL_NUMBER || "N/A",
+          category: record?.category || "All",
+          size: record?.SIZE_DIMENSIONS || "N/A",
+          packageNo: record?.package_no || "N/A",
+          salePrice: Number(record?.price) || 0,
           originalPrice: null,
           isOnSale: false,
-          stockCount: Number(record.stock) || 0,
-          isLive: record.is_live !== undefined ? record.is_live : true,
+          stockCount: Number(record?.stock) || 0,
+          isLive: record?.is_live !== undefined ? record.is_live : true,
+          status: record?.status || "live",
           color: '',
-          prodimage: record.prodimage || null, // preserve raw property
-          images: record.prodimage ? [pb.files.getURL(record, record.prodimage)] : []
+          prodimage: record?.prodimage || null,
+          images: record?.prodimage ? [pb.files.getURL(record, record.prodimage)] : ["/placeholder.png"]
         }));
 
         setLiveProducts(mappedRecords);
@@ -85,14 +86,14 @@ const Collection = () => {
       if (!p.isLive) return false;
 
       // Category check
-      const safeCat = (p.category || '').toUpperCase();
+      const safeCat = (p.category || '').toString().toUpperCase();
       const matchesCategory = 
         activeCategory === 'ALL' || 
         safeCat === activeCategory;
 
       // Search query check
-      const query = searchQuery.toLowerCase().trim();
-      const safeName = (p.name || '').toLowerCase();
+      const query = (searchQuery || '').toString().toLowerCase().trim();
+      const safeName = (p.name || '').toString().toLowerCase();
       const safeModel = (p.modelNumber || '').toString().toLowerCase();
       const matchesSearch = 
         safeName.includes(query) || 
@@ -171,7 +172,7 @@ const Collection = () => {
       <section className="count-label-section">
         <div className="container">
           <div className="count-label uppercase-label">
-            SHOWING {filteredProducts.length} PRODUCTS
+            SHOWING {(filteredProducts || []).length} PRODUCTS
           </div>
         </div>
       </section>
@@ -190,7 +191,7 @@ const Collection = () => {
             </div>
           ) : !Array.isArray(filteredProducts) || filteredProducts.length === 0 ? (
             <div className="empty-results-box font-body">
-              <p>No products match your search or filter criteria.</p>
+              <p>No products available</p>
               <button 
                 className="btn-secondary" 
                 onClick={() => { setSearchQuery(''); setActiveCategory('ALL'); }}
@@ -212,19 +213,11 @@ const Collection = () => {
                     {/* Image Viewport */}
                     <div className="card-image-area">
                       {isSale && <span className="badge-sale absolute-badge">SALE</span>}
-                      {product?.images && product.images.length > 0 ? (
-                        <img 
-                          src={product.images[0]} 
-                          alt={product.name || 'Product'} 
-                        />
-                      ) : (
-                        <ClockSvg 
-                          model={product.modelNumber || ''} 
-                          category={product.category || ''} 
-                          color={product.color || ''} 
-                          size={160} 
-                        />
-                      )}
+                      <img 
+                        src={product?.images?.[0] || "/placeholder.png"} 
+                        alt={product?.name || 'Wall Clock'} 
+                        onError={(e) => { e.target.onerror = null; e.target.src = "/placeholder.png"; }}
+                      />
                     </div>
 
                     {/* Product Details Section */}
