@@ -27,6 +27,8 @@ const AdminPdfImport = () => {
   const [step, setStep] = useState(1);
   const [loadingText, setLoadingText] = useState('');
   const [progress, setProgress] = useState(0);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Extracted product cards state
   const [extractedProducts, setExtractedProducts] = useState([]);
@@ -263,6 +265,7 @@ const AdminPdfImport = () => {
       return;
     }
 
+    setSelectedFile(file);
     setStep(1);
     setLoadingText('Initializing PDF.js library...');
     setProgress(10);
@@ -336,6 +339,7 @@ const AdminPdfImport = () => {
         console.error('PDF Parsing failed:', err);
         alert('Could not parse PDF catalogue: ' + err.message);
         setStep(1);
+        setSelectedFile(null);
       } finally {
         setProgress(0);
         setLoadingText('');
@@ -639,48 +643,159 @@ const AdminPdfImport = () => {
       {/* ── STEP 1: Upload ─────────────────────────────────────────────── */}
       {step === 1 && (
         <div className="pdf-upload-view animate-fade-in">
-          <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-            <h1 className="dashboard-heading font-heading">Import Catalog via PDF</h1>
-            <p className="stats-indicator font-body">
-              Upload your clock catalog PDF. The system will automatically extract
-              <strong> Model No</strong>, <strong>Size</strong>, and <strong>PKG No</strong> from each page.
+          
+          {/* Hero Section */}
+          <div className="pdf-hero-section">
+            <h1 className="pdf-hero-title font-heading">Import Catalog via PDF</h1>
+            <p className="pdf-hero-desc font-body">
+              Upload a catalog PDF and automatically extract product information from every page.
             </p>
+            <div className="pdf-feature-badges">
+              <span className="badge-item">✓ Model Number Extraction</span>
+              <span className="badge-item">✓ Size Detection</span>
+              <span className="badge-item">✓ PKG Number Detection</span>
+              <span className="badge-item">✓ Product Image Capture</span>
+            </div>
           </div>
 
-          <div className="form-card-panel pdf-card-centered">
-            {loadingText ? (
-              <div className="loading-spinner-state">
-                <div className="pdf-spinner"></div>
-                <div className="spinner-progress-bar" style={{ width: '100%' }}>
-                  <div className="progress-fill" style={{ width: `${progress}%` }}></div>
+          <div className="pdf-container-split">
+            
+            {/* Left: Info Card */}
+            <div className="pdf-info-card">
+              <div className="pdf-info-header">
+                <span className="pdf-card-icon">📄</span>
+                <h3 className="pdf-info-title font-heading">Upload Catalogue PDF</h3>
+              </div>
+              <p className="pdf-info-desc font-body">
+                Upload your catalog PDF file. The system will scan each page and automatically extract product information.
+              </p>
+              <div className="pdf-features-list">
+                <h4 className="font-heading">Features List:</h4>
+                <ul>
+                  <li>• Model Number</li>
+                  <li>• Size</li>
+                  <li>• PKG Number</li>
+                  <li>• Product Image</li>
+                </ul>
+              </div>
+              <div className="pdf-max-size-footer">
+                <span className="label">Max File Size:</span>
+                <span className="val">50 MB</span>
+              </div>
+            </div>
+
+            {/* Right: Upload Area & Progress Card */}
+            <div className="pdf-upload-card">
+              <input
+                type="file"
+                accept=".pdf"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                onChange={handleFileChange}
+              />
+
+              {!selectedFile ? (
+                /* Drag and Drop Zone */
+                <div 
+                  className={`pdf-drag-drop-zone ${isDragging ? 'drag-active' : ''}`}
+                  onClick={handleSelectFile}
+                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                    const file = e.dataTransfer.files[0];
+                    if (file) {
+                      const event = { target: { files: [file] } };
+                      handleFileChange(event);
+                    }
+                  }}
+                >
+                  <div className="pdf-upload-icon-wrapper">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="17 8 12 3 7 8"></polyline>
+                      <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                  </div>
+                  <h3 className="drag-title font-heading">Drag & Drop PDF Here</h3>
+                  <p className="drag-subtitle font-body">or click to browse files</p>
+                  
+                  <div className="supported-badges">
+                    <span className="badge pdf-badge">PDF</span>
+                    <span className="badge size-badge">50MB MAX</span>
+                  </div>
                 </div>
-                <h3 className="loading-title font-heading">{loadingText}</h3>
-                <p className="font-body" style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
-                  Do not close this tab while processing.
-                </p>
-              </div>
-            ) : (
-              <div className="upload-active-state">
-                <input
-                  type="file"
-                  accept=".pdf"
-                  ref={fileInputRef}
-                  style={{ display: 'none' }}
-                  onChange={handleFileChange}
-                />
-                <div className="pdf-big-icon">📄</div>
-                <h3 className="pdf-upload-heading font-heading">Upload Catalogue PDF</h3>
-                <p className="pdf-upload-desc font-body">
-                  Each page will be scanned for Model No, Size, and PKG No. 
-                  The clock image will be captured from the same page.
-                </p>
-                <button onClick={handleSelectFile} className="btn-primary select-pdf-btn">
-                  SELECT PDF FILE
-                </button>
-                <span className="pdf-size-helper font-body">Max file size: 50MB</span>
-              </div>
-            )}
+              ) : (
+                /* Selected File Preview & Processing Status */
+                <div className="pdf-progress-preview-card">
+                  {/* File Info Block */}
+                  <div className="preview-file-info">
+                    <div className="file-icon">📄</div>
+                    <div className="file-details">
+                      <h4 className="file-name font-heading">{selectedFile.name}</h4>
+                      <p className="file-size font-body">
+                        {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB &nbsp;|&nbsp; 
+                        <span className="status-highlight">
+                          {progress === 100 ? "Complete" : `Processing (${progress}%)`}
+                        </span>
+                      </p>
+                    </div>
+                    {/* Remove File Option */}
+                    <button 
+                      type="button" 
+                      className="remove-file-btn" 
+                      onClick={() => {
+                        setSelectedFile(null);
+                        setStep(1);
+                        setLoadingText('');
+                        setProgress(0);
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                      }}
+                      title="Remove File"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Processing Section */}
+                  {loadingText && (
+                    <div className="processing-status-wrapper">
+                      <div className="animated-progress-bar">
+                        <div className="progress-fill" style={{ width: `${progress}%` }}></div>
+                      </div>
+                      
+                      <div className="status-milestones font-body">
+                        <div className="milestone-item">
+                          <span className="bullet active">•</span>
+                          <span className={progress >= 10 ? "active" : ""}>Scanning PDF...</span>
+                        </div>
+                        <div className="milestone-item">
+                          <span className={`bullet ${progress >= 25 ? 'active' : ''}`}>•</span>
+                          <span className={progress >= 25 ? "active" : ""}>Extracting Model Numbers...</span>
+                        </div>
+                        <div className="milestone-item">
+                          <span className={`bullet ${progress >= 40 ? 'active' : ''}`}>•</span>
+                          <span className={progress >= 40 ? "active" : ""}>Extracting Product Images...</span>
+                        </div>
+                        <div className="milestone-item">
+                          <span className={`bullet ${progress >= 90 ? 'active' : ''}`}>•</span>
+                          <span className={progress >= 90 ? "active" : ""}>Preparing Products...</span>
+                        </div>
+                      </div>
+
+                      <div className="current-extraction-status">
+                        <div className="extraction-spinner"></div>
+                        <span className="status-text font-body">{loadingText}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
           </div>
+
         </div>
       )}
 
@@ -696,7 +811,7 @@ const AdminPdfImport = () => {
               </p>
             </div>
             <button
-              onClick={() => { setStep(1); setExtractedProducts([]); }}
+              onClick={() => { setStep(1); setExtractedProducts([]); setSelectedFile(null); }}
               className="btn-secondary"
               style={{ height: '40px', padding: '0 16px', fontSize: '11px' }}
             >
@@ -881,7 +996,7 @@ const AdminPdfImport = () => {
               View Products
             </Link>
             <button
-              onClick={() => { setStep(1); setExtractedProducts([]); setSavedCount(0); setFailedCount(0); }}
+              onClick={() => { setStep(1); setExtractedProducts([]); setSavedCount(0); setFailedCount(0); setSelectedFile(null); }}
               className="btn-secondary success-btn"
             >
               Upload Another PDF
@@ -1470,6 +1585,388 @@ const AdminPdfImport = () => {
           .form-grid-2col {
             grid-template-columns: 1fr;
           }
+        }
+
+        /* ── Redesigned PDF Import Upload Screen ── */
+        .pdf-upload-view {
+          display: flex;
+          flex-direction: column;
+          gap: 32px;
+          max-width: 1000px;
+          margin: 0 auto;
+          padding: 20px 0;
+        }
+
+        /* Hero Section */
+        .pdf-hero-section {
+          text-align: center;
+          background: linear-gradient(135deg, #1e293b, #0f172a);
+          padding: 40px 24px;
+          border-radius: 12px;
+          color: #ffffff;
+          box-shadow: var(--card-shadow);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 16px;
+        }
+
+        .pdf-hero-title {
+          font-size: 28px;
+          font-weight: 700;
+          letter-spacing: -0.02em;
+          margin: 0;
+        }
+
+        .pdf-hero-desc {
+          font-size: 15px;
+          color: #94a3b8;
+          max-width: 600px;
+          margin: 0;
+          line-height: 1.6;
+        }
+
+        .pdf-feature-badges {
+          display: flex;
+          gap: 12px;
+          flex-wrap: wrap;
+          justify-content: center;
+          margin-top: 8px;
+        }
+
+        .pdf-feature-badges .badge-item {
+          background-color: rgba(59, 130, 246, 0.15);
+          color: #60a5fa;
+          border: 1px solid rgba(59, 130, 246, 0.3);
+          padding: 6px 14px;
+          border-radius: 20px;
+          font-size: 12px;
+          font-weight: 600;
+          letter-spacing: 0.02em;
+        }
+
+        /* Container Split */
+        .pdf-container-split {
+          display: grid;
+          grid-template-columns: 1fr 1.2fr;
+          gap: 32px;
+        }
+
+        @media (max-width: 768px) {
+          .pdf-container-split {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        /* Info Card */
+        .pdf-info-card {
+          background-color: #ffffff;
+          border: 1px solid var(--border-color);
+          border-radius: 12px;
+          padding: 32px;
+          box-shadow: var(--card-shadow);
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+        }
+
+        .pdf-info-header {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .pdf-card-icon {
+          font-size: 24px;
+        }
+
+        .pdf-info-title {
+          font-size: 18px;
+          font-weight: 700;
+          color: var(--text-primary);
+          margin: 0;
+        }
+
+        .pdf-info-desc {
+          font-size: 13.5px;
+          color: var(--text-secondary);
+          line-height: 1.6;
+          margin: 0;
+        }
+
+        .pdf-features-list {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .pdf-features-list h4 {
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          color: var(--text-muted);
+          margin: 0;
+        }
+
+        .pdf-features-list ul {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .pdf-features-list li {
+          font-size: 13.5px;
+          color: var(--text-primary);
+          font-weight: 600;
+        }
+
+        .pdf-max-size-footer {
+          border-top: 1px solid var(--border-color);
+          padding-top: 16px;
+          margin-top: auto;
+          display: flex;
+          justify-content: space-between;
+          font-size: 13px;
+        }
+
+        .pdf-max-size-footer .label {
+          color: var(--text-muted);
+        }
+
+        .pdf-max-size-footer .val {
+          font-weight: 700;
+          color: var(--text-primary);
+        }
+
+        /* Upload Card & Area */
+        .pdf-upload-card {
+          background-color: #ffffff;
+          border: 1px solid var(--border-color);
+          border-radius: 12px;
+          padding: 32px;
+          box-shadow: var(--card-shadow);
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          min-height: 320px;
+        }
+
+        .pdf-drag-drop-zone {
+          border: 2px dashed #cbd5e1;
+          border-radius: 8px;
+          padding: 40px 24px;
+          text-align: center;
+          cursor: pointer;
+          transition: all var(--transition-speed);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 12px;
+          background-color: #f8fafc;
+        }
+
+        .pdf-drag-drop-zone:hover, .pdf-drag-drop-zone.drag-active {
+          border-color: var(--accent-blue);
+          background-color: rgba(59, 130, 246, 0.02);
+        }
+
+        .pdf-upload-icon-wrapper {
+          color: #94a3b8;
+          transition: color 0.2s ease;
+        }
+
+        .pdf-drag-drop-zone:hover .pdf-upload-icon-wrapper {
+          color: var(--accent-blue);
+        }
+
+        .drag-title {
+          font-size: 16px;
+          font-weight: 700;
+          color: var(--text-primary);
+          margin: 0;
+        }
+
+        .drag-subtitle {
+          font-size: 13px;
+          color: var(--text-muted);
+          margin: 0;
+        }
+
+        .supported-badges {
+          display: flex;
+          gap: 8px;
+          margin-top: 8px;
+        }
+
+        .supported-badges .badge {
+          font-size: 9px;
+          font-weight: 700;
+          padding: 3px 8px;
+          border-radius: 4px;
+        }
+
+        .pdf-badge {
+          background-color: #fee2e2;
+          color: #ef4444;
+        }
+
+        .size-badge {
+          background-color: #f1f5f9;
+          color: #475569;
+        }
+
+        /* File Preview & Progress Card */
+        .pdf-progress-preview-card {
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
+          width: 100%;
+        }
+
+        .preview-file-info {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          background-color: #f8fafc;
+          border: 1px solid var(--border-color);
+          padding: 16px;
+          border-radius: 8px;
+          position: relative;
+        }
+
+        .preview-file-info .file-icon {
+          font-size: 28px;
+        }
+
+        .preview-file-info .file-details {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .preview-file-info .file-name {
+          font-size: 14px;
+          font-weight: 700;
+          color: var(--text-primary);
+          margin: 0;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .preview-file-info .file-size {
+          font-size: 12px;
+          color: var(--text-muted);
+          margin: 0;
+        }
+
+        .preview-file-info .status-highlight {
+          color: var(--accent-blue);
+          font-weight: 600;
+        }
+
+        .remove-file-btn {
+          position: absolute;
+          top: 16px;
+          right: 16px;
+          background: transparent;
+          border: none;
+          color: var(--text-muted);
+          font-size: 16px;
+          cursor: pointer;
+          transition: color 0.2s ease;
+        }
+
+        .remove-file-btn:hover {
+          color: #ef4444;
+        }
+
+        /* Processing progress styles */
+        .processing-status-wrapper {
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+        }
+
+        .animated-progress-bar {
+          height: 6px;
+          width: 100%;
+          background-color: #e2e8f0;
+          border-radius: 3px;
+          overflow: hidden;
+        }
+
+        .animated-progress-bar .progress-fill {
+          height: 100%;
+          background-color: var(--accent-blue);
+          border-radius: 3px;
+          transition: width 0.3s ease;
+        }
+
+        .status-milestones {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .milestone-item {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          font-size: 13px;
+          color: var(--text-muted);
+        }
+
+        .milestone-item .bullet {
+          font-size: 18px;
+          line-height: 1;
+          color: #cbd5e1;
+          transition: color 0.3s ease;
+        }
+
+        .milestone-item .bullet.active {
+          color: var(--accent-blue);
+        }
+
+        .milestone-item span.active {
+          color: var(--text-primary);
+          font-weight: 600;
+        }
+
+        .current-extraction-status {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          background-color: #f0f7ff;
+          border: 1px solid rgba(59, 130, 246, 0.15);
+          padding: 12px 16px;
+          border-radius: 6px;
+          margin-top: 4px;
+        }
+
+        .extraction-spinner {
+          width: 14px;
+          height: 14px;
+          border: 2px solid rgba(59, 130, 246, 0.2);
+          border-top: 2px solid var(--accent-blue);
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+
+        .status-text {
+          font-size: 12.5px;
+          font-weight: 600;
+          color: #1e40af;
+        }
+
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
         }      `}</style>
     </div>
   );
