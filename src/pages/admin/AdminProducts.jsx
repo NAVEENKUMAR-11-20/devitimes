@@ -262,33 +262,66 @@ const AdminProducts = () => {
 
   // Trigger Edit Form
   const triggerEdit = (product) => {
+    console.log('[DEBUG] Selected product before opening edit modal:', product);
     setEditingProduct(product);
     setEditForm({ ...product, _newImageFile: null });
   };
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
-    if (!editForm.modelNumber.trim() || !editForm.size.trim()) {
-      alert('Please fill in all required fields marked with *');
+    console.log('[DEBUG] handleEditSubmit entered. editForm:', editForm);
+    const modelNumStr = String(editForm.modelNumber || '').trim();
+    const sizeStr = String(editForm.size || '').trim();
+
+    if (!modelNumStr) {
+      alert('Model number is required.');
       return;
     }
+    if (!sizeStr) {
+      alert('Size is required.');
+      return;
+    }
+    if (editForm.salePrice === undefined || editForm.salePrice === '') {
+      alert('Sale price is required.');
+      return;
+    }
+    if (editForm.stockCount === undefined || editForm.stockCount === '') {
+      alert('Pieces available (stock) is required.');
+      return;
+    }
+
     try {
       const pbId = editForm.pbId || editForm.id;
-      await pbUpdateProduct(pbId, {
-        MODEL_NUMBER:    editForm.modelNumber,
-        SIZE_DIMENSIONS: editForm.size,
-        package_no:      editForm.packageNo || '',
+      
+      const payload = {
+        MODEL_NUMBER:    modelNumStr,
+        SIZE_DIMENSIONS: sizeStr,
+        package_no:      editForm.packageNo ? (isNaN(Number(editForm.packageNo)) ? editForm.packageNo : Number(editForm.packageNo)) : '',
         price:           Number(editForm.salePrice),
-        stock:           Number(editForm.stockCount),
+        stock_Number:    Number(editForm.stockCount),
         is_live:         editForm.isLive,
-        imageFile:       editForm._newImageFile || undefined,
-      });
+        original_price:  editForm.originalPrice !== undefined && editForm.originalPrice !== null && editForm.originalPrice !== '' ? Number(editForm.originalPrice) : null,
+        is_on_sale:      editForm.isOnSale,
+        description:     editForm.description || '',
+        category:        editForm.category || 'Modern Minimalist',
+        color:           editForm.color || '',
+      };
+
+      if (editForm._newImageFile) {
+        payload.imageFile = editForm._newImageFile;
+      }
+
+      console.log('[DEBUG] updated payload before saving:', payload);
+
+      const response = await pbUpdateProduct(pbId, payload);
+      console.log('[DEBUG] PocketBase update response:', response);
+
       setEditingProduct(null);
       triggerToast('Product updated successfully');
       await loadProducts();
     } catch (err) {
       triggerToast('Error saving product');
-      console.error(err);
+      console.error('[ERROR] Error updating product:', err);
     }
   };
 

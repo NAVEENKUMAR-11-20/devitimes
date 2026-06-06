@@ -20,6 +20,13 @@ const ProductDetail = () => {
     setActiveImageIndex(0);
   }, [id]);
 
+  useEffect(() => {
+    if (product) {
+      console.log('[DEBUG] Product Details loaded:', product);
+      console.log(`[DEBUG] Product Details stock check: stockCount = ${product.stockCount}, isOutOfStock = ${Number(product.stockCount) <= 0}`);
+    }
+  }, [product]);
+
   if (!product) {
     return (
       <div style={{ padding: '80px 24px', textAlign: 'center', background: 'var(--page-bg)', minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
@@ -30,8 +37,8 @@ const ProductDetail = () => {
     );
   }
 
-  const isOutOfStock = product.stockCount <= 0;
-  const isLowStock = product.stockCount > 0 && product.stockCount <= 5;
+  const isOutOfStock = Number(product.stockCount) <= 0;
+  const isLowStock = Number(product.stockCount) > 0 && Number(product.stockCount) <= 5;
 
   let stockColor = '#059669';
   let stockText = `${product.stockCount} pieces available`;
@@ -49,7 +56,7 @@ const ProductDetail = () => {
   };
 
   const incrementQty = () => {
-    if (quantity < product.stockCount) setQuantity(prev => prev + 1);
+    if (quantity < Number(product.stockCount)) setQuantity(prev => prev + 1);
   };
 
   const handleAddToCart = () => {
@@ -164,7 +171,7 @@ const ProductDetail = () => {
                   <div className="stepper-controls">
                     <button onClick={decrementQty} className="stepper-btn" disabled={quantity <= 1}>−</button>
                     <span className="stepper-value font-body">{quantity}</span>
-                    <button onClick={incrementQty} className="stepper-btn" disabled={quantity >= product.stockCount}>+</button>
+                    <button onClick={incrementQty} className="stepper-btn" disabled={quantity >= Number(product.stockCount)}>+</button>
                   </div>
                 </div>
 

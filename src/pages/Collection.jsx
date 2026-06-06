@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import ClockSvg from '../components/ClockSvg';
 import { fetchAllProducts } from '../lib/productsService';
@@ -8,6 +8,8 @@ import pb from '../lib/pocketbase';
 const Collection = () => {
   const { products: contextProducts, currentUser, addToCart } = useApp();
   const navigate = useNavigate();
+  const location = useLocation();
+  const searchInputRef = useRef(null);
 
   // Local state for auto-refreshing products
   const [liveProducts, setLiveProducts] = useState(Array.isArray(contextProducts) ? contextProducts : []);
@@ -45,7 +47,7 @@ const Collection = () => {
           salePrice: Number(record?.price) || 0,
           originalPrice: null,
           isOnSale: false,
-          stockCount: Number(record?.stock) || 0,
+          stockCount: Number(record?.stock_Number !== undefined ? record.stock_Number : (record?.stock !== undefined ? record.stock : 0)),
           isLive: record?.is_live !== undefined ? record.is_live : true,
           status: record?.status || "live",
           color: '',
@@ -53,6 +55,7 @@ const Collection = () => {
           images: record?.prodimage ? [pb.files.getURL(record, record.prodimage)] : ["/placeholder.png"]
         }));
 
+        console.log('[DEBUG] Customer page fetched products:', mappedRecords);
         setLiveProducts(mappedRecords);
       } catch (error) {
         console.error("Collection page fetch error:", error);
@@ -65,9 +68,16 @@ const Collection = () => {
     return () => clearInterval(intervalId);
   }, []);
 
-  // Search & Filter State
+  useEffect(() => {
+    if (location.state?.focusSearch) {
+      searchInputRef.current?.focus();
+      // Clear navigation state to avoid refocusing on reload
+      window.history.replaceState({}, document.title);
+    }
+  }, [location]);
+
+  // Search State
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState('ALL');
   
   // Auth Modal State
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -75,33 +85,60 @@ const Collection = () => {
   // Success toast/feedback per product
   const [addedProductId, setAddedProductId] = useState(null);
 
-  // Categories list
-  const categories = ['ALL', 'MODERN MINIMALIST', 'CONTEMPORARY', 'LUXURY VINTAGE'];
-
   // Filter products in real time
   const filteredProducts = useMemo(() => {
-    return (liveProducts || []).filter(p => {
-      if (!p) return false;
+    const query = (searchQuery || '').trim().toLowerCase();
+
+    const normalize = (value) =>
+      value === null || value === undefined ? "" : String(value).toLowerCase().trim();
+
+    const isExactNumberMatch = (value, queryVal) => {
+      const field = normalize(value);
+      return field === queryVal;
+    };
+
+    const isSizeMatch = (value, queryVal) => {
+      const field = normalize(value);
+      return field
+        .split(/[^0-9a-z]+/)
+        .filter(Boolean)
+        .includes(queryVal);
+    };
+
+    return (liveProducts || []).filter((product) => {
+      if (!product) return false;
       // Only show live products to customers
-      if (!p.isLive) return false;
+      if (!product.isLive) return false;
 
-      // Category check
-      const safeCat = (p.category || '').toString().toUpperCase();
-      const matchesCategory = 
-        activeCategory === 'ALL' || 
-        safeCat === activeCategory;
+      if (!query) return true;
 
-      // Search query check
-      const query = (searchQuery || '').toString().toLowerCase().trim();
-      const safeName = (p.name || '').toString().toLowerCase();
-      const safeModel = (p.modelNumber || '').toString().toLowerCase();
-      const matchesSearch = 
-        safeName.includes(query) || 
-        safeModel.includes(query);
+      const isNumericQuery = /^\d+$/.test(query);
 
-      return matchesCategory && matchesSearch;
+      if (isNumericQuery) {
+        return (
+          isExactNumberMatch(product.model_no, query) ||
+          isExactNumberMatch(product.modelNumber, query) ||
+          isExactNumberMatch(product.pkg_no, query) ||
+          isExactNumberMatch(product.pkgNo, query) ||
+          isSizeMatch(product.size, query) ||
+          isSizeMatch(product.dimensions, query)
+        );
+      }
+
+      return [
+        product.name,
+        product.product_name,
+        product.model_no,
+        product.modelNumber,
+        product.size,
+        product.dimensions,
+        product.pkg_no,
+        product.pkgNo,
+      ]
+        .map(normalize)
+        .some((field) => field.includes(query));
     });
-  }, [liveProducts, activeCategory, searchQuery]);
+  }, [liveProducts, searchQuery]);
 
   // Handle click on "ORDER" button
   const handleOrder = (product) => {
@@ -128,7 +165,7 @@ const Collection = () => {
         </div>
       </header>
 
-      {/* 2. Search & Filters Bar */}
+      {/* 2. Search Bar */}
       <section className="filters-bar-section">
         <div className="container filters-container">
           
@@ -139,9 +176,10 @@ const Collection = () => {
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
             <input 
+              ref={searchInputRef}
               type="text" 
               className="search-input"
-              placeholder="Search by name or model number..."
+              placeholder="Search by name, model number, size, or package number..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -150,19 +188,6 @@ const Collection = () => {
                 &times;
               </button>
             )}
-          </div>
-
-          {/* Category Filter Buttons */}
-          <div className="category-filters-wrapper">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                className={`filter-btn uppercase-label ${activeCategory === cat ? 'active' : ''}`}
-                onClick={() => setActiveCategory(cat)}
-              >
-                {cat}
-              </button>
-            ))}
           </div>
 
         </div>
@@ -191,13 +216,13 @@ const Collection = () => {
             </div>
           ) : !Array.isArray(filteredProducts) || filteredProducts.length === 0 ? (
             <div className="empty-results-box font-body">
-              <p>No products available</p>
+              <p>No products found for your search.</p>
               <button 
                 className="btn-secondary" 
-                onClick={() => { setSearchQuery(''); setActiveCategory('ALL'); }}
+                onClick={() => { setSearchQuery(''); }}
                 style={{ marginTop: '16px' }}
               >
-                Reset Filters
+                Reset Search
               </button>
             </div>
           ) : (
@@ -206,6 +231,8 @@ const Collection = () => {
                 if (!product) return null;
                 const isSale = product.isOnSale;
                 const isAdded = addedProductId === product.id;
+
+                console.log(`[DEBUG] Stock check for product ${product.modelNumber}: stockCount = ${product.stockCount}, isOutOfStock = ${Number(product.stockCount) <= 0}`);
 
                 return (
                   <div key={product.id || Math.random()} className="card-product animate-fade-in">
@@ -259,9 +286,9 @@ const Collection = () => {
                           fontSize: '11px',
                           backgroundColor: isAdded ? '#059669' : 'var(--button-primary-fill)' 
                         }}
-                        disabled={product.stockCount <= 0}
+                        disabled={Number(product.stockCount) <= 0}
                       >
-                        {product.stockCount <= 0 ? 'OUT OF STOCK' : isAdded ? '✓ ADDED' : 'ORDER'}
+                        {Number(product.stockCount) <= 0 ? 'OUT OF STOCK' : isAdded ? '✓ ADDED' : 'ORDER'}
                       </button>
                     </div>
 
@@ -369,16 +396,14 @@ const Collection = () => {
 
         .filters-container {
           display: flex;
+          justify-content: center;
           align-items: center;
-          gap: 20px;
-        }
-
-        @media (max-width: 768px) {
-          .filters-container { flex-direction: column; align-items: stretch; gap: 12px; }
+          width: 100%;
         }
 
         .search-box-wrapper {
-          flex: 1;
+          width: 100%;
+          max-width: 720px;
           position: relative;
           display: flex;
           align-items: center;
@@ -415,37 +440,6 @@ const Collection = () => {
         }
 
         .clear-search-btn:hover { color: var(--text-primary); }
-
-        .category-filters-wrapper {
-          display: flex;
-          gap: 8px;
-          overflow-x: auto;
-          white-space: nowrap;
-          padding-bottom: 2px;
-          flex-shrink: 0;
-        }
-
-        .filter-btn {
-          height: 40px;
-          padding: 0 16px;
-          border: 1.5px solid var(--border-color);
-          border-radius: 3px;
-          background-color: #ffffff;
-          color: var(--text-secondary);
-          transition: all var(--transition-speed) ease;
-          flex-shrink: 0;
-          font-size: 10px;
-          letter-spacing: 0.1em;
-          font-weight: 700;
-        }
-
-        .filter-btn:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
-
-        .filter-btn.active {
-          background-color: var(--primary-dark-bg);
-          border-color: var(--primary-dark-bg);
-          color: #ffffff;
-        }
 
         .count-label-section { padding: 16px 0; background: var(--page-bg); }
 

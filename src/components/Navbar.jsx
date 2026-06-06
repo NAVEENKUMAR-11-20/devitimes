@@ -15,6 +15,10 @@ const Navbar = () => {
     navigate('/');
   };
 
+  const handleSearchClick = () => {
+    navigate('/collection', { state: { focusSearch: true, timestamp: Date.now() } });
+  };
+
   return (
     <nav className="navbar-root">
       <div className="navbar-container">
@@ -25,85 +29,142 @@ const Navbar = () => {
           <span className="logo-text font-logo">DEVI TIMES</span>
         </Link>
 
-        {/* Hamburger Menu Toggle (Mobile) */}
-        <button 
-          className="mobile-hamburger" 
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          aria-label="Toggle Navigation Menu"
-        >
-          <span className={`bar ${mobileMenuOpen ? 'change' : ''}`}></span>
-          <span className={`bar ${mobileMenuOpen ? 'change' : ''}`}></span>
-          <span className={`bar ${mobileMenuOpen ? 'change' : ''}`}></span>
-        </button>
-
-        {/* Center/Right Nav Links (Desktop) */}
-        <div className={`nav-menu-links ${mobileMenuOpen ? 'active' : ''}`}>
+        {/* Center: Navigation Links (Desktop) */}
+        <div className="nav-center-links">
           <Link 
             to="/" 
             className={`nav-link-item ${location.pathname === '/' ? 'active-link' : ''}`}
-            onClick={() => setMobileMenuOpen(false)}
           >
             HOME
           </Link>
           <Link 
             to="/collection" 
             className={`nav-link-item ${location.pathname === '/collection' ? 'active-link' : ''}`}
+          >
+            COLLECTION
+          </Link>
+        </div>
+
+        {/* Right Side: Actions (User Session, Search, Cart, Hamburger) */}
+        <div className="nav-right-actions">
+          
+          {/* User Session status */}
+          <div className="nav-user-section">
+            {currentUser ? (
+              <div className="user-session-pill">
+                <span className="user-session-name">Hi, {currentUser.name.split(' ')[0]}</span>
+                <button onClick={handleLogout} className="logout-nav-btn">
+                  LOGOUT
+                </button>
+              </div>
+            ) : (
+              <Link 
+                to="/login" 
+                className={`nav-link-item ${location.pathname === '/login' || location.pathname === '/register' ? 'active-link' : ''}`}
+              >
+                SIGN IN
+              </Link>
+            )}
+          </div>
+
+          {/* Subtle Vertical Divider */}
+          <span className="nav-divider"></span>
+
+          {/* Search & Cart Icons */}
+          <div className="nav-icons-group">
+            {/* Search trigger */}
+            <button 
+              onClick={handleSearchClick}
+              className="nav-icon-link search-icon-btn" 
+              style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
+              aria-label="Search Collection"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+            </button>
+
+            {/* Cart Icon & Count Badge */}
+            <Link 
+              to="/cart" 
+              className={`nav-icon-link cart-icon-btn ${location.pathname === '/cart' ? 'active-link' : ''}`}
+              aria-label="Shopping Cart"
+            >
+              <div className="cart-badge-wrapper">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+                  <line x1="3" y1="6" x2="21" y2="6"></line>
+                  <path d="M16 10a4 4 0 0 1-8 0"></path>
+                </svg>
+                {cartCount > 0 && (
+                  <span className="cart-badge-count">{cartCount}</span>
+                )}
+              </div>
+            </Link>
+          </div>
+
+          {/* Hamburger Menu Toggle (Mobile) */}
+          <button 
+            className="mobile-hamburger" 
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle Navigation Menu"
+          >
+            <span className={`bar ${mobileMenuOpen ? 'change' : ''}`}></span>
+            <span className={`bar ${mobileMenuOpen ? 'change' : ''}`}></span>
+            <span className={`bar ${mobileMenuOpen ? 'change' : ''}`}></span>
+          </button>
+
+        </div>
+
+      </div>
+
+      {/* Mobile Drawer Overlay */}
+      {mobileMenuOpen && (
+        <div 
+          className="mobile-nav-overlay" 
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Mobile Drawer Navigation Menu */}
+      <div className={`mobile-nav-drawer ${mobileMenuOpen ? 'active' : ''}`}>
+        <div className="mobile-drawer-links">
+          <Link 
+            to="/" 
+            className={`mobile-nav-link-item ${location.pathname === '/' ? 'active-link' : ''}`}
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            HOME
+          </Link>
+          <Link 
+            to="/collection" 
+            className={`mobile-nav-link-item ${location.pathname === '/collection' ? 'active-link' : ''}`}
             onClick={() => setMobileMenuOpen(false)}
           >
             COLLECTION
           </Link>
           
-          {/* User Session status */}
           {currentUser ? (
-            <div className="user-session-pill">
-              <span className="user-session-name">Hi, {currentUser.name.split(' ')[0]}</span>
-              <button onClick={handleLogout} className="logout-nav-btn">
+            <div className="mobile-user-session">
+              <span className="mobile-user-name">Hi, {currentUser.name.split(' ')[0]}</span>
+              <button 
+                onClick={() => { handleLogout(); setMobileMenuOpen(false); }} 
+                className="logout-nav-btn"
+              >
                 LOGOUT
               </button>
             </div>
           ) : (
             <Link 
               to="/login" 
-              className={`nav-link-item ${location.pathname === '/login' || location.pathname === '/register' ? 'active-link' : ''}`}
+              className={`mobile-nav-link-item ${location.pathname === '/login' || location.pathname === '/register' ? 'active-link' : ''}`}
               onClick={() => setMobileMenuOpen(false)}
             >
               SIGN IN
             </Link>
           )}
-
-          {/* Search trigger (navigates to collection) */}
-          <Link 
-            to="/collection" 
-            className="nav-icon-link search-icon-btn" 
-            aria-label="Search Collection"
-            onClick={() => setMobileMenuOpen(false)}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-          </Link>
-
-          {/* Cart Icon & Count Badge */}
-          <Link 
-            to="/cart" 
-            className={`nav-icon-link cart-icon-btn ${location.pathname === '/cart' ? 'active-link' : ''}`}
-            aria-label="Shopping Cart"
-            onClick={() => setMobileMenuOpen(false)}
-          >
-            <div className="cart-badge-wrapper">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
-                <line x1="3" y1="6" x2="21" y2="6"></line>
-                <path d="M16 10a4 4 0 0 1-8 0"></path>
-              </svg>
-              {cartCount > 0 && (
-                <span className="cart-badge-count">{cartCount}</span>
-              )}
-            </div>
-          </Link>
         </div>
-
       </div>
 
       {/* Styles local to Navbar rendering, configured with root design theme */}
@@ -141,10 +202,11 @@ const Navbar = () => {
           align-items: center;
           gap: 12px;
           color: inherit;
+          flex-shrink: 0;
         }
 
         .logo-img {
-          height: 48px;
+          height: 44px;
           width: auto;
           object-fit: contain;
         }
@@ -155,10 +217,33 @@ const Navbar = () => {
           letter-spacing: 0.15em;
         }
 
-        .nav-menu-links {
+        .nav-center-links {
           display: flex;
           align-items: center;
-          gap: 28px;
+          gap: 32px;
+        }
+
+        .nav-right-actions {
+          display: flex;
+          align-items: center;
+          gap: 24px;
+        }
+
+        .nav-user-section {
+          display: flex;
+          align-items: center;
+        }
+
+        .nav-divider {
+          width: 1px;
+          height: 18px;
+          background-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .nav-icons-group {
+          display: flex;
+          align-items: center;
+          gap: 16px;
         }
 
         .nav-link-item {
@@ -167,31 +252,31 @@ const Navbar = () => {
           letter-spacing: 0.12em;
           color: inherit;
           position: relative;
-          padding: 6px 0;
+          padding: 8px 12px;
           transition: color 0.25s ease, opacity 0.25s ease, transform 0.25s ease;
+          display: inline-flex;
+          align-items: center;
         }
 
         .nav-link-item::after {
           content: '';
           position: absolute;
-          bottom: -2px;
-          left: 0;
-          width: 100%;
+          bottom: 0px;
+          left: 12px;
+          right: 12px;
           height: 2px;
           background-color: currentColor;
           transform: scaleX(0);
-          transform-origin: right;
+          transform-origin: center;
           transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .nav-link-item:hover {
           opacity: 1;
-          transform: translateY(-1px);
         }
 
         .nav-link-item:hover::after {
           transform: scaleX(1);
-          transform-origin: left;
         }
 
         .active-link {
@@ -200,7 +285,6 @@ const Navbar = () => {
 
         .active-link::after {
           transform: scaleX(1) !important;
-          transform-origin: left !important;
           background-color: var(--text-accent-on-dark);
         }
 
@@ -209,41 +293,47 @@ const Navbar = () => {
           display: flex;
           align-items: center;
           justify-content: center;
-          position: relative;
-          transition: transform 0.25s ease;
+          width: 38px;
+          height: 38px;
+          border-radius: 50%;
+          transition: background-color 0.25s ease, transform 0.25s ease;
         }
 
         .nav-icon-link:hover {
-          transform: scale(1.08);
+          background-color: rgba(255, 255, 255, 0.08);
+          transform: scale(1.05);
         }
 
         .cart-badge-wrapper {
           position: relative;
-          display: inline-block;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
 
         .cart-badge-count {
           position: absolute;
-          top: -6px;
+          top: -8px;
           right: -8px;
           background-color: var(--text-accent-on-dark);
           color: var(--primary-dark-bg);
           font-size: 9px;
           font-weight: 700;
-          width: 16px;
+          min-width: 16px;
           height: 16px;
-          border-radius: 50%;
+          border-radius: 8px;
           display: flex;
           align-items: center;
           justify-content: center;
+          padding: 0 4px;
+          border: 1px solid var(--primary-dark-bg);
+          box-sizing: border-box;
         }
 
         .user-session-pill {
           display: flex;
           align-items: center;
           gap: 12px;
-          border-left: 1px solid rgba(255, 255, 255, 0.15);
-          padding-left: 16px;
         }
 
         .user-session-name {
@@ -251,6 +341,7 @@ const Navbar = () => {
           text-transform: uppercase;
           font-weight: 600;
           letter-spacing: 0.08em;
+          color: var(--text-sub-on-dark);
         }
 
         .logout-nav-btn {
@@ -258,10 +349,16 @@ const Navbar = () => {
           font-weight: 700;
           letter-spacing: 0.08em;
           color: #ef4444;
-          padding: 2px 6px;
+          padding: 4px 8px;
           border: 1px solid #ef4444;
           border-radius: 2px;
           background: transparent;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          line-height: 1;
+          height: 24px;
+          transition: all 0.2s ease;
         }
 
         .logout-nav-btn:hover {
@@ -275,6 +372,8 @@ const Navbar = () => {
           gap: 5px;
           z-index: 1001;
           color: inherit;
+          padding: 6px;
+          cursor: pointer;
         }
 
         .mobile-hamburger .bar {
@@ -295,43 +394,146 @@ const Navbar = () => {
           transform: translateY(-7px) rotate(45deg);
         }
 
+        .mobile-nav-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100vw;
+          height: 100vh;
+          background-color: rgba(0, 0, 0, 0.4);
+          backdrop-filter: blur(4px);
+          -webkit-backdrop-filter: blur(4px);
+          z-index: 998;
+        }
+
+        .mobile-nav-drawer {
+          position: fixed;
+          top: 0;
+          right: -100%;
+          height: 100vh;
+          width: 280px;
+          background-color: var(--primary-dark-bg);
+          box-shadow: -10px 0 30px rgba(0, 0, 0, 0.3);
+          display: flex;
+          flex-direction: column;
+          padding: 80px 24px 24px 24px;
+          gap: 24px;
+          transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          z-index: 999;
+          box-sizing: border-box;
+        }
+
+        .mobile-nav-drawer.active {
+          right: 0;
+        }
+
+        .mobile-drawer-links {
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+        }
+
+        .mobile-nav-link-item {
+          font-size: 15px;
+          font-weight: 600;
+          letter-spacing: 0.12em;
+          color: var(--text-on-dark);
+          padding: 10px 0;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+          display: block;
+        }
+
+        .mobile-user-session {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 12px;
+          margin-top: 12px;
+          padding-top: 20px;
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .mobile-user-name {
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--text-sub-on-dark);
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+        }
+
+        /* Responsive Breakpoints */
+        @media (max-width: 1024px) {
+          .navbar-container {
+            padding: 0 20px;
+          }
+          .nav-center-links {
+            gap: 20px;
+          }
+          .nav-right-actions {
+            gap: 16px;
+          }
+          .nav-icons-group {
+            gap: 12px;
+          }
+          .user-session-pill {
+            gap: 8px;
+          }
+          .logo-text {
+            font-size: 16px;
+          }
+        }
+
+        @media (max-width: 850px) {
+          .logo-text {
+            font-size: 15px;
+            letter-spacing: 0.1em;
+          }
+          .nav-center-links {
+            gap: 12px;
+          }
+          .nav-right-actions {
+            gap: 12px;
+          }
+          .nav-divider {
+            display: none;
+          }
+        }
+
         @media (max-width: 768px) {
+          .nav-center-links {
+            display: none;
+          }
+          .nav-user-section {
+            display: none;
+          }
+          .nav-divider {
+            display: none;
+          }
           .mobile-hamburger {
             display: flex;
           }
-
-          .nav-menu-links {
-            position: fixed;
-            top: 0;
-            right: -100%;
-            height: 100vh;
-            width: 70%;
-            background-color: rgba(26, 35, 50, 0.95);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            color: #ffffff;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            gap: 40px;
-            transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: -10px 0 30px rgba(0,0,0,0.25);
-            border-left: 1px solid rgba(255, 255, 255, 0.1);
+          .nav-right-actions {
+            gap: 12px;
           }
+        }
 
-          .nav-menu-links.active {
-            right: 0;
+        @media (max-width: 480px) {
+          .logo-text {
+            font-size: 14px;
+            letter-spacing: 0.08em;
           }
-
-          .nav-link-item {
-            font-size: 16px;
+          .logo-img {
+            height: 38px;
           }
-
-          .user-session-pill {
-            flex-direction: column;
-            border-left: none;
-            padding-left: 0;
-            gap: 16px;
+          .navbar-container {
+            padding: 0 12px;
+          }
+          .nav-icons-group {
+            gap: 6px;
+          }
+          .nav-icon-link {
+            width: 34px;
+            height: 34px;
           }
         }
       `}</style>

@@ -23,18 +23,18 @@ function mapRecord(record) {
     size: record.SIZE_DIMENSIONS || '',
     packageNo: record.package_no || '',
     salePrice: Number(record.price) || 0,
-    originalPrice: null,
-    isOnSale: false,
-    stockCount: Number(record.stock) || 0,
+    originalPrice: record.original_price !== undefined && record.original_price !== null ? Number(record.original_price) : null,
+    isOnSale: record.is_on_sale !== undefined ? (String(record.is_on_sale) === 'true') : false,
+    stockCount: Number(record.stock_Number !== undefined ? record.stock_Number : (record.stock !== undefined ? record.stock : 0)),
     isLive: record.is_live !== undefined ? record.is_live : true,
     images: getProductImageUrl(record)
       ? [getProductImageUrl(record)]
       : [],
     _rawImageName: record.prodimage || '',    // original filename for updates
     name: record.MODEL_NUMBER || record.id,   // fallback display name
-    category: 'Modern Minimalist',
-    color: '',
-    description: '',
+    category: record.category || 'Modern Minimalist',
+    color: record.color || '',
+    description: record.description || '',
     source: 'pocketbase',
     createdAt: record.created,
   };
@@ -61,21 +61,34 @@ export async function fetchAllProducts() {
 
 /**
  * Create a new product.
- * `data` shape: { MODEL_NUMBER, SIZE_DIMENSIONS, package_no, price, imageFile? }
  */
 export async function createProduct(data) {
   console.log('[PB] Saving product with data:', data);
   const formData = new FormData();
   formData.append('MODEL_NUMBER',    data.MODEL_NUMBER    || '');
   formData.append('SIZE_DIMENSIONS', data.SIZE_DIMENSIONS || '');
-  formData.append('package_no',      data.package_no      || '');
+  formData.append('package_no',      String(data.package_no || ''));
   formData.append('price',           String(data.price    || 0));
-  formData.append('stock',           String(data.stock    || 0));
+  
+  // Use stock_Number for PocketBase
+  const stockVal = data.stock_Number !== undefined ? data.stock_Number : (data.stock !== undefined ? data.stock : 0);
+  formData.append('stock_Number',    String(stockVal));
+  
   // New fields with defaults
   formData.append('status',          data.status          || 'LIVE');
   formData.append('is_live',         data.is_live !== undefined ? String(data.is_live) : 'true');
   formData.append('isLive',          data.isLive !== undefined ? String(data.isLive) : 'true'); // duplicate for safety
-  formData.append('category',        data.category        || 'Clock');
+  formData.append('category',        data.category        || 'Modern Minimalist');
+  
+  if (data.original_price  !== undefined) {
+    formData.append('original_price', data.original_price !== null ? String(data.original_price) : '');
+  }
+  if (data.is_on_sale      !== undefined) {
+    formData.append('is_on_sale', String(data.is_on_sale));
+  }
+  if (data.description     !== undefined) formData.append('description', data.description);
+  if (data.color           !== undefined) formData.append('color', data.color);
+
   if (data.imageFile) {
     formData.append('prodimage', data.imageFile);
   }
@@ -87,22 +100,46 @@ export async function createProduct(data) {
 
 /**
  * Update an existing product.
- * `data` shape same as createProduct; `pbId` is the PocketBase record id.
  */
 export async function updateProduct(pbId, data) {
+  console.log('[PB] updateProduct called with pbId:', pbId, 'data:', data);
   const formData = new FormData();
   if (data.MODEL_NUMBER    !== undefined) formData.append('MODEL_NUMBER',    data.MODEL_NUMBER);
   if (data.SIZE_DIMENSIONS !== undefined) formData.append('SIZE_DIMENSIONS', data.SIZE_DIMENSIONS);
-  if (data.package_no      !== undefined) formData.append('package_no',      data.package_no);
+  if (data.package_no      !== undefined) formData.append('package_no',      String(data.package_no));
   if (data.price           !== undefined) formData.append('price',           String(data.price));
-  if (data.stock            !== undefined) formData.append('stock',           String(data.stock));
+  
+  // Use stock_Number for PocketBase
+  const stockVal = data.stock_Number !== undefined ? data.stock_Number : data.stock;
+  if (stockVal !== undefined) {
+    formData.append('stock_Number', String(stockVal));
+  }
+  
   if (data.is_live         !== undefined) formData.append('is_live',         String(data.is_live));
+  
+  // Support other fields if they exist in schema
+  if (data.original_price  !== undefined) {
+    formData.append('original_price', data.original_price !== null ? String(data.original_price) : '');
+  }
+  if (data.is_on_sale      !== undefined) {
+    formData.append('is_on_sale', String(data.is_on_sale));
+  }
+  if (data.description     !== undefined) formData.append('description', data.description);
+  if (data.category        !== undefined) formData.append('category', data.category);
+  if (data.color           !== undefined) formData.append('color', data.color);
+
   if (data.imageFile) {
     formData.append('prodimage', data.imageFile);
   }
 
-  const record = await pb.collection('products').update(pbId, formData);
-  return mapRecord(record);
+  try {
+    const record = await pb.collection('products').update(pbId, formData);
+    console.log('[PB] PocketBase update response raw record:', record);
+    return mapRecord(record);
+  } catch (err) {
+    console.error('[PB] PocketBase update error:', err);
+    throw err;
+  }
 }
 
 /**
