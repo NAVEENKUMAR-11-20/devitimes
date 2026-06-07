@@ -44,7 +44,6 @@ const AdminProducts = () => {
     return () => clearTimeout(timer);
   }, [searchInput]);
   const [statusFilter, setStatusFilter] = useState('ALL'); // ALL, LIVE, HIDDEN
-  const [categoryFilter, setCategoryFilter] = useState('ALL'); // ALL, or specific categories
 
   // Sorting State
   const [sortField, setSortField] = useState('name');
@@ -346,15 +345,14 @@ const AdminProducts = () => {
         const isLive = p.isLive !== undefined ? p.isLive : true;
         if (statusFilter === 'LIVE' && !isLive) return false;
         if (statusFilter === 'HIDDEN' && isLive) return false;
-        // Category checks
-        if (categoryFilter !== 'ALL' && p.category !== categoryFilter) return false;
         // Search text check
         const q = searchQuery.toLowerCase().trim();
-        const safeName = (p.name || '').toString().toLowerCase();
         const safeModel = (p.modelNumber || '').toString().toLowerCase();
-        const safeCat = (p.category || '').toString().toLowerCase();
+        const safePrice = (p.salePrice || '').toString().toLowerCase();
+        const safePkg = (p.packageNo || '').toString().toLowerCase();
+        const safeSize = (p.size || '').toString().toLowerCase();
         
-        return safeName.includes(q) || safeModel.includes(q) || safeCat.includes(q);
+        return safeModel.includes(q) || safePrice.includes(q) || safePkg.includes(q) || safeSize.includes(q);
       })
       .sort((a, b) => {
         let valA = a[sortField] !== undefined && a[sortField] !== null ? a[sortField] : '';
@@ -368,7 +366,7 @@ const AdminProducts = () => {
         if (valA > valB) return sortAscending ? 1 : -1;
         return 0;
       });
-  }, [products, searchQuery, statusFilter, categoryFilter, sortField, sortAscending]);
+  }, [products, searchQuery, statusFilter, sortField, sortAscending]);
 
   // Paginated elements
   const paginatedProducts = useMemo(() => {
@@ -460,7 +458,7 @@ const AdminProducts = () => {
         <div className="search-control-wrapper">
           <input 
             type="text" 
-            placeholder="Search catalogue by name, category, or model..."
+            placeholder="Search catalogue by model number, package number, or dimensions..."
             className="form-input search-catalogue-input"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
@@ -489,19 +487,6 @@ const AdminProducts = () => {
             >
               Hidden
             </button>
-          </div>
-
-          <div className="category-select-wrapper">
-            <select 
-              className="form-input category-select-filter"
-              value={categoryFilter}
-              onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1); }}
-            >
-              <option value="ALL">All Categories</option>
-              {categories.map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
           </div>
 
         </div>
@@ -971,11 +956,6 @@ const AdminProducts = () => {
           font-weight: 700;
         }
 
-        .category-select-filter {
-          height: 36px;
-          font-size: 12px;
-          width: 180px;
-        }
 
         /* Table Design */
         .table-container-card {
@@ -1307,7 +1287,7 @@ const AdminProducts = () => {
           .search-control-wrapper {
             width: 100%;
           }
-          .search-catalogue-input, .category-select-filter {
+          .search-catalogue-input {
             width: 100%;
           }
           .table-container-card {
