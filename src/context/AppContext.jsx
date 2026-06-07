@@ -217,7 +217,7 @@ export const AppProvider = ({ children }) => {
 
       if (records.length > 0) {
         const matchedUser = records[0];
-        if (matchedUser.password === password) {
+        if (String(matchedUser.password).trim() === String(password).trim()) {
           const userStatus = matchedUser.status || 'active';
           if (userStatus !== 'active') {
             return { success: false, message: "Your account is suspended. Contact admin." };
