@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { fetchAllProducts } from '../lib/productsService';
 import { fetchAllUsers, fetchPendingRegistrations, createRegistration as pbCreateRegistration, deleteRegistration as pbDeleteRegistration, updateRegistrationStatus as pbUpdateRegistrationStatus, createUser as pbCreateUser, deleteUser as pbDeleteUser } from '../lib/usersService';
+import pb from '../lib/pocketbase';
 
 const AppContext = createContext();
 
@@ -63,9 +64,11 @@ export const AppProvider = ({ children }) => {
     return parsedSettings;
   });
 
-  // User Session (sessionStorage)
+  // User Session (sessionStorage and localStorage)
   const [currentUser, setCurrentUser] = useState(() => {
-    const saved = sessionStorage.getItem('lumiere_current_user');
+    const savedSession = sessionStorage.getItem('lumiere_current_user');
+    const savedLocal = localStorage.getItem('lumiere_current_user');
+    const saved = savedSession || savedLocal;
     return saved ? JSON.parse(saved) : null;
   });
 
@@ -205,27 +208,54 @@ export const AppProvider = ({ children }) => {
   };
 
   // --- User Authentication Actions ---
-  const loginUser = (userId, password) => {
-    const matchedUser = users.find(u => u.userId.toLowerCase() === userId.toLowerCase() && u.password === password);
-    if (!matchedUser) {
-      return { success: false, message: "Invalid User ID or Password. Please check your credentials." };
-    }
-    if (matchedUser.status !== 'active') {
-      return { success: false, message: "Your account is suspended. Contact admin." };
-    }
+  const loginUser = async (userId, password) => {
+    try {
+      // 1. Search in PocketBase User collection
+      const records = await pb.collection('User').getFullList({
+        filter: `User_ID = "${userId.trim()}"`
+      });
 
-    const sessionObj = {
-      userId: matchedUser.userId,
-      name: matchedUser.name,
-      mobile: matchedUser.mobile
-    };
-    sessionStorage.setItem('lumiere_current_user', JSON.stringify(sessionObj));
-    setCurrentUser(sessionObj);
-    return { success: true };
+      if (records.length > 0) {
+        const matchedUser = records[0];
+        if (matchedUser.password === password) {
+          const userStatus = matchedUser.status || 'active';
+          if (userStatus !== 'active') {
+            return { success: false, message: "Your account is suspended. Contact admin." };
+          }
+          
+          const sessionObj = {
+            userId: matchedUser.User_ID || matchedUser.id,
+            name: matchedUser.Full_Name || 'Valued Customer',
+            mobile: matchedUser.moblieno || matchedUser.mobileno || ''
+          };
+          sessionStorage.setItem('lumiere_current_user', JSON.stringify(sessionObj));
+          localStorage.setItem('lumiere_current_user', JSON.stringify(sessionObj));
+          setCurrentUser(sessionObj);
+          return { success: true };
+        } else {
+          return { success: false, message: "Invalid username or password. Please contact admin." };
+        }
+      }
+
+      // 2. Check if there's a pending registration request with matching name/mobile
+      const pendingRegs = await pb.collection('registered_users').getFullList({
+        filter: `status = "pending" && (user_name = "${userId.trim()}" || mobile_no = "${userId.trim()}")`
+      });
+
+      if (pendingRegs.length > 0) {
+        return { success: false, message: "Your account is not approved yet. Please contact admin." };
+      }
+
+      return { success: false, message: "Invalid username or password. Please contact admin." };
+    } catch (err) {
+      console.error('[AppContext] loginUser error:', err);
+      return { success: false, message: "Invalid username or password. Please contact admin." };
+    }
   };
 
   const logoutUser = () => {
     sessionStorage.removeItem('lumiere_current_user');
+    localStorage.removeItem('lumiere_current_user');
     setCurrentUser(null);
     setCart([]);
   };

@@ -11,14 +11,18 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     if (!userId.trim()) { setError('Please enter your User ID.'); return; }
     if (!password)      { setError('Please enter your password.'); return; }
-    const response = loginUser(userId.trim(), password);
-    if (response.success) navigate('/collection');
-    else setError(response.message);
+    try {
+      const response = await loginUser(userId.trim(), password);
+      if (response.success) navigate('/collection');
+      else setError(response.message);
+    } catch (err) {
+      setError('An unexpected error occurred. Please contact admin.');
+    }
   };
 
   return (

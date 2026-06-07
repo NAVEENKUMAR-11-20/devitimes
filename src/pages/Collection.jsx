@@ -6,7 +6,7 @@ import { fetchAllProducts } from '../lib/productsService';
 import pb from '../lib/pocketbase';
 
 const Collection = () => {
-  const { products: contextProducts, currentUser, addToCart } = useApp();
+  const { products: contextProducts, currentUser, loginUser, logoutUser, addToCart } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
   const searchInputRef = useRef(null);
@@ -85,6 +85,31 @@ const Collection = () => {
   // Success toast/feedback per product
   const [addedProductId, setAddedProductId] = useState(null);
 
+  // Collection Protection Login States
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState('');
+
+  const handleProtectedLogin = async (e) => {
+    e.preventDefault();
+    setLoginError('');
+    setIsLoggingIn(true);
+    try {
+      const response = await loginUser(loginUsername, loginPassword);
+      if (response.success) {
+        setLoginUsername('');
+        setLoginPassword('');
+      } else {
+        setLoginError(response.message);
+      }
+    } catch (err) {
+      setLoginError('An unexpected error occurred. Please contact admin.');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
   // Filter products in real time
   const filteredProducts = useMemo(() => {
     const query = (searchQuery || '').trim().toLowerCase();
@@ -158,12 +183,145 @@ const Collection = () => {
       
       {/* 1. Page Header */}
       <header className="collection-header animate-fade-in">
-        <div className="container">
+        <div className="container" style={{ position: 'relative' }}>
           <span className="uppercase-label" style={{color:'rgba(126,179,232,0.85)',display:'block',marginBottom:'10px'}}>DEVI TIMES</span>
           <h1 className="collection-title font-heading">Our Collection</h1>
           <p className="collection-subtitle font-body">Discover our curated selection of premium handcrafted wall clocks</p>
+          {currentUser && (
+            <button 
+              onClick={() => { logoutUser(); navigate('/'); }}
+              className="collection-logout-btn font-body uppercase-label"
+              style={{
+                marginTop: '16px',
+                padding: '8px 18px',
+                fontSize: '11px',
+                fontWeight: '700',
+                letterSpacing: '0.08em',
+                color: '#ff6b6b',
+                border: '1px solid #ff6b6b',
+                background: 'transparent',
+                borderRadius: '3px',
+                cursor: 'pointer',
+                transition: 'all 0.25s ease'
+              }}
+            >
+              LOGOUT FROM COLLECTION
+            </button>
+          )}
         </div>
       </header>
+
+      {!currentUser ? (
+        <section className="collection-login-section animate-fade-in" style={{ padding: '60px 0', minHeight: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="container" style={{ display: 'flex', justifyContent: 'center' }}>
+            <div className="collection-login-card" style={{
+              background: '#ffffff',
+              border: '1px solid var(--border-color)',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.06)',
+              borderRadius: '4px',
+              padding: '40px 36px',
+              width: '100%',
+              maxWidth: '440px',
+              boxSizing: 'border-box'
+            }}>
+              <h2 className="collection-login-title font-heading" style={{ fontSize: '26px', color: 'var(--text-primary)', marginBottom: '8px', textAlign: 'center' }}>
+                Wholesale Portal Access
+              </h2>
+              <p className="collection-login-subtitle font-body" style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '28px', textAlign: 'center', lineHeight: '1.5' }}>
+                Please sign in with your User ID and Password to explore the Devi Times wholesale clocks collection.
+              </p>
+
+              <form onSubmit={handleProtectedLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {loginError && (
+                  <div className="auth-error-banner font-body" style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    backgroundColor: '#FEF2F2',
+                    border: '1.5px solid #FCA5A5',
+                    color: '#DC2626',
+                    padding: '12px 16px',
+                    borderRadius: '3px',
+                    fontSize: '13px'
+                  }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink:0}}>
+                      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                    {loginError}
+                  </div>
+                )}
+
+                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label className="form-label uppercase-label" style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', letterSpacing: '0.05em' }}>Username / User ID</label>
+                  <input 
+                    type="text" 
+                    id="col-userid"
+                    className="form-input" 
+                    placeholder="Enter your User ID"
+                    value={loginUsername}
+                    onChange={(e) => setLoginUsername(e.target.value)}
+                    style={{
+                      height: '44px',
+                      padding: '0 14px',
+                      border: '1.5px solid var(--border-color)',
+                      borderRadius: '3px',
+                      outline: 'none',
+                      fontSize: '13px'
+                    }}
+                    required
+                  />
+                </div>
+
+                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label className="form-label uppercase-label" style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', letterSpacing: '0.05em' }}>Password</label>
+                  <input 
+                    type="password" 
+                    id="col-password"
+                    className="form-input" 
+                    placeholder="Enter your password"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    style={{
+                      height: '44px',
+                      padding: '0 14px',
+                      border: '1.5px solid var(--border-color)',
+                      borderRadius: '3px',
+                      outline: 'none',
+                      fontSize: '13px'
+                    }}
+                    required
+                  />
+                </div>
+
+                <button type="submit" id="col-submit-btn" className="btn-primary collection-login-btn" style={{
+                  height: '46px',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  letterSpacing: '0.08em',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }} disabled={isLoggingIn}>
+                  {isLoggingIn ? (
+                    <div className="loading-spinner" style={{ 
+                      width: '20px', height: '20px', border: '2px solid rgba(255,255,255,0.3)', 
+                      borderTop: '2px solid #ffffff', borderRadius: '50%', 
+                      margin: '0 auto', animation: 'spin 0.6s linear infinite' 
+                    }}></div>
+                  ) : 'ACCESS COLLECTION'}
+                </button>
+
+                <div style={{ textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)', borderTop: '1px solid var(--border-color)', paddingTop: '20px', marginTop: '10px' }}>
+                  Don't have an approved account? &nbsp;
+                  <Link to="/register" style={{ color: 'var(--accent-blue)', fontWeight: '700' }}>Register here →</Link>
+                </div>
+              </form>
+            </div>
+          </div>
+        </section>
+      ) : (
+        <>
 
       {/* 2. Search Bar */}
       <section className="filters-bar-section">
@@ -232,7 +390,6 @@ const Collection = () => {
                 const isSale = product.isOnSale;
                 const isAdded = addedProductId === product.id;
 
-                console.log(`[DEBUG] Stock check for product ${product.modelNumber}: stockCount = ${product.stockCount}, isOutOfStock = ${Number(product.stockCount) <= 0}`);
 
                 return (
                   <div key={product.id || Math.random()} className="card-product animate-fade-in">
@@ -286,9 +443,8 @@ const Collection = () => {
                           fontSize: '11px',
                           backgroundColor: isAdded ? '#059669' : 'var(--button-primary-fill)' 
                         }}
-                        disabled={Number(product.stockCount) <= 0}
                       >
-                        {Number(product.stockCount) <= 0 ? 'OUT OF STOCK' : isAdded ? '✓ ADDED' : 'ORDER'}
+                        {isAdded ? '✓ ADDED' : 'ORDER'}
                       </button>
                     </div>
 
@@ -299,6 +455,8 @@ const Collection = () => {
           )}
         </div>
       </section>
+        </>
+      )}
 
       {/* 5. Authentication Required Modal */}
       {showAuthModal && (

@@ -23,7 +23,6 @@ const ProductDetail = () => {
   useEffect(() => {
     if (product) {
       console.log('[DEBUG] Product Details loaded:', product);
-      console.log(`[DEBUG] Product Details stock check: stockCount = ${product.stockCount}, isOutOfStock = ${Number(product.stockCount) <= 0}`);
     }
   }, [product]);
 
@@ -37,26 +36,12 @@ const ProductDetail = () => {
     );
   }
 
-  const isOutOfStock = Number(product.stockCount) <= 0;
-  const isLowStock = Number(product.stockCount) > 0 && Number(product.stockCount) <= 5;
-
-  let stockColor = '#059669';
-  let stockText = `${product.stockCount} pieces available`;
-
-  if (isOutOfStock) {
-    stockColor = '#EF4444';
-    stockText = 'Out of Stock';
-  } else if (isLowStock) {
-    stockColor = '#D97706';
-    stockText = `Only ${product.stockCount} pieces left`;
-  }
-
   const decrementQty = () => {
     if (quantity > 1) setQuantity(prev => prev - 1);
   };
 
   const incrementQty = () => {
-    if (quantity < Number(product.stockCount)) setQuantity(prev => prev + 1);
+    setQuantity(prev => prev + 1);
   };
 
   const handleAddToCart = () => {
@@ -136,15 +121,9 @@ const ProductDetail = () => {
                 <span className="detail-spec-label">DIMENSIONS</span>
                 <span className="detail-spec-value font-body">{product.size}</span>
               </div>
-              <div className="detail-spec-row">
+              <div className="detail-spec-row" style={{borderBottom:'none'}}>
                 <span className="detail-spec-label">FINISH COLOR</span>
                 <span className="detail-spec-value font-body">{product.color}</span>
-              </div>
-              <div className="detail-spec-row" style={{borderBottom:'none'}}>
-                <span className="detail-spec-label">AVAILABILITY</span>
-                <span className="stock-indicator" style={{ color: stockColor, fontWeight: '600', fontSize: '13px' }}>
-                  ● {stockText}
-                </span>
               </div>
             </div>
 
@@ -163,39 +142,30 @@ const ProductDetail = () => {
               )}
             </div>
 
-            {/* Actions */}
-            {!isOutOfStock ? (
-              <div className="detail-actions-block">
-                <div className="qty-picker-container">
-                  <span className="detail-spec-label" style={{ marginBottom: '8px' }}>QUANTITY</span>
-                  <div className="stepper-controls">
-                    <button onClick={decrementQty} className="stepper-btn" disabled={quantity <= 1}>−</button>
-                    <span className="stepper-value font-body">{quantity}</span>
-                    <button onClick={incrementQty} className="stepper-btn" disabled={quantity >= Number(product.stockCount)}>+</button>
-                  </div>
+            {/* Actions — always shown */}
+            <div className="detail-actions-block">
+              <div className="qty-picker-container">
+                <span className="detail-spec-label" style={{ marginBottom: '8px' }}>QUANTITY</span>
+                <div className="stepper-controls">
+                  <button onClick={decrementQty} className="stepper-btn" disabled={quantity <= 1}>−</button>
+                  <span className="stepper-value font-body">{quantity}</span>
+                  <button onClick={incrementQty} className="stepper-btn">+</button>
                 </div>
+              </div>
 
-                <button 
-                  onClick={handleAddToCart}
-                  className="btn-primary full-width-btn"
-                  style={{ 
-                    height: '50px', 
-                    fontSize: '13px', 
-                    letterSpacing: '0.12em',
-                    backgroundColor: addedFeedback ? '#059669' : 'var(--button-primary-fill)'
-                  }}
-                >
-                  {addedFeedback ? '✓ ADDED TO CART' : 'ADD TO CART'}
-                </button>
-              </div>
-            ) : (
-              <div className="sold-out-banner font-body">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" style={{marginRight:'10px',flexShrink:0}}>
-                  <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
-                </svg>
-                This item is currently sold out and unavailable for order.
-              </div>
-            )}
+              <button 
+                onClick={handleAddToCart}
+                className="btn-primary full-width-btn"
+                style={{ 
+                  height: '50px', 
+                  fontSize: '13px', 
+                  letterSpacing: '0.12em',
+                  backgroundColor: addedFeedback ? '#059669' : 'var(--button-primary-fill)'
+                }}
+              >
+                {addedFeedback ? '✓ ADDED TO CART' : 'ADD TO CART'}
+              </button>
+            </div>
 
             <div style={{ marginTop: '20px' }}>
               <Link to="/collection" className="continue-link font-body">

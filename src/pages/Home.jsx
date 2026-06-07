@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import ClockSvg from '../components/ClockSvg';
 
 // ─── Animated Hero Clock (pure SVG, no images) ───────────────────────────────
 const AnimatedHeroClock = () => {
@@ -197,9 +196,9 @@ const AnimatedHeroClock = () => {
 
 // ─── Main Home Component ──────────────────────────────────────────────────────
 const Home = () => {
-  const { products } = useApp();
-
-  const previewProducts = products.filter(p => p.isLive).slice(0, 8);
+  const { settings } = useApp();
+  const waNumber = (settings?.whatsappNumber || '7358349394').replace(/\D/g, '');
+  const waLink = `https://wa.me/${waNumber}?text=${encodeURIComponent('Hello, I am interested in placing a wholesale order for Devi Clocks. Please share the product catalogue and pricing.')}`;
 
   return (
     <div className="home-root">
@@ -249,90 +248,49 @@ const Home = () => {
       </section>
 
 
-      {/* ── Collection Preview ── */}
-      <section className="collection-preview-section">
-        <div className="container">
+      {/* ── Wholesale Order Banner ── */}
+      <section className="wholesale-banner-section">
 
-          <div className="preview-header">
-            <span className="uppercase-label preview-label">OUR COLLECTION</span>
-            <h2 className="preview-title font-heading">Curated Timepieces</h2>
-            <p className="preview-subtitle font-body">
-              Explore our handpicked selection of premium wall clocks
+        <div className="container wholesale-banner-inner">
+          {/* Left content */}
+          <div className="wholesale-left">
+            <span className="wholesale-tag uppercase-label">WHOLESALE ONLY</span>
+
+            <h2 className="wholesale-title font-heading">
+              Devi Clocks
+              <span className="wholesale-title-sub">Wholesale Orders</span>
+            </h2>
+
+            <p className="wholesale-subtitle font-body">
+              We supply clocks only for wholesale and bulk orders.
+              <br />
+              Single clock purchase is not available.
             </p>
+
+            <a
+              href={waLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="wholesale-cta-btn"
+            >
+              <span className="wholesale-cta-icon">&#128222;</span>
+              Contact for Wholesale Order
+            </a>
           </div>
 
-          {previewProducts.length === 0 ? (
-            <div className="empty-grid-fallback">
-              <p>No products are currently live in the shop.</p>
+          {/* Right: ONE premium clock only */}
+          <div className="wholesale-right">
+            {/* Outer luxury ring */}
+            <div className="ws-clock-ring ws-clock-ring-outer" aria-hidden="true" />
+            {/* Inner glow ring */}
+            <div className="ws-clock-ring ws-clock-ring-inner" aria-hidden="true" />
+            {/* Radial glow behind clock */}
+            <div className="ws-clock-glow" aria-hidden="true" />
+            {/* The single animated clock */}
+            <div className="ws-clock-frame">
+              <AnimatedHeroClock />
             </div>
-          ) : (
-            <div className="grid-products">
-              {previewProducts.map((product) => {
-                const hasSale = product.isOnSale;
-
-                return (
-                  <div key={product.id} className="card-product animate-fade-in">
-
-                    {/* Image Area */}
-                    <div className="card-image-area">
-                      {hasSale && <span className="badge-sale absolute-badge">SALE</span>}
-                      {product.images && product.images.length > 0 ? (
-                        <img src={product.images[0]} alt={product.name} />
-                      ) : (
-                        <ClockSvg
-                          model={product.modelNumber}
-                          category={product.category}
-                          color={product.color}
-                          size={150}
-                        />
-                      )}
-                    </div>
-
-                    {/* Text Area */}
-                    <div className="card-text-area">
-                      <div>
-                        <span className="category-label">{product.category}</span>
-                        <h3 className="product-name font-heading" style={{ marginTop: '4px' }}>
-                          {product.name}
-                        </h3>
-                        <div style={{ marginTop: '6px', fontSize: '10px', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>
-                          MODEL: <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>{product.modelNumber}</span>
-                        </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                          SIZE: {product.size}
-                        </div>
-                      </div>
-
-                      <div className="pricing-row">
-                        <span className="price-bold">₹{product.salePrice}</span>
-                        {product.originalPrice && (
-                          <span className="price-strikethrough">₹{product.originalPrice}</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Button Row */}
-                    <div className="card-button-row">
-                      <Link to={`/product/${product.id}`} className="btn-secondary btn-text" style={{ padding: '8px 0', fontSize: '11px' }}>
-                        DETAILS
-                      </Link>
-                      <Link to={`/product/${product.id}`} className="btn-primary btn-text" style={{ padding: '8px 0', fontSize: '11px' }}>
-                        ORDER
-                      </Link>
-                    </div>
-
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          <div className="view-all-wrapper">
-            <Link to="/collection" className="btn-secondary view-all-btn">
-              VIEW ALL PRODUCTS
-            </Link>
           </div>
-
         </div>
       </section>
 
@@ -514,115 +472,188 @@ const Home = () => {
           filter: drop-shadow(0 20px 48px rgba(45,93,161,0.55));
         }
 
-        /* ── Feature Strip ── */
-        .feature-strip {
-          background-color: var(--secondary-dark);
-          padding: 28px 0;
-          border-top: 1px solid rgba(255,255,255,0.06);
-          border-bottom: 1px solid rgba(255,255,255,0.06);
+        /* ── Wholesale Banner ── */
+        .wholesale-banner-section {
+          position: relative;
+          background: linear-gradient(135deg, #111827 0%, #1A2332 50%, #0F1C2E 100%);
+          overflow: hidden;
+          padding: 80px 0;
+          animation: wsBannerFadeIn 0.6s ease both;
+        }
+        @keyframes wsBannerFadeIn {
+          from { opacity: 0; transform: translateY(16px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
 
-        .feature-strip-grid {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
+        /* Subtle radial overlay only — NO background image */
+        .wholesale-banner-section::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(ellipse at 70% 50%, rgba(201,168,76,0.04) 0%, transparent 60%);
+          pointer-events: none;
+          z-index: 0;
+        }
+
+        /* ── Two-column desktop layout ── */
+        .wholesale-banner-inner {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          justify-content: space-between;
+          gap: 48px;
+          width: 100%;
+        }
+
+        .wholesale-left {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
           gap: 0;
+          max-width: 520px;
         }
 
-        .feature-item {
+        .wholesale-tag {
+          color: #C9A84C;
+          letter-spacing: 0.18em;
+          font-size: 11px;
+          margin-bottom: 20px;
+          display: block;
+        }
+
+        /* Right clock column */
+        .wholesale-right {
+          flex: 0 0 auto;
+          position: relative;
           display: flex;
           align-items: center;
-          gap: 14px;
-          padding: 12px 20px;
-          border-right: 1px solid rgba(255,255,255,0.08);
-        }
-        .feature-item:last-child {
-          border-right: none;
-        }
-
-        .feature-icon {
-          font-size: 22px;
-          color: var(--text-accent-on-dark);
-          opacity: 0.85;
-          flex-shrink: 0;
-        }
-
-        .feature-title {
-          font-size: 13px;
-          font-weight: 700;
-          color: #FFFFFF;
-          letter-spacing: 0.04em;
-          margin-bottom: 2px;
-        }
-
-        .feature-desc {
-          font-size: 11px;
-          color: rgba(200,216,238,0.6);
-          letter-spacing: 0.02em;
-        }
-
-        /* ── Collection Preview ── */
-        .collection-preview-section {
-          background-color: var(--page-bg);
-          padding: 88px 0;
-        }
-
-        .preview-header {
-          text-align: center;
-          margin-bottom: 56px;
-        }
-
-        .preview-label {
-          color: var(--accent-blue);
-          display: block;
-          margin-bottom: 10px;
-        }
-
-        .preview-title {
-          font-size: 42px;
-          color: var(--text-primary);
-          margin-bottom: 10px;
-          line-height: 1.15;
-        }
-
-        .preview-subtitle {
-          color: var(--text-muted);
-          font-size: 15px;
-        }
-
-        .pricing-row {
-          margin-top: 16px;
-          display: flex;
-          align-items: baseline;
-          gap: 8px;
-        }
-
-        .absolute-badge {
-          position: absolute;
-          top: 0;
-          left: 0;
-          z-index: 10;
-        }
-
-        .empty-grid-fallback {
-          text-align: center;
-          padding: 40px;
-          color: var(--text-muted);
-        }
-
-        .view-all-wrapper {
-          display: flex;
           justify-content: center;
-          margin-top: 56px;
+          width: 360px;
+          height: 360px;
         }
 
-        .view-all-btn {
-          padding: 14px 40px;
-          border-color: var(--text-primary);
-          color: var(--text-primary);
+        /* Outer luxury ring — thin gold border circle */
+        .ws-clock-ring {
+          position: absolute;
+          border-radius: 50%;
+          pointer-events: none;
         }
-        .view-all-btn:hover {
-          background-color: var(--text-primary);
+        .ws-clock-ring-outer {
+          width: 360px;
+          height: 360px;
+          border: 1px solid rgba(201,168,76,0.22);
+          box-shadow:
+            0 0 0 1px rgba(201,168,76,0.06),
+            0 0 40px rgba(201,168,76,0.08);
+        }
+        .ws-clock-ring-inner {
+          width: 310px;
+          height: 310px;
+          border: 1px solid rgba(126,179,232,0.12);
+        }
+
+        /* Radial glow behind clock */
+        .ws-clock-glow {
+          position: absolute;
+          width: 300px;
+          height: 300px;
+          border-radius: 50%;
+          background: radial-gradient(circle,
+            rgba(201,168,76,0.10) 0%,
+            rgba(45,93,161,0.08) 40%,
+            transparent 70%
+          );
+          pointer-events: none;
+        }
+
+        /* Clock frame — centers the SVG */
+        .ws-clock-frame {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        /* Override the hero-animated-clock filter for the wholesale clock */
+        .wholesale-right .hero-animated-clock {
+          filter:
+            drop-shadow(0 20px 48px rgba(45,93,161,0.6))
+            drop-shadow(0 0 24px rgba(201,168,76,0.12));
+          width: 300px;
+          height: 300px;
+        }
+
+        .wholesale-title {
+          font-size: 52px;
+          font-weight: 700;
           color: #ffffff;
+          line-height: 1.1;
+          margin-bottom: 4px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .wholesale-title-sub {
+          font-size: 32px;
+          color: #C9A84C;
+          font-style: italic;
+          font-weight: 600;
+        }
+
+        .wholesale-subtitle {
+          font-size: 16px;
+          color: rgba(200,216,238,0.78);
+          line-height: 1.7;
+          margin: 24px 0 36px;
+          max-width: 440px;
+        }
+
+        /* WhatsApp CTA Button */
+        .wholesale-cta-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          background: linear-gradient(135deg, #C9A84C 0%, #E8C96A 50%, #C9A84C 100%);
+          color: #1A2332;
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          padding: 14px 28px;
+          border-radius: 3px;
+          text-decoration: none;
+          transition: transform 0.18s ease, box-shadow 0.18s ease;
+          box-shadow: 0 4px 20px rgba(201,168,76,0.35);
+          white-space: nowrap;
+        }
+        .wholesale-cta-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 28px rgba(201,168,76,0.5);
+        }
+        .wholesale-cta-btn:active {
+          transform: translateY(0);
+        }
+        .wholesale-cta-icon { font-size: 16px; flex-shrink: 0; }
+
+        /* Right: clock */
+        .wholesale-right {
+          flex: 0 0 auto;
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .wholesale-clock-glow {
+          position: absolute;
+          width: 340px;
+          height: 340px;
+          border-radius: 50%;
+          background: radial-gradient(circle, rgba(201,168,76,0.12) 0%, transparent 70%);
+          pointer-events: none;
         }
 
         /* ── Brand Band ── */
@@ -645,10 +676,6 @@ const Home = () => {
         /* ── Responsive ── */
         @media (max-width: 1024px) {
           .hero-heading { font-size: 44px; }
-          .feature-strip-grid { grid-template-columns: repeat(2, 1fr); }
-          .feature-item:nth-child(2) { border-right: none; }
-          .feature-item:nth-child(3) { border-right: none; border-top: 1px solid rgba(255,255,255,0.08); }
-          .feature-item:nth-child(4) { border-top: 1px solid rgba(255,255,255,0.08); }
         }
 
         @media (max-width: 768px) {
@@ -656,7 +683,7 @@ const Home = () => {
             min-height: 100vh;
             padding: 100px 16px 60px 16px;
           }
-          
+
           .hero-section::after {
             content: '';
             position: absolute;
@@ -673,7 +700,7 @@ const Home = () => {
             gap: 40px;
           }
           .hero-left-content { align-items: center; }
-          
+
           .hero-text-blob {
             top: 40%;
             left: 50%;
@@ -683,7 +710,7 @@ const Home = () => {
             border-radius: 50%;
             opacity: 0.15;
           }
-          
+
           .hero-right-content { justify-content: center; margin-right: 0; width: 100%; }
           .hero-heading { font-size: 38px; line-height: 1.2; margin-bottom: 16px; }
           .hero-description { font-size: 15px; max-width: 100%; margin-bottom: 0; }
@@ -708,15 +735,39 @@ const Home = () => {
             object-fit: contain;
           }
 
-          .feature-strip-grid { grid-template-columns: 1fr; }
-          .feature-item { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.08); }
-          .feature-item:last-child { border-bottom: none; }
+          .wholesale-banner-section { padding: 48px 0; }
+          .wholesale-banner-inner {
+            flex-direction: column;
+            text-align: center;
+            align-items: center;
+            gap: 36px;
+          }
+          .wholesale-left {
+            align-items: center;
+            max-width: 100%;
+          }
+          .wholesale-subtitle { max-width: 100%; }
+          /* Show clock below text on mobile, smaller size */
+          .wholesale-right {
+            display: flex;
+            width: 260px;
+            height: 260px;
+          }
+          .ws-clock-ring-outer { width: 260px; height: 260px; }
+          .ws-clock-ring-inner { width: 220px; height: 220px; }
+          .ws-clock-glow { width: 210px; height: 210px; }
+          .wholesale-right .hero-animated-clock { width: 220px; height: 220px; }
+          .wholesale-title { font-size: 36px; align-items: center; }
+          .wholesale-title-sub { font-size: 24px; }
         }
 
         @media (max-width: 480px) {
           .hero-heading { font-size: 30px; }
-          .preview-title { font-size: 32px; }
           .brand-band-text { font-size: 28px; }
+          .wholesale-title { font-size: 30px; }
+          .wholesale-title-sub { font-size: 20px; }
+          .wholesale-subtitle { font-size: 14px; margin: 16px 0 24px; }
+          .wholesale-cta-btn { font-size: 11px; padding: 13px 20px; }
         }
       `}</style>
     </div>

@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import * as XLSX from 'xlsx';
+import { fetchAllProducts } from '../../lib/productsService';
+import { fetchAllUsers } from '../../lib/usersService';
 
 const AdminSettings = () => {
   const { settings, updateSettings, products, users } = useApp();
@@ -7,10 +10,6 @@ const AdminSettings = () => {
   // WhatsApp Configuration State
   const [whatsappNumber, setWhatsappNumber] = useState(settings.whatsappNumber);
   
-  // Store Settings State
-  const [storeName, setStoreName] = useState(settings.storeName);
-  const [currency, setCurrency] = useState(settings.currency);
-  const [websiteUrl, setWebsiteUrl] = useState(settings.websiteUrl);
 
   // Admin Password resets State
   const [currentPassword, setCurrentPassword] = useState('');
@@ -19,6 +18,9 @@ const AdminSettings = () => {
 
   // Feedback notifications
   const [toastText, setToastText] = useState('');
+
+  // Loading state for users export
+  const [isExportingUsers, setIsExportingUsers] = useState(false);
 
   const triggerToast = (msg) => {
     setToastText(msg);
@@ -33,20 +35,6 @@ const AdminSettings = () => {
     triggerToast('WhatsApp number saved');
   };
 
-  // Section 2 Save
-  const handleSaveStore = (e) => {
-    e.preventDefault();
-    if (!storeName.trim() || !currency.trim() || !websiteUrl.trim()) {
-      alert('All store settings are required.');
-      return;
-    }
-    updateSettings({
-      storeName: storeName.trim(),
-      currency: currency.trim(),
-      websiteUrl: websiteUrl.trim()
-    });
-    triggerToast('Store settings updated');
-  };
 
   // Section 3 Save
   const handleSavePassword = (e) => {
@@ -73,21 +61,98 @@ const AdminSettings = () => {
     triggerToast('Admin password updated successfully');
   };
 
-  // Section 4 actions
-  const handleExportProducts = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(products, null, 2));
-    const dlAnchorElem = document.createElement('a');
-    dlAnchorElem.setAttribute("href", dataStr);
-    dlAnchorElem.setAttribute("download", `lumiere_products_export_${Date.now()}.json`);
-    dlAnchorElem.click();
+  // Section 4 actions — Excel export
+  const handleExportProducts = async () => {
+    try {
+      // Fetch fresh product list directly from PocketBase
+      const allProducts = await fetchAllProducts();
+
+      if (!allProducts || allProducts.length === 0) {
+        triggerToast('No products found to export.');
+        return;
+      }
+
+      // Map records to the required Excel columns
+      const rows = allProducts.map((p) => ({
+        'Product ID':       p.id || '',
+        'Model Number':     p.modelNumber || '',
+        'Product Price':    p.salePrice ?? '',
+        'Size Dimensions':  p.size || '',
+        'Stock Quantity':   p.stockCount ?? '',
+        'Image URL(s)':     Array.isArray(p.images) ? p.images.join(', ') : (p.images || ''),
+        'Created Date':     p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-IN') : '',
+        'Updated Date':     p.updated   ? new Date(p.updated).toLocaleDateString('en-IN')   : '',
+      }));
+
+      // Build workbook
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+
+      // Auto-fit column widths
+      const colWidths = Object.keys(rows[0]).map((key) => ({
+        wch: Math.max(key.length, ...rows.map((r) => String(r[key] ?? '').length)) + 2,
+      }));
+      worksheet['!cols'] = colWidths;
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Products');
+
+      // File name: Products_Export_YYYY-MM-DD.xlsx
+      const today = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(workbook, `Products_Export_${today}.xlsx`);
+
+      triggerToast(`✓ Exported ${allProducts.length} products to Excel`);
+    } catch (err) {
+      console.error('[Export] Excel export error:', err);
+      triggerToast('Export failed. Please try again.');
+    }
   };
 
-  const handleExportUsers = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(users, null, 2));
-    const dlAnchorElem = document.createElement('a');
-    dlAnchorElem.setAttribute("href", dataStr);
-    dlAnchorElem.setAttribute("download", `lumiere_users_export_${Date.now()}.json`);
-    dlAnchorElem.click();
+  // Users Excel export
+  const handleExportUsers = async () => {
+    if (isExportingUsers) return;
+    setIsExportingUsers(true);
+    try {
+      // Fetch fresh user list directly from PocketBase
+      const allUsers = await fetchAllUsers();
+
+      if (!allUsers || allUsers.length === 0) {
+        triggerToast('No users found to export.');
+        return;
+      }
+
+      // Map records to required Excel columns
+      const rows = allUsers.map((u) => ({
+        'User ID':       u.userId || u.id || '',
+        'Full Name':     u.name   || '',
+        'Mobile Number': u.mobile || '',
+        'Password':      u.password || '',
+        'Created Date':  u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-IN') : '',
+        'Updated Date':  u.updated   ? new Date(u.updated).toLocaleDateString('en-IN')   : '',
+      }));
+
+      // Build workbook
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+
+      // Auto-fit column widths
+      const colWidths = Object.keys(rows[0]).map((key) => ({
+        wch: Math.max(key.length, ...rows.map((r) => String(r[key] ?? '').length)) + 2,
+      }));
+      worksheet['!cols'] = colWidths;
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Users');
+
+      // File name: Users_Export_YYYY-MM-DD.xlsx
+      const today = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(workbook, `Users_Export_${today}.xlsx`);
+
+      triggerToast(`✓ Exported ${allUsers.length} users to Excel`);
+    } catch (err) {
+      console.error('[Export] Users Excel export error:', err);
+      triggerToast('Export failed. Please try again.');
+    } finally {
+      setIsExportingUsers(false);
+    }
   };
 
   const handleClearCarts = () => {
@@ -113,21 +178,21 @@ const AdminSettings = () => {
       )}
 
       {/* Page Title */}
-      <div className="add-product-title-row" style={{ marginBottom: '24px' }}>
+      <div className="add-product-title-row" style={{ marginBottom: '16px' }}>
         <h1 className="dashboard-heading font-heading">Settings</h1>
-        <p className="stats-indicator font-body">Configure system triggers, admin access passwords, and manage backups.</p>
+        <p className="stats-indicator font-body">Manage application settings.</p>
       </div>
 
       <div className="settings-grid">
         
         {/* Card 1: WhatsApp checkout */}
-        <div className="form-card-panel">
+        <div className="form-card-panel settings-card">
           <h3 className="panel-heading font-heading">WhatsApp Integration</h3>
-          <p className="panel-subtext">Configure the primary phone number where client order payloads are delivered.</p>
+          <p className="panel-subtext">Receive customer orders on WhatsApp.</p>
           
           <form onSubmit={handleSaveWhatsapp} className="admin-form">
             <div className="form-group">
-              <label className="form-label">ADMIN WHATSAPP NUMBER</label>
+              <label className="form-label">WHATSAPP NUMBER</label>
               <input 
                 type="text" 
                 className="form-input"
@@ -135,62 +200,19 @@ const AdminSettings = () => {
                 value={whatsappNumber}
                 onChange={(e) => setWhatsappNumber(e.target.value)}
               />
-              <span className="help-subtext">Enter country code followed by number (e.g. +919999999999)</span>
+              <span className="help-subtext">Include country code.</span>
             </div>
-            <button type="submit" className="btn-primary" style={{ padding: '10px 20px', fontSize: '11px', height: '36px' }}>
-              Save Configuration
+            <button type="submit" className="btn-primary settings-save-btn">
+              Save
             </button>
           </form>
         </div>
 
-        {/* Card 2: Branding Settings */}
-        <div className="form-card-panel">
-          <h3 className="panel-heading font-heading">Store Preferences</h3>
-          <p className="panel-subtext">Branding and client links parameters.</p>
-
-          <form onSubmit={handleSaveStore} className="admin-form">
-            
-            <div className="form-group">
-              <label className="form-label">STORE NAME</label>
-              <input 
-                type="text" 
-                className="form-input"
-                value={storeName}
-                onChange={(e) => setStoreName(e.target.value)}
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">CURRENCY SYMBOL</label>
-              <input 
-                type="text" 
-                className="form-input"
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">WEBSITE HOST URL</label>
-              <input 
-                type="text" 
-                className="form-input"
-                value={websiteUrl}
-                onChange={(e) => setWebsiteUrl(e.target.value)}
-              />
-              <span className="help-subtext">Used to format WhatsApp credential sharing invitations.</span>
-            </div>
-
-            <button type="submit" className="btn-primary" style={{ padding: '10px 20px', fontSize: '11px', height: '36px' }}>
-              Save Store Preferences
-            </button>
-          </form>
-        </div>
 
         {/* Card 3: Admin Security Passwords */}
-        <div className="form-card-panel">
+        <div className="form-card-panel settings-card">
           <h3 className="panel-heading font-heading">Admin Password</h3>
-          <p className="panel-subtext">Update the entry authorization key required to login at /admin.</p>
+          <p className="panel-subtext">Change your admin password.</p>
 
           <form onSubmit={handleSavePassword} className="admin-form">
             
@@ -224,23 +246,31 @@ const AdminSettings = () => {
               />
             </div>
 
-            <button type="submit" className="btn-primary" style={{ padding: '10px 20px', fontSize: '11px', height: '36px' }}>
-              Update Security Password
+            <button type="submit" className="btn-primary settings-save-btn">
+              Update Password
             </button>
           </form>
         </div>
 
         {/* Card 4: Backup exports */}
-        <div className="form-card-panel">
+        <div className="form-card-panel settings-card">
           <h3 className="panel-heading font-heading">Data Management</h3>
-          <p className="panel-subtext">Export catalog spreadsheets or wipe active sessions.</p>
+          <p className="panel-subtext">Export data or clear sessions.</p>
           
           <div className="data-management-actions-row">
             <button onClick={handleExportProducts} className="btn-secondary data-manage-btn font-body">
-              📥 &nbsp; Export All Products (JSON)
+              📊 &nbsp; Export All Products (Excel)
             </button>
-            <button onClick={handleExportUsers} className="btn-secondary data-manage-btn font-body">
-              📥 &nbsp; Export All Users (JSON)
+            <button
+              onClick={handleExportUsers}
+              className={`btn-secondary data-manage-btn font-body users-export-btn ${isExportingUsers ? 'users-export-btn--loading' : ''}`}
+              disabled={isExportingUsers}
+            >
+              {isExportingUsers ? (
+                <><span className="export-spinner" aria-hidden="true"></span>&nbsp; Generating Excel...</>
+              ) : (
+                <>📊 &nbsp; Export All Users (Excel)</>
+              )}
             </button>
             <button onClick={handleClearCarts} className="btn-secondary data-manage-btn font-body" style={{ borderColor: '#EF4444', color: '#EF4444' }}>
               🗑️ &nbsp; Clear All Cart Sessions
@@ -272,15 +302,29 @@ const AdminSettings = () => {
         .data-management-actions-row {
           display: flex;
           flex-direction: column;
-          gap: 16px;
+          gap: 12px;
         }
 
         .data-manage-btn {
           width: 100%;
-          height: 44px;
+          height: 42px;
           font-size: 12px;
           justify-content: flex-start;
-          padding: 0 16px;
+          padding: 0 14px;
+        }
+
+        /* Compact settings card */
+        .settings-card {
+          padding: 20px 24px;
+        }
+
+        /* Short save button */
+        .settings-save-btn {
+          height: 36px;
+          padding: 0 20px;
+          font-size: 11px;
+          letter-spacing: 0.08em;
+          margin-top: 4px;
         }
 
         .toast-notification {
@@ -299,11 +343,62 @@ const AdminSettings = () => {
 
         @media (max-width: 768px) {
           .add-product-title-row {
-            margin-bottom: 16px !important;
+            margin-bottom: 12px !important;
           }
-          .admin-form .btn-primary {
+          .admin-form .btn-primary,
+          .settings-save-btn {
             width: 100%;
           }
+          .settings-card {
+            padding: 16px;
+          }
+          .data-manage-btn {
+            height: auto;
+            min-height: 48px;
+            padding: 12px 14px;
+            font-size: 12px;
+            white-space: normal;
+            text-align: left;
+          }
+          .form-group {
+            margin-bottom: 14px;
+          }
+        }
+
+        /* Users export button — loading & hover states */
+        .users-export-btn {
+          transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+          will-change: transform;
+        }
+        .users-export-btn:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+        }
+        .users-export-btn:active:not(:disabled) {
+          transform: translateY(0);
+          box-shadow: none;
+        }
+        .users-export-btn--loading {
+          opacity: 0.75;
+          cursor: not-allowed;
+          pointer-events: none;
+        }
+
+        /* Lightweight CSS spinner */
+        .export-spinner {
+          display: inline-block;
+          width: 13px;
+          height: 13px;
+          border: 2px solid currentColor;
+          border-top-color: transparent;
+          border-radius: 50%;
+          animation: spin 0.6s linear infinite;
+          vertical-align: middle;
+          margin-right: 4px;
+          flex-shrink: 0;
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
         }
       `}</style>
     </div>
