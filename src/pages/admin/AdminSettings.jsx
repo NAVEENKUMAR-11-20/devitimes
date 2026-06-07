@@ -78,7 +78,6 @@ const AdminSettings = () => {
         'Model Number':     p.modelNumber || '',
         'Product Price':    p.salePrice ?? '',
         'Size Dimensions':  p.size || '',
-        'Stock Quantity':   p.stockCount ?? '',
         'Image URL(s)':     Array.isArray(p.images) ? p.images.join(', ') : (p.images || ''),
         'Created Date':     p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-IN') : '',
         'Updated Date':     p.updated   ? new Date(p.updated).toLocaleDateString('en-IN')   : '',

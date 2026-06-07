@@ -327,7 +327,6 @@ const AdminPdfImport = () => {
             color: '',
             salePrice: 0,
             originalPrice: null,
-            stockCount: 20,
             description: `Extracted from catalog page ${pageNum}.`,
             include: true,
           });
@@ -402,7 +401,6 @@ const AdminPdfImport = () => {
         SIZE_DIMENSIONS: p.size || '',
         package_no:      p.packageNo || '',
         price:           Number(p.salePrice) || 0,
-        stock:           Number(p.stockCount) || 0,
         status:          'LIVE',
         is_live:         true,
         category:        p.category || 'Clock',
@@ -465,7 +463,6 @@ const AdminPdfImport = () => {
           SIZE_DIMENSIONS: p.size || '',
           package_no:      p.packageNo || '',
           price:           Number(p.salePrice) || 0,
-          stock:           Number(p.stockCount) || 0,
           status:          'LIVE',
           is_live:         true,
           category:        p.category || 'Clock',
@@ -902,19 +899,6 @@ const AdminPdfImport = () => {
                             placeholder="Needs Review"
                             value={p.packageNo}
                             onChange={(e) => updateCardField(p.tempId, 'packageNo', e.target.value)}
-                            disabled={!p.include}
-                          />
-                        </div>
-
-                        {/* Stock / Available Products */}
-                        <div className="form-group">
-                          <label className="form-label">STOCK / AVAILABLE PRODUCTS *</label>
-                          <input
-                            type="number"
-                            className={`form-input ${!p.stockCount ? 'input-error-state' : ''}`}
-                            placeholder="e.g. 20"
-                            value={p.stockCount}
-                            onChange={(e) => updateCardField(p.tempId, 'stockCount', Number(e.target.value))}
                             disabled={!p.include}
                           />
                         </div>

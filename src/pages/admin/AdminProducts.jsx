@@ -57,8 +57,7 @@ const AdminProducts = () => {
   // Edit Modal State
   const [editingProduct, setEditingProduct] = useState(null);
   const [editForm, setEditForm] = useState({
-    name: '', category: 'Modern Minimalist', modelNumber: '', size: '', packageNo: '',
-    color: '', salePrice: 0, originalPrice: 0, stockCount: 0,
+    color: '', salePrice: 0, originalPrice: 0,
     description: '', isOnSale: false, isLive: true, images: []
   });
 
@@ -285,10 +284,6 @@ const AdminProducts = () => {
       alert('Sale price is required.');
       return;
     }
-    if (editForm.stockCount === undefined || editForm.stockCount === '') {
-      alert('Pieces available (stock) is required.');
-      return;
-    }
 
     try {
       const pbId = editForm.pbId || editForm.id;
@@ -298,7 +293,6 @@ const AdminProducts = () => {
         SIZE_DIMENSIONS: sizeStr,
         package_no:      editForm.packageNo ? (isNaN(Number(editForm.packageNo)) ? editForm.packageNo : Number(editForm.packageNo)) : '',
         price:           Number(editForm.salePrice),
-        stock_Number:    Number(editForm.stockCount),
         is_live:         editForm.isLive,
         original_price:  editForm.originalPrice !== undefined && editForm.originalPrice !== null && editForm.originalPrice !== '' ? Number(editForm.originalPrice) : null,
         is_on_sale:      editForm.isOnSale,
@@ -533,9 +527,6 @@ const AdminProducts = () => {
                 </th>
                 <th>Dimensions</th>
                 <th>Pkg No</th>
-                <th onClick={() => requestSort('stockCount')} className="sortable-header">
-                  Stock{renderSortIndicator('stockCount')}
-                </th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -565,11 +556,6 @@ const AdminProducts = () => {
                   </td>
                   <td>{p.size}</td>
                   <td>{p.packageNo || '-'}</td>
-                  <td>
-                    <span className={`stock-cell ${p.stockCount <= 0 ? 'out-stock' : p.stockCount <= 5 ? 'low-stock' : ''}`}>
-                      {p.stockCount} pcs
-                    </span>
-                  </td>
 
                   {/* Status Toggle Switch */}
                   <td>
@@ -696,16 +682,6 @@ const AdminProducts = () => {
                     value={editForm.originalPrice || ''}
                     placeholder="e.g. 120"
                     onChange={(e) => setEditForm(prev => ({ ...prev, originalPrice: e.target.value ? Number(e.target.value) : null }))}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">PIECES AVAILABLE *</label>
-                  <input 
-                    type="number" 
-                    className="form-input"
-                    value={editForm.stockCount}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, stockCount: Number(e.target.value) }))}
                   />
                 </div>
               </div>
@@ -1088,19 +1064,6 @@ const AdminProducts = () => {
           font-size: 11px;
           color: var(--text-muted);
           text-decoration: line-through;
-        }
-
-        .stock-cell {
-          font-weight: 600;
-          color: #10B981;
-        }
-
-        .stock-cell.low-stock {
-          color: #F59E0B;
-        }
-
-        .stock-cell.out-stock {
-          color: #EF4444;
         }
 
         /* Status toggle custom switch button */

@@ -28,11 +28,6 @@ const Cart = () => {
   const grandTotal = cart.reduce((total, item) => total + (item.unitPrice * item.quantity), 0);
   const itemCount = cart.reduce((total, item) => total + item.quantity, 0);
 
-  const getProductStock = (productId) => {
-    const p = products.find(prod => prod.id === productId);
-    return p ? p.stockCount : 10;
-  };
-
   const handleProceedToCheckout = () => {
     if (cart.length === 0) return;
 
@@ -132,7 +127,6 @@ TOTAL: ₹${grandTotal}
               {/* Left Column: Cart Items List */}
               <div className="cart-items-list-col">
                 {cart.map((item) => {
-                  const maxStock = getProductStock(item.productId);
                   const lineTotal = item.unitPrice * item.quantity;
                   
                   return (
@@ -159,7 +153,7 @@ TOTAL: ₹${grandTotal}
                       {/* Quantity steppers */}
                       <div className="cart-qty-controller font-body">
                         <button 
-                          onClick={() => updateCartQuantity(item.productId, item.quantity - 1, maxStock)}
+                          onClick={() => updateCartQuantity(item.productId, item.quantity - 1)}
                           className="cart-qty-btn"
                           disabled={item.quantity <= 1}
                         >
@@ -167,9 +161,8 @@ TOTAL: ₹${grandTotal}
                         </button>
                         <span className="cart-qty-val">{item.quantity}</span>
                         <button 
-                          onClick={() => updateCartQuantity(item.productId, item.quantity + 1, maxStock)}
+                          onClick={() => updateCartQuantity(item.productId, item.quantity + 1)}
                           className="cart-qty-btn"
-                          disabled={item.quantity >= maxStock}
                         >
                           +
                         </button>

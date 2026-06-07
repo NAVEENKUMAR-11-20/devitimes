@@ -47,7 +47,6 @@ const Collection = () => {
           salePrice: Number(record?.price) || 0,
           originalPrice: null,
           isOnSale: false,
-          stockCount: Number(record?.stock_Number !== undefined ? record.stock_Number : (record?.stock !== undefined ? record.stock : 0)),
           isLive: record?.is_live !== undefined ? record.is_live : true,
           status: record?.status || "live",
           color: '',

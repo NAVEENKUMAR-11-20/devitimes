@@ -267,10 +267,8 @@ export const AppProvider = ({ children }) => {
 
     if (existingIndex > -1) {
       const newQty = newCart[existingIndex].quantity + qty;
-      const finalQty = Math.min(newQty, product.stockCount);
-      newCart[existingIndex].quantity = finalQty;
+      newCart[existingIndex].quantity = newQty;
     } else {
-      const finalQty = Math.min(qty, product.stockCount);
       newCart.push({
         productId: product.id,
         productName: product.name,
@@ -279,7 +277,7 @@ export const AppProvider = ({ children }) => {
         size: product.size,
         color: product.color,
         unitPrice: product.salePrice,
-        quantity: finalQty,
+        quantity: qty,
         image: product.images && product.images.length > 0 ? product.images[0] : null
       });
     }
@@ -291,8 +289,8 @@ export const AppProvider = ({ children }) => {
     saveCartForUser(newCart);
   };
 
-  const updateCartQuantity = (productId, quantity, maxStock) => {
-    const finalQty = Math.max(1, Math.min(quantity, maxStock));
+  const updateCartQuantity = (productId, quantity) => {
+    const finalQty = Math.max(1, quantity);
     const newCart = cart.map(item => {
       if (item.productId === productId) {
         return { ...item, quantity: finalQty };

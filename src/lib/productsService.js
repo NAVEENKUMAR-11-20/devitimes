@@ -25,7 +25,6 @@ function mapRecord(record) {
     salePrice: Number(record.price) || 0,
     originalPrice: record.original_price !== undefined && record.original_price !== null ? Number(record.original_price) : null,
     isOnSale: record.is_on_sale !== undefined ? (String(record.is_on_sale) === 'true') : false,
-    stockCount: Number(record.stock_Number !== undefined ? record.stock_Number : (record.stock !== undefined ? record.stock : 0)),
     isLive: record.is_live !== undefined ? record.is_live : true,
     images: getProductImageUrl(record)
       ? [getProductImageUrl(record)]
@@ -69,11 +68,6 @@ export async function createProduct(data) {
   formData.append('SIZE_DIMENSIONS', data.SIZE_DIMENSIONS || '');
   formData.append('package_no',      String(data.package_no || ''));
   formData.append('price',           String(data.price    || 0));
-  
-  // Use stock_Number for PocketBase
-  const stockVal = data.stock_Number !== undefined ? data.stock_Number : (data.stock !== undefined ? data.stock : 0);
-  formData.append('stock_Number',    String(stockVal));
-  
   // New fields with defaults
   formData.append('status',          data.status          || 'LIVE');
   formData.append('is_live',         data.is_live !== undefined ? String(data.is_live) : 'true');
@@ -108,13 +102,6 @@ export async function updateProduct(pbId, data) {
   if (data.SIZE_DIMENSIONS !== undefined) formData.append('SIZE_DIMENSIONS', data.SIZE_DIMENSIONS);
   if (data.package_no      !== undefined) formData.append('package_no',      String(data.package_no));
   if (data.price           !== undefined) formData.append('price',           String(data.price));
-  
-  // Use stock_Number for PocketBase
-  const stockVal = data.stock_Number !== undefined ? data.stock_Number : data.stock;
-  if (stockVal !== undefined) {
-    formData.append('stock_Number', String(stockVal));
-  }
-  
   if (data.is_live         !== undefined) formData.append('is_live',         String(data.is_live));
   
   // Support other fields if they exist in schema
