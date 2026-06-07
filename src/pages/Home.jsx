@@ -298,7 +298,7 @@ const Home = () => {
       <section className="brand-band">
         <div className="container brand-band-inner">
           <p className="font-heading brand-band-text">
-            Where Every Second Is <span className="italic-accent">Art</span>
+            Your Trusted Wholesale Clock <span className="italic-accent">Partner</span>
           </p>
           <Link to="/register" className="btn-primary">
             GET STARTED
