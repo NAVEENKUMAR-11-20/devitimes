@@ -118,13 +118,6 @@ const AdminLayout = () => {
           </Link>
           
           <Link 
-            to="/admin/registrations" 
-            className={`nav-sidebar-item ${isTabActive('/admin/registrations') ? 'active-sidebar-item' : ''}`}
-          >
-            <span className="nav-icon">📋</span> Registrations
-          </Link>
-          
-          <Link 
             to="/admin/settings" 
             className={`nav-sidebar-item ${isTabActive('/admin/settings') ? 'active-sidebar-item' : ''}`}
           >

@@ -15,9 +15,6 @@ const Navbar = () => {
     navigate('/');
   };
 
-  const handleSearchClick = () => {
-    navigate('/collection', { state: { focusSearch: true, timestamp: Date.now() } });
-  };
 
   return (
     <nav className="navbar-root">
@@ -72,19 +69,6 @@ const Navbar = () => {
 
           {/* Search & Cart Icons */}
           <div className="nav-icons-group">
-            {/* Search trigger */}
-            <button 
-              onClick={handleSearchClick}
-              className="nav-icon-link search-icon-btn" 
-              style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
-              aria-label="Search Collection"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              </svg>
-            </button>
-
             {/* Cart Icon & Count Badge */}
             <Link 
               to="/cart" 

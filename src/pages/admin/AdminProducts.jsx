@@ -627,17 +627,25 @@ const AdminProducts = () => {
 
                 <div className="form-group">
                   <label className="form-label">SIZE *</label>
-                  <input 
-                    type="text" 
+                  <select 
                     className="form-input"
                     value={editForm.size}
-                    placeholder="e.g. 300 × 300 MM"
                     onChange={(e) => setEditForm(prev => ({ ...prev, size: e.target.value }))}
-                  />
+                  >
+                    <option value="">Select Size</option>
+                    <option value="300 × 300 MM">300 × 300 MM</option>
+                    <option value="350 × 350 MM">350 × 350 MM</option>
+                    <option value="400 × 400 MM">400 × 400 MM</option>
+                    <option value="450 × 450 MM">450 × 450 MM</option>
+                    <option value="500 × 500 MM">500 × 500 MM</option>
+                    {editForm.size && !["300 × 300 MM", "350 × 350 MM", "400 × 400 MM", "450 × 450 MM", "500 × 500 MM"].includes(editForm.size) && (
+                      <option value={editForm.size}>{editForm.size}</option>
+                    )}
+                  </select>
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">PKG NO *</label>
+                  <label className="form-label">STOCK *</label>
                   <input 
                     type="text" 
                     className="form-input"
@@ -648,36 +656,13 @@ const AdminProducts = () => {
                 </div>
               </div>
 
-              <div className="form-grid-3col">
-                <div className="form-group">
-                  <label className="form-label">SALE PRICE (₹) *</label>
-                  <input 
-                    type="number" 
-                    className="form-input"
-                    value={editForm.salePrice}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, salePrice: Number(e.target.value) }))}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">ORIGINAL PRICE (₹)</label>
-                  <input 
-                    type="number" 
-                    className="form-input"
-                    value={editForm.originalPrice || ''}
-                    placeholder="e.g. 120"
-                    onChange={(e) => setEditForm(prev => ({ ...prev, originalPrice: e.target.value ? Number(e.target.value) : null }))}
-                  />
-                </div>
-              </div>
-
               <div className="form-group">
-                <label className="form-label">DESCRIPTION</label>
-                <textarea 
-                  className="form-textarea"
-                  rows="3"
-                  value={editForm.description}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
+                <label className="form-label">PRICE (₹) *</label>
+                <input 
+                  type="number" 
+                  className="form-input"
+                  value={editForm.salePrice}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, salePrice: Number(e.target.value) }))}
                 />
               </div>
 

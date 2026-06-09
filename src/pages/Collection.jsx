@@ -1,15 +1,12 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import ClockSvg from '../components/ClockSvg';
-import { fetchAllProducts } from '../lib/productsService';
-import pb from '../lib/pocketbase';
 
 const Collection = () => {
   const { products: contextProducts, currentUser, loginUser, logoutUser, addToCart } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
-  const searchInputRef = useRef(null);
 
   // Local state for auto-refreshing products
   const [liveProducts, setLiveProducts] = useState(Array.isArray(contextProducts) ? contextProducts : []);
@@ -28,56 +25,6 @@ const Collection = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Poll PocketBase for updates every 10 seconds
-  useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const records = await pb.collection("products").getFullList({
-          sort: "-created",
-        });
-        
-        // Map PocketBase fields safely to match what the UI expects
-        const mappedRecords = (records || []).map(record => ({
-          id: record?.id || Math.random().toString(),
-          name: record?.name || record?.MODEL_NUMBER || "Wall Clock",
-          modelNumber: record?.MODEL_NUMBER || "N/A",
-          category: record?.category || "All",
-          size: record?.SIZE_DIMENSIONS || "N/A",
-          packageNo: record?.package_no || "N/A",
-          salePrice: Number(record?.price) || 0,
-          originalPrice: null,
-          isOnSale: false,
-          isLive: record?.is_live !== undefined ? record.is_live : true,
-          status: record?.status || "live",
-          color: '',
-          prodimage: record?.prodimage || null,
-          images: record?.prodimage ? [pb.files.getURL(record, record.prodimage)] : ["/placeholder.png"]
-        }));
-
-        console.log('[DEBUG] Customer page fetched products:', mappedRecords);
-        setLiveProducts(mappedRecords);
-      } catch (error) {
-        console.error("Collection page fetch error:", error);
-        setLiveProducts([]);
-      }
-    };
-
-    fetchProducts(); // Initial fetch
-    const intervalId = setInterval(fetchProducts, 10000);
-    return () => clearInterval(intervalId);
-  }, []);
-
-  useEffect(() => {
-    if (location.state?.focusSearch) {
-      searchInputRef.current?.focus();
-      // Clear navigation state to avoid refocusing on reload
-      window.history.replaceState({}, document.title);
-    }
-  }, [location]);
-
-  // Search State
-  const [searchQuery, setSearchQuery] = useState('');
-  
   // Auth Modal State
   const [showAuthModal, setShowAuthModal] = useState(false);
   
@@ -108,61 +55,13 @@ const Collection = () => {
       setIsLoggingIn(false);
     }
   };
-
-  // Filter products in real time
+  // Filter products in real time (only keep live ones)
   const filteredProducts = useMemo(() => {
-    const query = (searchQuery || '').trim().toLowerCase();
-
-    const normalize = (value) =>
-      value === null || value === undefined ? "" : String(value).toLowerCase().trim();
-
-    const isExactNumberMatch = (value, queryVal) => {
-      const field = normalize(value);
-      return field === queryVal;
-    };
-
-    const isSizeMatch = (value, queryVal) => {
-      const field = normalize(value);
-      return field
-        .split(/[^0-9a-z]+/)
-        .filter(Boolean)
-        .includes(queryVal);
-    };
-
     return (liveProducts || []).filter((product) => {
       if (!product) return false;
-      // Only show live products to customers
-      if (!product.isLive) return false;
-
-      if (!query) return true;
-
-      const isNumericQuery = /^\d+$/.test(query);
-
-      if (isNumericQuery) {
-        return (
-          isExactNumberMatch(product.model_no, query) ||
-          isExactNumberMatch(product.modelNumber, query) ||
-          isExactNumberMatch(product.pkg_no, query) ||
-          isExactNumberMatch(product.pkgNo, query) ||
-          isSizeMatch(product.size, query) ||
-          isSizeMatch(product.dimensions, query)
-        );
-      }
-
-      return [
-        product.name,
-        product.product_name,
-        product.model_no,
-        product.modelNumber,
-        product.size,
-        product.dimensions,
-        product.pkg_no,
-        product.pkgNo,
-      ]
-        .map(normalize)
-        .some((field) => field.includes(query));
+      return !!product.isLive;
     });
-  }, [liveProducts, searchQuery]);
+  }, [liveProducts]);
 
   // Handle click on "ORDER" button
   const handleOrder = (product) => {
@@ -186,27 +85,6 @@ const Collection = () => {
           <span className="uppercase-label" style={{color:'rgba(126,179,232,0.85)',display:'block',marginBottom:'10px'}}>DEVI TIMES</span>
           <h1 className="collection-title font-heading">Our Collection</h1>
           <p className="collection-subtitle font-body">Discover our curated selection of premium handcrafted wall clocks</p>
-          {currentUser && (
-            <button 
-              onClick={() => { logoutUser(); navigate('/'); }}
-              className="collection-logout-btn font-body uppercase-label"
-              style={{
-                marginTop: '16px',
-                padding: '8px 18px',
-                fontSize: '11px',
-                fontWeight: '700',
-                letterSpacing: '0.08em',
-                color: '#ff6b6b',
-                border: '1px solid #ff6b6b',
-                background: 'transparent',
-                borderRadius: '3px',
-                cursor: 'pointer',
-                transition: 'all 0.25s ease'
-              }}
-            >
-              LOGOUT FROM COLLECTION
-            </button>
-          )}
         </div>
       </header>
 
@@ -321,44 +199,6 @@ const Collection = () => {
         </section>
       ) : (
         <>
-
-      {/* 2. Search Bar */}
-      <section className="filters-bar-section">
-        <div className="container filters-container">
-          
-          {/* Search Box */}
-          <div className="search-box-wrapper">
-            <svg className="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8A9BB0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-            <input 
-              ref={searchInputRef}
-              type="text" 
-              className="search-input"
-              placeholder="Search by name, model number, size, or package number..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            {searchQuery && (
-              <button className="clear-search-btn" onClick={() => setSearchQuery('')} aria-label="Clear Search">
-                &times;
-              </button>
-            )}
-          </div>
-
-        </div>
-      </section>
-
-      {/* 3. Product Count Label */}
-      <section className="count-label-section">
-        <div className="container">
-          <div className="count-label uppercase-label">
-            SHOWING {(filteredProducts || []).length} PRODUCTS
-          </div>
-        </div>
-      </section>
-
       {/* 4. Product Grid */}
       <section className="products-grid-section">
         <div className="container">
@@ -373,14 +213,7 @@ const Collection = () => {
             </div>
           ) : !Array.isArray(filteredProducts) || filteredProducts.length === 0 ? (
             <div className="empty-results-box font-body">
-              <p>No products found for your search.</p>
-              <button 
-                className="btn-secondary" 
-                onClick={() => { setSearchQuery(''); }}
-                style={{ marginTop: '16px' }}
-              >
-                Reset Search
-              </button>
+              <p>No products available in the collection.</p>
             </div>
           ) : (
             <div className="grid-products">
@@ -540,69 +373,9 @@ const Collection = () => {
           font-size: 15px;
         }
 
-        /* ── Filters Bar ── */
-        .filters-bar-section {
-          padding: 18px 0;
-          background-color: #ffffff;
-          border-bottom: 1px solid var(--border-color);
-          position: sticky;
-          top: var(--navbar-height);
-          z-index: 100;
-          box-shadow: 0 2px 8px rgba(26,35,50,0.06);
-        }
+        /* ── Unified Control Panel Removed ── */
 
-        .filters-container {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          width: 100%;
-        }
-
-        .search-box-wrapper {
-          width: 100%;
-          max-width: 720px;
-          position: relative;
-          display: flex;
-          align-items: center;
-        }
-
-        .search-icon { position: absolute; left: 14px; pointer-events: none; }
-
-        .search-input {
-          width: 100%;
-          height: 42px;
-          padding: 0 42px;
-          border: 1.5px solid var(--border-color);
-          border-radius: 3px;
-          outline: none;
-          color: var(--text-primary);
-          background: #fff;
-          font-size: 13px;
-          transition: border-color var(--transition-speed) ease, box-shadow var(--transition-speed) ease;
-        }
-
-        .search-input::placeholder { color: var(--text-muted); }
-
-        .search-input:focus {
-          border-color: var(--accent-blue);
-          box-shadow: 0 0 0 3px rgba(45,93,161,0.10);
-        }
-
-        .clear-search-btn {
-          position: absolute;
-          right: 14px;
-          font-size: 20px;
-          color: var(--text-muted);
-          line-height: 1;
-        }
-
-        .clear-search-btn:hover { color: var(--text-primary); }
-
-        .count-label-section { padding: 16px 0; background: var(--page-bg); }
-
-        .count-label { font-size: 11px; color: var(--text-muted); letter-spacing: 0.12em; }
-
-        .products-grid-section { padding-bottom: 40px; }
+        .products-grid-section { padding: 48px 0 40px 0; }
 
         .empty-results-box {
           text-align: center;

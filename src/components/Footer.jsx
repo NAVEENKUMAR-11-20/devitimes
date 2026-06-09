@@ -8,31 +8,46 @@ const Footer = () => {
         {/* Top Segment */}
         <div className="footer-grid">
           
-          {/* Column 1: Brand Info */}
+          {/* Column 1: Brand */}
           <div className="footer-col brand-col">
             <h3 className="footer-logo font-logo">DEVI TIMES</h3>
             <p className="footer-description font-body">
               Masterfully crafted, premium analog wall clocks designed to elevate every workspace and home.
             </p>
+            <div style={{ marginTop: '16px' }}>
+              <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="social-icon-link" aria-label="Instagram">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle' }}>
+                  <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+                  <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+                  <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+                </svg>
+                <span style={{ fontSize: '12px', fontWeight: '500', marginLeft: '8px', verticalAlign: 'middle' }}>@devitimes</span>
+              </a>
+            </div>
           </div>
 
-          {/* Column 2: Collections links */}
-          <div className="footer-col">
-            <h4 className="footer-title">COLLECTIONS</h4>
-            <ul className="footer-links-list">
-              <li><a href="#/collection">Modern Minimalist</a></li>
-              <li><a href="#/collection">Contemporary</a></li>
-              <li><a href="#/collection">Luxury Vintage</a></li>
-            </ul>
-          </div>
-
-          {/* Column 3: Contact */}
+          {/* Column 2: Customer Services */}
           <div className="footer-col">
             <h4 className="footer-title">CUSTOMER SERVICES</h4>
             <ul className="footer-links-list">
-              <li><a href="#/register">Request User Credentials</a></li>
               <li><a href="#/login">Client Sign In</a></li>
               <li><a href="#/cart">Shopping Cart</a></li>
+            </ul>
+          </div>
+
+          {/* Column 3: Contact & Social */}
+          <div className="footer-col contact-col">
+            <h4 className="footer-title">CONTACT & SOCIAL</h4>
+            <ul className="footer-links-list contact-links">
+              <li>
+                <span className="contact-label">Mobile Number</span>
+                <a href="tel:+917358349394" className="contact-value">+91 73583 49394</a>
+              </li>
+
+              <li>
+                <span className="contact-label">Location</span>
+                <span className="contact-value" style={{ color: '#9CA3AF' }}>Chennai, India</span>
+              </li>
             </ul>
           </div>
 
@@ -43,11 +58,6 @@ const Footer = () => {
           <p className="copyright-text">
             © {new Date().getFullYear()} DEVI TIMES. All rights reserved.
           </p>
-          <div className="footer-legal-links">
-            <a href="#/">Privacy Policy</a>
-            <span className="dot-divider">•</span>
-            <a href="#/">Terms of Service</a>
-          </div>
         </div>
 
       </div>
@@ -69,33 +79,106 @@ const Footer = () => {
 
         .footer-grid {
           display: grid;
-          grid-template-columns: 2fr 1fr 1fr;
-          gap: 48px;
+          grid-template-columns: 1.3fr 1fr 1fr;
+          gap: 64px;
           margin-bottom: 48px;
+          align-items: start;
+        }
+
+        .contact-links li {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .contact-label {
+          font-size: 9px;
+          color: #6B7280;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          font-weight: 700;
+        }
+
+        .contact-value {
+          font-size: 13px;
+          color: #9CA3AF !important;
+          transition: color var(--transition-speed);
+          text-decoration: none;
+        }
+
+        .contact-value:hover {
+          color: #ffffff !important;
+        }
+
+        .social-icon-link {
+          display: inline-flex;
+          align-items: center;
+          color: #9CA3AF;
+          transition: color var(--transition-speed);
+          text-decoration: none;
+        }
+
+        .social-icon-link:hover {
+          color: #ffffff;
+        }
+
+        @media (max-width: 991px) {
+          .footer-grid {
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+          }
+          .brand-col {
+            grid-column: span 2;
+            max-width: 100%;
+          }
+          .footer-title {
+            margin-top: 0;
+          }
         }
 
         @media (max-width: 768px) {
+          .footer-root {
+            text-align: center;
+            padding: 48px 0 24px;
+          }
           .footer-grid {
             grid-template-columns: 1fr;
             gap: 32px;
+            justify-items: center;
+          }
+          .brand-col {
+            grid-column: span 1;
+            max-width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+          }
+          .contact-links li {
+            align-items: center;
+          }
+          .social-icon-link {
+            justify-content: center;
           }
         }
 
         .brand-col {
-          max-width: 320px;
+          max-width: 300px;
         }
 
         .footer-logo {
           color: #ffffff;
           font-size: 20px;
-          letter-spacing: 0.2em;
-          margin-bottom: 16px;
+          letter-spacing: 0.15em;
+          margin-top: 0;
+          margin-bottom: 24px;
+          line-height: 1.2;
         }
 
         .footer-description {
           font-size: 13px;
           line-height: 1.6;
           color: #9CA3AF;
+          margin: 0;
         }
 
         .footer-title {
@@ -104,20 +187,23 @@ const Footer = () => {
           font-weight: 600;
           letter-spacing: 0.15em;
           text-transform: uppercase;
-          margin-bottom: 20px;
+          margin-top: 8px; /* Visual baseline alignment with logo */
+          margin-bottom: 24px;
+          line-height: 1.2;
         }
 
         .footer-links-list {
           list-style: none;
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          gap: 14px;
         }
 
         .footer-links-list a {
-          font-size: 12px;
+          font-size: 12.5px;
           color: #9CA3AF;
           transition: color var(--transition-speed);
+          text-decoration: none;
         }
 
         .footer-links-list a:hover {
@@ -125,39 +211,19 @@ const Footer = () => {
         }
 
         .footer-bottom {
-          border-top: 1px solid rgba(255,255,255,0.05);
+          border-top: 1px solid rgba(255,255,255,0.08);
           padding-top: 24px;
+          margin-top: 16px;
           display: flex;
-          justify-content: space-between;
+          justify-content: center;
           align-items: center;
           font-size: 12px;
         }
 
-        @media (max-width: 640px) {
-          .footer-bottom {
-            flex-direction: column;
-            gap: 16px;
-            text-align: center;
-          }
-        }
-
         .copyright-text {
           color: #6B7280;
-        }
-
-        .footer-legal-links {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          color: #6B7280;
-        }
-
-        .footer-legal-links a:hover {
-          color: #ffffff;
-        }
-
-        .dot-divider {
-          color: rgba(255,255,255,0.1);
+          margin: 0;
+          letter-spacing: 0.02em;
         }
       `}</style>
     </footer>

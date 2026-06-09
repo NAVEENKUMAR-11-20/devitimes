@@ -26,7 +26,7 @@ const ProductDetail = () => {
     }
   }, [product]);
 
-  if (!product) {
+  if (!product || !product.isLive) {
     return (
       <div style={{ padding: '80px 24px', textAlign: 'center', background: 'var(--page-bg)', minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <h2 className="font-heading" style={{fontSize:'28px', color:'var(--text-primary)', marginBottom:'12px'}}>Product Not Found</h2>
@@ -108,22 +108,15 @@ const ProductDetail = () => {
           {/* Right Column: Details */}
           <div className="detail-right-col">
             
-            <span className="category-label font-body">{product.category}</span>
-            <h1 className="detail-title font-heading">{product.name}</h1>
-            
             {/* Spec rows */}
             <div className="detail-specs-card">
               <div className="detail-spec-row">
                 <span className="detail-spec-label">MODEL NUMBER</span>
                 <span className="detail-spec-value font-body">{product.modelNumber}</span>
               </div>
-              <div className="detail-spec-row">
+              <div className="detail-spec-row" style={{borderBottom:'none'}}>
                 <span className="detail-spec-label">DIMENSIONS</span>
                 <span className="detail-spec-value font-body">{product.size}</span>
-              </div>
-              <div className="detail-spec-row" style={{borderBottom:'none'}}>
-                <span className="detail-spec-label">FINISH COLOR</span>
-                <span className="detail-spec-value font-body">{product.color}</span>
               </div>
             </div>
 
@@ -194,9 +187,8 @@ const ProductDetail = () => {
             <h3 className="modal-title font-heading">Sign In Required</h3>
             <p className="modal-desc font-body">Please sign in to your DEVI TIMES account to add items to your cart.</p>
             
-            <div className="modal-actions-row">
-              <button onClick={() => { setShowAuthModal(false); navigate('/login'); }} className="btn-primary modal-btn">Sign In</button>
-              <button onClick={() => { setShowAuthModal(false); navigate('/register'); }} className="btn-secondary modal-btn">Register</button>
+            <div className="modal-actions-row" style={{ display: 'block' }}>
+              <button onClick={() => { setShowAuthModal(false); navigate('/login'); }} className="btn-primary modal-btn" style={{ width: '100%' }}>Sign In</button>
             </div>
             
             <button className="modal-close-btn" onClick={() => setShowAuthModal(false)} aria-label="Close Modal">&times;</button>

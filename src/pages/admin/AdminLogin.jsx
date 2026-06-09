@@ -17,6 +17,10 @@ const AdminLogin = () => {
     }
   }, [isAdminAuthenticated, navigate]);
 
+  if (isAdminAuthenticated) {
+    return null;
+  }
+
   const handleSubmit = (e) => {
     e.preventDefault();
     setError('');

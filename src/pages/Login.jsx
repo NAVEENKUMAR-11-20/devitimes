@@ -129,11 +129,6 @@ const Login = () => {
               SIGN IN &nbsp; →
             </button>
 
-            <div className="auth-switch font-body">
-              Don't have an account? &nbsp;
-              <Link to="/register" className="auth-switch-link">Register here →</Link>
-            </div>
-
           </form>
         </div>
       </div>

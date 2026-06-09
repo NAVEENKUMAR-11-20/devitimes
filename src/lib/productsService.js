@@ -14,13 +14,13 @@ export function getProductImageUrl(record) {
 /**
  * Map a raw PocketBase product record → app product shape
  */
-function mapRecord(record) {
+export function mapRecord(record) {
   return {
     id: record.id,
     status: record.status || (record.is_live ? 'LIVE' : 'HIDDEN'),
     pbId: record.id,                          // keep PB id separate
     modelNumber: record.MODEL_NUMBER || '',
-    size: record.SIZE_DIMENSIONS || '',
+    size: (record.SIZE_DIMENSIONS && record.SIZE_DIMENSIONS !== 0) ? `${record.SIZE_DIMENSIONS} × ${record.SIZE_DIMENSIONS} MM` : '300 × 300 MM',
     packageNo: record.package_no || '',
     salePrice: Number(record.price) || 0,
     originalPrice: record.original_price !== undefined && record.original_price !== null ? Number(record.original_price) : null,
@@ -65,7 +65,8 @@ export async function createProduct(data) {
   console.log('[PB] Saving product with data:', data);
   const formData = new FormData();
   formData.append('MODEL_NUMBER',    data.MODEL_NUMBER    || '');
-  formData.append('SIZE_DIMENSIONS', data.SIZE_DIMENSIONS || '');
+  const sizeNum = parseInt(data.SIZE_DIMENSIONS || '', 10) || 0;
+  formData.append('SIZE_DIMENSIONS', String(sizeNum));
   formData.append('package_no',      String(data.package_no || ''));
   formData.append('price',           String(data.price    || 0));
   // New fields with defaults
@@ -99,7 +100,10 @@ export async function updateProduct(pbId, data) {
   console.log('[PB] updateProduct called with pbId:', pbId, 'data:', data);
   const formData = new FormData();
   if (data.MODEL_NUMBER    !== undefined) formData.append('MODEL_NUMBER',    data.MODEL_NUMBER);
-  if (data.SIZE_DIMENSIONS !== undefined) formData.append('SIZE_DIMENSIONS', data.SIZE_DIMENSIONS);
+  if (data.SIZE_DIMENSIONS !== undefined) {
+    const sizeNum = parseInt(data.SIZE_DIMENSIONS || '', 10) || 0;
+    formData.append('SIZE_DIMENSIONS', String(sizeNum));
+  }
   if (data.package_no      !== undefined) formData.append('package_no',      String(data.package_no));
   if (data.price           !== undefined) formData.append('price',           String(data.price));
   if (data.is_live         !== undefined) formData.append('is_live',         String(data.is_live));

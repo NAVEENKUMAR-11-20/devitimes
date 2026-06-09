@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { fetchAllProducts } from '../lib/productsService';
+import { fetchAllProducts, mapRecord } from '../lib/productsService';
 import { fetchAllUsers, fetchPendingRegistrations, createRegistration as pbCreateRegistration, deleteRegistration as pbDeleteRegistration, updateRegistrationStatus as pbUpdateRegistrationStatus, createUser as pbCreateUser, deleteUser as pbDeleteUser } from '../lib/usersService';
 import pb from '../lib/pocketbase';
 
@@ -21,17 +21,62 @@ export const AppProvider = ({ children }) => {
   const [products, setProducts] = useState([]);
 
   useEffect(() => {
+    let isMounted = true;
+    let pollIntervalId = null;
+
     const loadProducts = async () => {
       try {
         const pbProducts = await fetchAllProducts();
-        console.log('[AppContext] Loaded products from PocketBase:', pbProducts.length);
-        setProducts(pbProducts);
+        if (isMounted) {
+          console.log('[AppContext] Loaded products from PocketBase:', pbProducts.length);
+          setProducts(pbProducts);
+        }
       } catch (err) {
         console.error('[AppContext] Failed to fetch products from PocketBase:', err);
-        setProducts([]);
       }
     };
     loadProducts();
+
+    const subscribeToProducts = async () => {
+      try {
+        await pb.collection('products').subscribe('*', (e) => {
+          console.log('[AppContext] PocketBase real-time event:', e.action, e.record);
+          if (!isMounted) return;
+          if (e.action === 'create') {
+            const newProd = mapRecord(e.record);
+            setProducts(prev => {
+              if (prev.some(p => p.id === newProd.id)) return prev;
+              return [newProd, ...prev];
+            });
+          } else if (e.action === 'update') {
+            const updatedProd = mapRecord(e.record);
+            setProducts(prev => prev.map(p => p.id === updatedProd.id ? updatedProd : p));
+          } else if (e.action === 'delete') {
+            setProducts(prev => prev.filter(p => p.id !== e.record.id));
+          }
+        });
+        console.log('[AppContext] Successfully subscribed to PocketBase products collection.');
+      } catch (err) {
+        console.warn('[AppContext] PocketBase real-time subscription failed, relying on polling fallback:', err);
+      }
+    };
+
+    subscribeToProducts();
+
+    // Setup polling fallback every 3 seconds
+    pollIntervalId = setInterval(() => {
+      loadProducts();
+    }, 3000);
+
+    return () => {
+      isMounted = false;
+      if (pollIntervalId) {
+        clearInterval(pollIntervalId);
+      }
+      pb.collection('products').unsubscribe('*').catch(err => {
+        // Ignore unsubscribe errors on cleanup
+      });
+    };
   }, []);
 
   const [users, setUsers] = useState([]);
@@ -72,10 +117,31 @@ export const AppProvider = ({ children }) => {
     return saved ? JSON.parse(saved) : null;
   });
 
-  // Admin Session (sessionStorage)
+  // Admin Session (persisted in localStorage and validated against current settings)
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() => {
-    const saved = sessionStorage.getItem('lumiere_admin_auth');
-    return saved === 'true';
+    const savedToken = localStorage.getItem('lumiere_admin_auth_token');
+    if (savedToken) {
+      try {
+        const parsed = JSON.parse(savedToken);
+        const currentSavedSettings = localStorage.getItem('lumiere_settings');
+        const activePassword = currentSavedSettings 
+          ? JSON.parse(currentSavedSettings)?.adminPassword || defaultSettings.adminPassword
+          : defaultSettings.adminPassword;
+        const activeUsername = currentSavedSettings
+          ? JSON.parse(currentSavedSettings)?.adminUsername || 'admin'
+          : 'admin';
+          
+        if (parsed.isAuthenticated && parsed.authPassword === activePassword && parsed.authUsername === activeUsername) {
+          return true;
+        } else {
+          localStorage.removeItem('lumiere_admin_auth_token');
+        }
+      } catch (e) {
+        console.error("Admin auth parsing error:", e);
+        localStorage.removeItem('lumiere_admin_auth_token');
+      }
+    }
+    return false;
   });
 
   // Cart state, keyed by logged in user id. If no user, empty array
@@ -90,6 +156,66 @@ export const AppProvider = ({ children }) => {
       setCart([]);
     }
   }, [currentUser]);
+
+  // Watch settings admin credentials and invalidate session if they change
+  useEffect(() => {
+    const savedToken = localStorage.getItem('lumiere_admin_auth_token');
+    if (savedToken) {
+      try {
+        const parsed = JSON.parse(savedToken);
+        const activeUsername = settings.adminUsername || 'admin';
+        if (parsed.authPassword !== settings.adminPassword || parsed.authUsername !== activeUsername) {
+          localStorage.removeItem('lumiere_admin_auth_token');
+          setIsAdminAuthenticated(false);
+        }
+      } catch (e) {
+        localStorage.removeItem('lumiere_admin_auth_token');
+        setIsAdminAuthenticated(false);
+      }
+    }
+  }, [settings.adminPassword, settings.adminUsername]);
+
+  // Synchronize admin auth states and invalidate sessions across tabs in real-time
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'lumiere_settings') {
+        try {
+          const newSettings = JSON.parse(e.newValue);
+          const savedToken = localStorage.getItem('lumiere_admin_auth_token');
+          if (savedToken && newSettings) {
+            const parsedToken = JSON.parse(savedToken);
+            const activeUsername = newSettings.adminUsername || 'admin';
+            if (parsedToken.authPassword !== newSettings.adminPassword || parsedToken.authUsername !== activeUsername) {
+              localStorage.removeItem('lumiere_admin_auth_token');
+              setIsAdminAuthenticated(false);
+            }
+          }
+        } catch (err) {
+          console.error("Storage change error:", err);
+        }
+      }
+      if (e.key === 'lumiere_admin_auth_token') {
+        if (!e.newValue) {
+          setIsAdminAuthenticated(false);
+        } else {
+          try {
+            const parsedToken = JSON.parse(e.newValue);
+            const activeUsername = settings.adminUsername || 'admin';
+            if (parsedToken.isAuthenticated && parsedToken.authPassword === settings.adminPassword && parsedToken.authUsername === activeUsername) {
+              setIsAdminAuthenticated(true);
+            } else {
+              setIsAdminAuthenticated(false);
+            }
+          } catch (err) {
+            setIsAdminAuthenticated(false);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [settings.adminPassword, settings.adminUsername]);
 
   // Products are now fetched from PocketBase — no localStorage sync needed
 
@@ -306,8 +432,14 @@ export const AppProvider = ({ children }) => {
 
   // --- Admin Configuration Actions ---
   const loginAdmin = (username, password) => {
-    if (username === 'admin' && password === settings.adminPassword) {
-      sessionStorage.setItem('lumiere_admin_auth', 'true');
+    const activeUsername = settings.adminUsername || 'admin';
+    if (username === activeUsername && password === settings.adminPassword) {
+      const token = {
+        isAuthenticated: true,
+        authUsername: activeUsername,
+        authPassword: settings.adminPassword
+      };
+      localStorage.setItem('lumiere_admin_auth_token', JSON.stringify(token));
       setIsAdminAuthenticated(true);
       return true;
     }
@@ -315,7 +447,7 @@ export const AppProvider = ({ children }) => {
   };
 
   const logoutAdmin = () => {
-    sessionStorage.removeItem('lumiere_admin_auth');
+    localStorage.removeItem('lumiere_admin_auth_token');
     setIsAdminAuthenticated(false);
   };
 

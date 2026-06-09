@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 
 // ─── Animated Hero Clock (pure SVG, no images) ───────────────────────────────
@@ -196,9 +196,49 @@ const AnimatedHeroClock = () => {
 
 // ─── Main Home Component ──────────────────────────────────────────────────────
 const Home = () => {
+  const navigate = useNavigate();
   const { settings } = useApp();
   const waNumber = (settings?.whatsappNumber || '7358349394').replace(/\D/g, '');
   const waLink = `https://wa.me/${waNumber}?text=${encodeURIComponent('Hello, I am interested in placing a wholesale order for Devi Clocks. Please share the product catalogue and pricing.')}`;
+
+  const collections = [
+    {
+      name: 'Premium Wall Clocks',
+      image: 'collection image/premium wall clock.jpg'
+    },
+    {
+      name: 'Modern Collection',
+      image: 'collection image/modern wall clock.jpg'
+    },
+    {
+      name: 'Wooden Collection',
+      image: '/collection_images/wooden wall clock.avif'
+    },
+    {
+      name: 'Metal Collection',
+      image: '/collection_images/mettal wall clock.webp'
+    },
+    {
+      name: 'Luxury Collection',
+      image: '/collection_images/luxury wall clock.jpg'
+    },
+    {
+      name: 'Living Room Collection',
+      image: '/collection_images/living wall clock.webp'
+    },
+    {
+      name: 'Vintage Collection',
+      image: '/collection_images/vintage clock.webp'
+    },
+    {
+      name: 'Large Wall Clocks',
+      image: '/collection_images/large wall clock.jpg'
+    }
+  ];
+
+  const handleCollectionClick = (categoryName) => {
+    navigate('/collection', { state: { selectedCategory: categoryName } });
+  };
 
   return (
     <div className="home-root">
@@ -248,48 +288,67 @@ const Home = () => {
       </section>
 
 
-      {/* ── Wholesale Order Banner ── */}
-      <section className="wholesale-banner-section">
+      {/* ── Shop by Collection Section ── */}
+      <section className="collections-showcase-section">
+        <div className="container">
+          <div className="section-header-center">
+            <span className="section-tag uppercase-label">CURATED TIMEPIECES</span>
+            <h2 className="section-heading font-heading">Shop by Collection</h2>
+            <div className="section-heading-line"></div>
+          </div>
 
-        <div className="container wholesale-banner-inner">
-          {/* Left content */}
-          <div className="wholesale-left">
-            <span className="wholesale-tag uppercase-label">WHOLESALE ONLY</span>
+          {/* Desktop Grid & Mobile Carousel */}
+          <div className="collections-grid-carousel">
+            {collections.map((col, idx) => (
+              <div 
+                key={idx} 
+                className="collection-card-item animate-fade-in"
+                onClick={() => handleCollectionClick(col.name)}
+                style={{ animationDelay: `${idx * 0.05}s` }}
+              >
+                <div className="collection-card-img-wrapper">
+                  <img src={col.image} alt={col.name} className="collection-card-img" />
+                  <div className="collection-card-overlay"></div>
+                </div>
+                <div className="collection-card-content">
+                  <h3 className="collection-card-title font-heading">{col.name}</h3>
+                  <span className="collection-card-cta">EXPLORE COLLECTION &nbsp; →</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+
+      {/* ── Wholesale Order Banner (Luxury Showcase Card) ── */}
+      <section className="wholesale-banner-section">
+        <div className="wholesale-card">
+          {/* Left Side: Product Showcase Image */}
+          <div className="wholesale-card-image-wrapper">
+            <img 
+              src="/luxury_clock_showroom.png" 
+              alt="Premium Wall Clock Showroom" 
+              className="wholesale-card-image"
+            />
+          </div>
+
+          {/* Right Side: Content Area */}
+          <div className="wholesale-card-content">
+            <span className="wholesale-tag uppercase-label">WHOLESALE COLLECTION</span>
 
             <h2 className="wholesale-title font-heading">
-              Devi Clocks
-              <span className="wholesale-title-sub">Wholesale Orders</span>
+              Built for Wholesale Business <br />
+              <span className="italic-accent">Curated for Every Store</span>
             </h2>
 
             <p className="wholesale-subtitle font-body">
-              We supply clocks only for wholesale and bulk orders.
-              <br />
-              Single clock purchase is not available.
+              Discover bestselling clock collections with competitive wholesale pricing, reliable quality, and designs your customers will love.
             </p>
 
-            <a
-              href={waLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="wholesale-cta-btn"
-            >
-              <span className="wholesale-cta-icon">&#128222;</span>
-              Contact for Wholesale Order
-            </a>
-          </div>
-
-          {/* Right: ONE premium clock only */}
-          <div className="wholesale-right">
-            {/* Outer luxury ring */}
-            <div className="ws-clock-ring ws-clock-ring-outer" aria-hidden="true" />
-            {/* Inner glow ring */}
-            <div className="ws-clock-ring ws-clock-ring-inner" aria-hidden="true" />
-            {/* Radial glow behind clock */}
-            <div className="ws-clock-glow" aria-hidden="true" />
-            {/* The single animated clock */}
-            <div className="ws-clock-frame">
-              <AnimatedHeroClock />
-            </div>
+            <Link to="/collection" className="explore-collection-btn font-heading">
+              EXPLORE COLLECTION &nbsp; →
+            </Link>
           </div>
         </div>
       </section>
@@ -472,188 +531,124 @@ const Home = () => {
           filter: drop-shadow(0 20px 48px rgba(45,93,161,0.55));
         }
 
-        /* ── Wholesale Banner ── */
+        /* ── Wholesale Banner (Luxury Showcase Card) ── */
         .wholesale-banner-section {
-          position: relative;
-          background: linear-gradient(135deg, #111827 0%, #1A2332 50%, #0F1C2E 100%);
+          padding: 0;
+          margin-top: 48px;
+          margin-bottom: 48px;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          width: 100%;
+          background: transparent;
+        }
+
+        .wholesale-card {
+          width: 90%;
+          max-width: 880px; /* Reduced card width */
+          background: linear-gradient(135deg, #FDF7EA 0%, #EED59B 100%); /* Premium light gold champagne gradient */
+          border: 1.5px solid #DDD1B3; /* Subtle light gold border */
+          border-radius: 24px; /* Tighter border radius */
+          box-shadow: 0 20px 48px rgba(26, 35, 50, 0.1);
           overflow: hidden;
-          padding: 80px 0;
-          animation: wsBannerFadeIn 0.6s ease both;
+          display: grid;
+          grid-template-columns: 1.05fr 0.95fr;
+          align-items: center;
+          transition: transform 0.3s ease;
+          animation: wsBannerFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
         }
         @keyframes wsBannerFadeIn {
-          from { opacity: 0; transform: translateY(16px); }
+          from { opacity: 0; transform: translateY(20px); }
           to   { opacity: 1; transform: translateY(0); }
         }
 
-        /* Subtle radial overlay only — NO background image */
-        .wholesale-banner-section::after {
-          content: '';
-          position: absolute;
-          inset: 0;
-          background: radial-gradient(ellipse at 70% 50%, rgba(201,168,76,0.04) 0%, transparent 60%);
-          pointer-events: none;
-          z-index: 0;
-        }
-
-        /* ── Two-column desktop layout ── */
-        .wholesale-banner-inner {
-          position: relative;
-          z-index: 1;
-          display: flex;
-          flex-direction: row;
-          align-items: center;
-          justify-content: space-between;
-          gap: 48px;
+        .wholesale-card-image-wrapper {
           width: 100%;
+          height: 100%;
+          min-height: 300px; /* Reduced image height */
+          overflow: hidden;
+          position: relative;
         }
 
-        .wholesale-left {
-          flex: 1;
+        .wholesale-card-image {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+          transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .wholesale-card:hover .wholesale-card-image {
+          transform: scale(1.04); /* Slight image zoom on hover */
+        }
+
+        .wholesale-card-content {
+          padding: 36px 40px; /* Compact padding */
           display: flex;
           flex-direction: column;
           align-items: flex-start;
-          gap: 0;
-          max-width: 520px;
+          justify-content: center;
         }
 
         .wholesale-tag {
-          color: #C9A84C;
-          letter-spacing: 0.18em;
-          font-size: 11px;
-          margin-bottom: 20px;
+          color: #B68B1D; /* Deep gold-bronze for tag accent */
+          letter-spacing: 0.2em;
+          font-size: 10px;
+          font-weight: 800;
+          margin-bottom: 10px;
           display: block;
         }
 
-        /* Right clock column */
-        .wholesale-right {
-          flex: 0 0 auto;
-          position: relative;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 360px;
-          height: 360px;
-        }
-
-        /* Outer luxury ring — thin gold border circle */
-        .ws-clock-ring {
-          position: absolute;
-          border-radius: 50%;
-          pointer-events: none;
-        }
-        .ws-clock-ring-outer {
-          width: 360px;
-          height: 360px;
-          border: 1px solid rgba(201,168,76,0.22);
-          box-shadow:
-            0 0 0 1px rgba(201,168,76,0.06),
-            0 0 40px rgba(201,168,76,0.08);
-        }
-        .ws-clock-ring-inner {
-          width: 310px;
-          height: 310px;
-          border: 1px solid rgba(126,179,232,0.12);
-        }
-
-        /* Radial glow behind clock */
-        .ws-clock-glow {
-          position: absolute;
-          width: 300px;
-          height: 300px;
-          border-radius: 50%;
-          background: radial-gradient(circle,
-            rgba(201,168,76,0.10) 0%,
-            rgba(45,93,161,0.08) 40%,
-            transparent 70%
-          );
-          pointer-events: none;
-        }
-
-        /* Clock frame — centers the SVG */
-        .ws-clock-frame {
-          position: relative;
-          z-index: 1;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        /* Override the hero-animated-clock filter for the wholesale clock */
-        .wholesale-right .hero-animated-clock {
-          filter:
-            drop-shadow(0 20px 48px rgba(45,93,161,0.6))
-            drop-shadow(0 0 24px rgba(201,168,76,0.12));
-          width: 300px;
-          height: 300px;
-        }
-
         .wholesale-title {
-          font-size: 52px;
+          font-size: 28px; /* Compact font size */
           font-weight: 700;
-          color: #ffffff;
-          line-height: 1.1;
-          margin-bottom: 4px;
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
+          color: #1A2332; /* Navy text */
+          line-height: 1.25;
+          margin-bottom: 12px;
+          letter-spacing: -0.01em;
+          display: block;
         }
 
-        .wholesale-title-sub {
-          font-size: 32px;
-          color: #C9A84C;
+        .wholesale-title .italic-accent {
+          color: #B68B1D; /* Deep gold-bronze italic accent for beautiful tone harmony */
           font-style: italic;
-          font-weight: 600;
         }
 
         .wholesale-subtitle {
-          font-size: 16px;
-          color: rgba(200,216,238,0.78);
-          line-height: 1.7;
-          margin: 24px 0 36px;
-          max-width: 440px;
+          font-size: 13px;
+          color: #2D3748; /* Slate gray for high legibility on light gold background */
+          line-height: 1.55;
+          margin-bottom: 22px;
+          max-width: 400px;
         }
 
-        /* WhatsApp CTA Button */
-        .wholesale-cta-btn {
+        /* Explore Collection Button */
+        .explore-collection-btn {
           display: inline-flex;
           align-items: center;
-          gap: 10px;
-          background: linear-gradient(135deg, #C9A84C 0%, #E8C96A 50%, #C9A84C 100%);
-          color: #1A2332;
-          font-size: 12px;
+          justify-content: center;
+          background-color: #1A2332; /* Navy background button */
+          color: #ffffff;
+          font-size: 11px;
           font-weight: 700;
           letter-spacing: 0.1em;
           text-transform: uppercase;
-          padding: 14px 28px;
-          border-radius: 3px;
+          padding: 12px 24px;
+          border-radius: 4px;
           text-decoration: none;
-          transition: transform 0.18s ease, box-shadow 0.18s ease;
-          box-shadow: 0 4px 20px rgba(201,168,76,0.35);
+          transition: all 0.25s ease;
+          box-shadow: 0 4px 14px rgba(26, 35, 50, 0.15);
           white-space: nowrap;
+          border: 1px solid #1A2332;
         }
-        .wholesale-cta-btn:hover {
+        .explore-collection-btn:hover {
+          background-color: transparent;
+          color: #1A2332;
           transform: translateY(-2px);
-          box-shadow: 0 8px 28px rgba(201,168,76,0.5);
+          box-shadow: 0 8px 20px rgba(26, 35, 50, 0.18);
         }
-        .wholesale-cta-btn:active {
+        .explore-collection-btn:active {
           transform: translateY(0);
-        }
-        .wholesale-cta-icon { font-size: 16px; flex-shrink: 0; }
-
-        /* Right: clock */
-        .wholesale-right {
-          flex: 0 0 auto;
-          position: relative;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        .wholesale-clock-glow {
-          position: absolute;
-          width: 340px;
-          height: 340px;
-          border-radius: 50%;
-          background: radial-gradient(circle, rgba(201,168,76,0.12) 0%, transparent 70%);
-          pointer-events: none;
         }
 
         /* ── Brand Band ── */
@@ -671,6 +666,136 @@ const Home = () => {
         .brand-band-text {
           font-size: 38px;
           color: #FFFFFF;
+        }
+
+        /* ── Shop by Collection Showcase ── */
+        .collections-showcase-section {
+          padding: 80px 0;
+          background-color: var(--page-bg);
+        }
+
+        .section-header-center {
+          text-align: center;
+          margin-bottom: 48px;
+        }
+
+        .section-tag {
+          color: var(--accent-blue);
+          letter-spacing: 0.16em;
+          font-size: 11px;
+          font-weight: 700;
+          display: block;
+          margin-bottom: 8px;
+        }
+
+        .section-heading {
+          font-size: 38px;
+          color: var(--text-primary);
+          font-weight: 700;
+          line-height: 1.2;
+        }
+
+        .section-heading-line {
+          width: 60px;
+          height: 3px;
+          background-color: var(--accent-blue);
+          margin: 16px auto 0 auto;
+          border-radius: 2px;
+        }
+
+        .collections-grid-carousel {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 28px;
+        }
+
+        .collection-card-item {
+          position: relative;
+          border-radius: 12px;
+          overflow: hidden;
+          aspect-ratio: 4 / 5;
+          cursor: pointer;
+          box-shadow: 0 4px 20px rgba(26, 35, 50, 0.08);
+          transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), 
+                      box-shadow 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+          -webkit-tap-highlight-color: transparent; /* Remove default tap highlight on mobile */
+        }
+
+        .collection-card-item:hover {
+          transform: translateY(-8px);
+          box-shadow: 0 12px 32px rgba(26, 35, 50, 0.16);
+        }
+
+        .collection-card-item:active {
+          transform: translateY(-2px) scale(0.97); /* Instant active feedback on touch */
+          box-shadow: 0 4px 12px rgba(26, 35, 50, 0.1);
+          transition: transform 0.1s ease;
+        }
+
+        .collection-card-img-wrapper {
+          width: 100%;
+          height: 100%;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .collection-card-img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .collection-card-item:hover .collection-card-img {
+          transform: scale(1.08);
+        }
+
+        .collection-card-overlay {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(to bottom, rgba(26, 35, 50, 0.1) 0%, rgba(26, 35, 50, 0.85) 100%);
+          transition: background 0.4s ease;
+        }
+
+        .collection-card-item:hover .collection-card-overlay {
+          background: linear-gradient(to bottom, rgba(26, 35, 50, 0.2) 0%, rgba(26, 35, 50, 0.9) 100%);
+        }
+
+        .collection-card-content {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          padding: 24px;
+          z-index: 2;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .collection-card-title {
+          color: #ffffff;
+          font-size: 22px;
+          font-weight: 600;
+          margin-bottom: 8px;
+          line-height: 1.2;
+          letter-spacing: 0.02em;
+        }
+
+        .collection-card-cta {
+          color: rgba(255, 255, 255, 0.85);
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          transition: color 0.3s ease, transform 0.3s ease;
+          display: inline-flex;
+          align-items: center;
+        }
+
+        .collection-card-item:hover .collection-card-cta {
+          color: #ffffff;
+          transform: translateX(4px);
         }
 
         /* ── Responsive ── */
@@ -735,39 +860,59 @@ const Home = () => {
             object-fit: contain;
           }
 
-          .wholesale-banner-section { padding: 48px 0; }
-          .wholesale-banner-inner {
-            flex-direction: column;
-            text-align: center;
-            align-items: center;
-            gap: 36px;
+          /* Collections mobile swipeable carousel overrides */
+          .collections-showcase-section {
+            padding: 56px 0;
           }
-          .wholesale-left {
-            align-items: center;
-            max-width: 100%;
-          }
-          .wholesale-subtitle { max-width: 100%; }
-          /* Show clock below text on mobile, smaller size */
-          .wholesale-right {
+          .collections-grid-carousel {
             display: flex;
-            width: 260px;
-            height: 260px;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            gap: 16px;
+            padding: 8px 4px 24px 4px;
+            scrollbar-width: none; /* Hide scrollbar for Firefox */
+            -webkit-overflow-scrolling: touch;
           }
-          .ws-clock-ring-outer { width: 260px; height: 260px; }
-          .ws-clock-ring-inner { width: 220px; height: 220px; }
-          .ws-clock-glow { width: 210px; height: 210px; }
-          .wholesale-right .hero-animated-clock { width: 220px; height: 220px; }
-          .wholesale-title { font-size: 36px; align-items: center; }
-          .wholesale-title-sub { font-size: 24px; }
+          .collections-grid-carousel::-webkit-scrollbar {
+            display: none; /* Hide scrollbar for Chrome/Safari */
+          }
+          .collection-card-item {
+            flex: 0 0 75%; /* Viewport width on mobile */
+            scroll-snap-align: center;
+            aspect-ratio: 4 / 5;
+          }
+          .collection-card-title {
+            font-size: 18px;
+          }
+
+          .wholesale-banner-section {
+            margin-top: 32px;
+            margin-bottom: 32px;
+          }
+          .wholesale-card {
+            grid-template-columns: 1fr;
+            border-radius: 16px;
+            max-width: 480px;
+          }
+          .wholesale-card-image-wrapper {
+            min-height: 220px;
+            max-height: 240px;
+          }
+          .wholesale-card-content {
+            padding: 28px 24px;
+            align-items: center;
+            text-align: center;
+          }
+          .wholesale-title { font-size: 24px; }
+          .wholesale-subtitle { font-size: 12.5px; max-width: 100%; margin-bottom: 18px; }
         }
 
         @media (max-width: 480px) {
           .hero-heading { font-size: 30px; }
           .brand-band-text { font-size: 28px; }
-          .wholesale-title { font-size: 30px; }
-          .wholesale-title-sub { font-size: 20px; }
-          .wholesale-subtitle { font-size: 14px; margin: 16px 0 24px; }
-          .wholesale-cta-btn { font-size: 11px; padding: 13px 20px; }
+          .wholesale-title { font-size: 22px; }
+          .wholesale-subtitle { font-size: 12px; margin-bottom: 14px; }
+          .explore-collection-btn { font-size: 9.5px; padding: 10px 18px; }
         }
       `}</style>
     </div>
