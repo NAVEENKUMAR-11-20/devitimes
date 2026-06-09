@@ -204,11 +204,11 @@ const Home = () => {
   const collections = [
     {
       name: 'Premium Wall Clocks',
-      image: 'collection image/premium wall clock.jpg'
+      image: '/collection_images/premium wall clock.jpg'
     },
     {
       name: 'Modern Collection',
-      image: 'collection image/modern wall clock.jpg'
+      image: '/collection_images/modern wall clock.jpg'
     },
     {
       name: 'Wooden Collection',
