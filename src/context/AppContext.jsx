@@ -547,9 +547,18 @@ export const AppProvider = ({ children }) => {
   };
 
   // --- Admin Configuration Actions ---
-  const loginAdmin = (username, password) => {
+  const loginAdmin = async (username, password) => {
     const activeUsername = settings.adminUsername || 'admin';
     if (username === activeUsername && password === settings.adminPassword) {
+      try {
+        // Securely authenticate with PocketBase using the User collection
+        // This avoids hardcoding Superuser credentials in the frontend
+        await pb.collection('User').authWithPassword(username, password);
+      } catch (err) {
+        console.warn("PocketBase Auth failed for Admin, falling back to local session:", err);
+        // We still allow local session to proceed so they aren't locked out of settings
+      }
+
       const token = {
         isAuthenticated: true,
         authUsername: activeUsername,
@@ -565,6 +574,7 @@ export const AppProvider = ({ children }) => {
   const logoutAdmin = () => {
     localStorage.removeItem('lumiere_admin_auth_token');
     setIsAdminAuthenticated(false);
+    pb.authStore.clear();
   };
 
   const updateSettings = (newSettings) => {

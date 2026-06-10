@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
+import pb from '../../lib/pocketbase';
 
 const AdminDashboard = () => {
   const {
@@ -12,19 +13,48 @@ const AdminDashboard = () => {
   } = useApp();
 
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [errorDetails, setErrorDetails] = useState(null);
 
   // Load data from PocketBase
   const loadData = async () => {
     try {
       setLoading(true);
+      setErrorDetails(null);
       await Promise.all([
         refreshProducts(),
         refreshUsers()
       ]);
+      
+      // Also log successful auth state to console as requested
+      console.log('--- POCKETBASE SUCCESS ---');
+      console.log('PB URL:', pb.baseUrl);
+      console.log('Auth Valid:', pb.authStore.isValid);
+      console.log('Auth Model:', pb.authStore.model ? pb.authStore.model.id : 'None');
+      console.log('--------------------------');
     } catch (err) {
       console.error('[PB] loadData error:', err);
-      setError(`Failed to load dashboard data. Ensure PocketBase rules are unlocked. Details: ${err.message}`);
+      
+      const details = {
+        message: err.message,
+        status: err.status || 'Network Error / 0',
+        url: err.url || 'N/A',
+        data: err.data ? JSON.stringify(err.data) : 'N/A',
+        pbUrl: pb.baseUrl,
+        isAuthValid: pb.authStore.isValid,
+        authModel: pb.authStore.model ? JSON.stringify(pb.authStore.model) : 'None'
+      };
+      
+      console.error('--- POCKETBASE ERROR DETAILS ---');
+      console.error('PB URL:', details.pbUrl);
+      console.error('Auth Valid:', details.isAuthValid);
+      console.error('Auth Model:', details.authModel);
+      console.error('HTTP Status:', details.status);
+      console.error('Request URL:', details.url);
+      console.error('Error Message:', details.message);
+      console.error('Error Data:', details.data);
+      console.error('--------------------------------');
+
+      setErrorDetails(details);
     } finally {
       setLoading(false);
     }
@@ -54,8 +84,21 @@ const AdminDashboard = () => {
   if (loading) {
     return <div style={{ padding: '40px', textAlign: 'center' }}>Loading dashboard...</div>;
   }
-  if (error) {
-    return <div style={{ padding: '40px', color: 'red' }}>{error}</div>;
+  
+  if (errorDetails) {
+    return (
+      <div style={{ padding: '20px', color: '#b91c1c', backgroundColor: '#fee2e2', borderRadius: '4px', margin: '20px', border: '1px solid #ef4444', fontFamily: 'monospace' }}>
+        <h3 style={{ marginTop: 0 }}>Failed to load dashboard data.</h3>
+        <p style={{ marginBottom: '16px' }}>Please check your browser console (Network/Console tab) for the exact failing request.</p>
+        <p><strong>HTTP Status Code:</strong> {errorDetails.status}</p>
+        <p><strong>Error Message:</strong> {errorDetails.message}</p>
+        <p><strong>Error Data:</strong> {errorDetails.data}</p>
+        <p><strong>Request URL:</strong> {errorDetails.url}</p>
+        <p><strong>PocketBase Server:</strong> {errorDetails.pbUrl}</p>
+        <p><strong>Auth Valid:</strong> {errorDetails.isAuthValid ? 'Yes' : 'No'}</p>
+        <p><strong>Auth Details:</strong> {errorDetails.authModel}</p>
+      </div>
+    );
   }
 
   return (

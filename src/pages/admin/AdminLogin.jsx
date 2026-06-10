@@ -21,7 +21,7 @@ const AdminLogin = () => {
     return null;
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -30,7 +30,7 @@ const AdminLogin = () => {
       return;
     }
 
-    const success = loginAdmin(username.trim(), password);
+    const success = await loginAdmin(username.trim(), password);
     if (success) {
       navigate('/admin/dashboard');
     } else {
