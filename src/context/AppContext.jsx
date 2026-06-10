@@ -37,6 +37,13 @@ export const AppProvider = ({ children }) => {
   const [pendingRegistrations, setPendingRegistrations] = useState([]);
 
   useEffect(() => {
+    // Only fetch sensitive admin data if the admin is authenticated locally
+    if (!isAdminAuthenticated) {
+      setUsers([]);
+      setPendingRegistrations([]);
+      return;
+    }
+
     const loadUserData = async () => {
       try {
         const pbUsers = await fetchAllUsers();
@@ -48,7 +55,7 @@ export const AppProvider = ({ children }) => {
       }
     };
     loadUserData();
-  }, []);
+  }, [isAdminAuthenticated]);
 
   const [settings, setSettings] = useState(() => {
     const saved = localStorage.getItem('lumiere_settings');
