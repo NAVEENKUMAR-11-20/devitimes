@@ -16,6 +16,9 @@ const defaultSettings = {
   adminPassword: "lumiere@admin2024"
 };
 
+// Global cache for fetched JSON galleries to avoid duplicate network requests
+const fetchedGalleriesCache = {};
+
 export const AppProvider = ({ children }) => {
   // Products — fetched from PocketBase on mount (no more localStorage/seedProducts)
   const [products, setProducts] = useState([]);
@@ -24,12 +27,54 @@ export const AppProvider = ({ children }) => {
     let isMounted = true;
     let pollIntervalId = null;
 
+    const fetchJsonGalleryIfNeeded = async (product, callback) => {
+      if (!product._jsonUrl) return;
+      const cacheKey = product._jsonUrl + '?' + (product.updatedAt || '');
+      const cacheVal = fetchedGalleriesCache[cacheKey];
+      if (Array.isArray(cacheVal)) {
+        callback(product.id, cacheVal);
+        return;
+      }
+      if (cacheVal === 'fetching' || cacheVal === 'failed') {
+        return;
+      }
+
+      fetchedGalleriesCache[cacheKey] = 'fetching';
+      try {
+        const fetchUrl = product._jsonUrl + (product._jsonUrl.includes('?') ? '&' : '?') + 't=' + (product.updatedAt ? encodeURIComponent(product.updatedAt) : Date.now());
+        const res = await fetch(fetchUrl, { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            fetchedGalleriesCache[cacheKey] = data;
+            callback(product.id, data);
+            return;
+          }
+        }
+        fetchedGalleriesCache[cacheKey] = 'failed';
+      } catch (err) {
+        console.error('Failed to fetch JSON gallery for product:', product.id, err);
+        fetchedGalleriesCache[cacheKey] = 'failed';
+      }
+    };
+
     const loadProducts = async () => {
       try {
         const pbProducts = await fetchAllProducts();
         if (isMounted) {
           console.log('[AppContext] Loaded products from PocketBase:', pbProducts.length);
           setProducts(pbProducts);
+
+          // Fetch JSON galleries in the background
+          pbProducts.forEach(prod => {
+            if (prod._jsonUrl) {
+              fetchJsonGalleryIfNeeded(prod, (id, images) => {
+                if (isMounted) {
+                  setProducts(prev => prev.map(p => p.id === id ? { ...p, images } : p));
+                }
+              });
+            }
+          });
         }
       } catch (err) {
         console.error('[AppContext] Failed to fetch products from PocketBase:', err);
@@ -48,9 +93,23 @@ export const AppProvider = ({ children }) => {
               if (prev.some(p => p.id === newProd.id)) return prev;
               return [newProd, ...prev];
             });
+            if (newProd._jsonUrl) {
+              fetchJsonGalleryIfNeeded(newProd, (id, images) => {
+                if (isMounted) {
+                  setProducts(prev => prev.map(p => p.id === id ? { ...p, images } : p));
+                }
+              });
+            }
           } else if (e.action === 'update') {
             const updatedProd = mapRecord(e.record);
             setProducts(prev => prev.map(p => p.id === updatedProd.id ? updatedProd : p));
+            if (updatedProd._jsonUrl) {
+              fetchJsonGalleryIfNeeded(updatedProd, (id, images) => {
+                if (isMounted) {
+                  setProducts(prev => prev.map(p => p.id === id ? { ...p, images } : p));
+                }
+              });
+            }
           } else if (e.action === 'delete') {
             setProducts(prev => prev.filter(p => p.id !== e.record.id));
           }

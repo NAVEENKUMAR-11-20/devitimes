@@ -15,6 +15,8 @@ export function getProductImageUrl(record) {
  * Map a raw PocketBase product record → app product shape
  */
 export function mapRecord(record) {
+  const imageUrl = getProductImageUrl(record);
+  const isJson = imageUrl && imageUrl.toLowerCase().split('?')[0].endsWith('.json');
   return {
     id: record.id,
     status: record.status || (record.is_live ? 'LIVE' : 'HIDDEN'),
@@ -26,9 +28,8 @@ export function mapRecord(record) {
     originalPrice: record.original_price !== undefined && record.original_price !== null ? Number(record.original_price) : null,
     isOnSale: record.is_on_sale !== undefined ? (String(record.is_on_sale) === 'true') : false,
     isLive: record.is_live !== undefined ? record.is_live : true,
-    images: getProductImageUrl(record)
-      ? [getProductImageUrl(record)]
-      : [],
+    images: imageUrl ? (isJson ? [] : [imageUrl]) : [],
+    _jsonUrl: isJson ? imageUrl : null,
     _rawImageName: record.prodimage || '',    // original filename for updates
     name: record.MODEL_NUMBER || record.id,   // fallback display name
     category: record.category || 'Modern Minimalist',
@@ -36,6 +37,7 @@ export function mapRecord(record) {
     description: record.description || '',
     source: 'pocketbase',
     createdAt: record.created,
+    updatedAt: record.updated || '',
   };
 }
 
@@ -50,6 +52,7 @@ export async function fetchAllProducts() {
   try {
     const records = await pb.collection('products').getFullList({
       sort: '-created',
+      requestKey: null,
     });
     return records.map(mapRecord);
   } catch (err) {
@@ -88,7 +91,9 @@ export async function createProduct(data) {
     formData.append('prodimage', data.imageFile);
   }
 
-  const record = await pb.collection('products').create(formData);
+  const record = await pb.collection('products').create(formData, {
+    requestKey: null,
+  });
   console.log('[PB] Saved product response:', record);
   return mapRecord(record);
 }
@@ -119,12 +124,14 @@ export async function updateProduct(pbId, data) {
   if (data.category        !== undefined) formData.append('category', data.category);
   if (data.color           !== undefined) formData.append('color', data.color);
 
-  if (data.imageFile) {
-    formData.append('prodimage', data.imageFile);
+  if (data.imageFile !== undefined) {
+    formData.append('prodimage', data.imageFile === null ? '' : data.imageFile);
   }
 
   try {
-    const record = await pb.collection('products').update(pbId, formData);
+    const record = await pb.collection('products').update(pbId, formData, {
+      requestKey: null,
+    });
     console.log('[PB] PocketBase update response raw record:', record);
     return mapRecord(record);
   } catch (err) {
@@ -137,5 +144,7 @@ export async function updateProduct(pbId, data) {
  * Delete a product by PocketBase record id.
  */
 export async function deleteProduct(pbId) {
-  await pb.collection('products').delete(pbId);
+  await pb.collection('products').delete(pbId, {
+    requestKey: null,
+  });
 }

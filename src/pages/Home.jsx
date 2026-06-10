@@ -1,6 +1,10 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import {
+  getImage, getList,
+  LIST_KEYS, collectionImageKey, posterImageKey,
+} from '../lib/homepageImagesDb';
 
 // ─── Animated Hero Clock (pure SVG, no images) ───────────────────────────────
 const AnimatedHeroClock = () => {
@@ -195,50 +199,77 @@ const AnimatedHeroClock = () => {
 };
 
 // ─── Main Home Component ──────────────────────────────────────────────────────
+const DEFAULT_COLLECTIONS = [
+  { id: 'col_0', name: 'Premium Wall Clocks',    defaultImage: '/collection_images/premium wall clock.jpg' },
+  { id: 'col_1', name: 'Modern Collection',       defaultImage: '/collection_images/modern wall clock.jpg' },
+  { id: 'col_2', name: 'Wooden Collection',       defaultImage: '/collection_images/wooden wall clock.avif' },
+  { id: 'col_3', name: 'Metal Collection',        defaultImage: '/collection_images/mettal wall clock.webp' },
+  { id: 'col_4', name: 'Luxury Collection',       defaultImage: '/collection_images/luxury wall clock.jpg' },
+  { id: 'col_5', name: 'Living Room Collection',  defaultImage: '/collection_images/living wall clock.webp' },
+  { id: 'col_6', name: 'Vintage Collection',      defaultImage: '/collection_images/vintage clock.webp' },
+  { id: 'col_7', name: 'Large Wall Clocks',       defaultImage: '/collection_images/large wall clock.jpg' },
+];
+
+const DEFAULT_POSTERS = [
+  { id: 'poster_0', name: 'Wholesale Showcase Banner', defaultImage: '/luxury_clock_showroom.png' },
+];
+
 const Home = () => {
   const navigate = useNavigate();
   const { settings } = useApp();
   const waNumber = (settings?.whatsappNumber || '7358349394').replace(/\D/g, '');
   const waLink = `https://wa.me/${waNumber}?text=${encodeURIComponent('Hello, I am interested in placing a wholesale order for Devi Clocks. Please share the product catalogue and pricing.')}`;
 
-  const collections = [
-    {
-      name: 'Premium Wall Clocks',
-      image: '/collection_images/premium wall clock.jpg'
-    },
-    {
-      name: 'Modern Collection',
-      image: '/collection_images/modern wall clock.jpg'
-    },
-    {
-      name: 'Wooden Collection',
-      image: '/collection_images/wooden wall clock.avif'
-    },
-    {
-      name: 'Metal Collection',
-      image: '/collection_images/mettal wall clock.webp'
-    },
-    {
-      name: 'Luxury Collection',
-      image: '/collection_images/luxury wall clock.jpg'
-    },
-    {
-      name: 'Living Room Collection',
-      image: '/collection_images/living wall clock.webp'
-    },
-    {
-      name: 'Vintage Collection',
-      image: '/collection_images/vintage clock.webp'
-    },
-    {
-      name: 'Large Wall Clocks',
-      image: '/collection_images/large wall clock.jpg'
+  // ── Custom homepage images from IndexedDB (admin-managed) ──────────────────
+  const [collections, setCollections] = useState(DEFAULT_COLLECTIONS);
+  const [collImgMap, setCollImgMap]   = useState({});
+  const [posterList, setPosterList]   = useState(DEFAULT_POSTERS);
+  const [posterImgMap, setPosterImgMap] = useState({});
+
+  const loadHomepageImages = async () => {
+    try {
+      // Collections
+      const storedCols = await getList(LIST_KEYS.COLLECTIONS);
+      const cols = storedCols || DEFAULT_COLLECTIONS;
+      setCollections(cols);
+      const cMap = {};
+      for (const c of cols) {
+        const img = await getImage(collectionImageKey(c.id));
+        if (img) cMap[c.id] = img;
+      }
+      setCollImgMap(cMap);
+
+      // Posters
+      const storedPosters = await getList(LIST_KEYS.POSTERS);
+      const posts = storedPosters || DEFAULT_POSTERS;
+      setPosterList(posts);
+      const pMap = {};
+      for (const p of posts) {
+        const img = await getImage(posterImageKey(p.id));
+        if (img) pMap[p.id] = img;
+      }
+      setPosterImgMap(pMap);
+    } catch (err) {
+      console.warn('[Home] Failed to load custom homepage images:', err);
     }
-  ];
+  };
+
+  useEffect(() => {
+    loadHomepageImages();
+    // Re-load instantly when admin saves changes
+    window.addEventListener('homepageImagesUpdated', loadHomepageImages);
+    return () => window.removeEventListener('homepageImagesUpdated', loadHomepageImages);
+  }, []);
 
   const handleCollectionClick = (categoryName) => {
     navigate('/collection', { state: { selectedCategory: categoryName } });
   };
+
+  // Active poster (first in list, or null if list is empty)
+  const activePoster = posterList[0] || null;
+  const posterSrc = activePoster
+    ? (posterImgMap[activePoster.id] || activePoster.defaultImage || null)
+    : null;
 
   return (
     <div className="home-root">
@@ -321,13 +352,17 @@ const Home = () => {
           <div className="collections-grid-carousel">
             {collections.map((col, idx) => (
               <div 
-                key={idx} 
+                key={col.id || idx} 
                 className="collection-card-item animate-fade-in"
                 onClick={() => handleCollectionClick(col.name)}
                 style={{ animationDelay: `${idx * 0.05}s` }}
               >
                 <div className="collection-card-img-wrapper">
-                  <img src={col.image} alt={col.name} className="collection-card-img" />
+                  <img
+                    src={collImgMap[col.id] || col.defaultImage || col.image || ''}
+                    alt={col.name}
+                    className="collection-card-img"
+                  />
                   <div className="collection-card-overlay"></div>
                 </div>
                 <div className="collection-card-content">
@@ -345,13 +380,15 @@ const Home = () => {
       <section className="wholesale-banner-section">
         <div className="wholesale-card">
           {/* Left Side: Product Showcase Image */}
-          <div className="wholesale-card-image-wrapper">
-            <img 
-              src="/luxury_clock_showroom.png" 
-              alt="Premium Wall Clock Showroom" 
-              className="wholesale-card-image"
-            />
-          </div>
+          {posterSrc && (
+            <div className="wholesale-card-image-wrapper">
+              <img 
+                src={posterSrc}
+                alt={activePoster?.name || 'Premium Wall Clock Showroom'} 
+                className="wholesale-card-image"
+              />
+            </div>
+          )}
 
           {/* Right Side: Content Area */}
           <div className="wholesale-card-content">
