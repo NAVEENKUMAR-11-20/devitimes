@@ -217,11 +217,22 @@ const AdminSettings = () => {
     setTimeout(() => setToastText(''), 1500);
   };
 
+  // Sync WhatsApp number local state when settings change
+  useEffect(() => {
+    if (settings && settings.whatsappNumber) {
+      setWhatsappNumber(settings.whatsappNumber);
+    }
+  }, [settings?.whatsappNumber]);
+
   // Section 1 Save
   const handleSaveWhatsapp = (e) => {
     e.preventDefault();
-    if (!whatsappNumber.trim()) return;
+    if (!whatsappNumber || !whatsappNumber.trim()) {
+      alert('WhatsApp number cannot be empty.');
+      return;
+    }
     updateSettings({ whatsappNumber: whatsappNumber.trim() });
+    alert('WhatsApp number saved successfully.');
     triggerToast('WhatsApp number saved');
   };
 
@@ -240,6 +251,7 @@ const AdminSettings = () => {
       alert('New passwords do not match.');
       return;
     }
+    alert('Admin password updated successfully. Please log in again.');
     updateSettings({ adminPassword: newPassword });
     setCurrentPassword('');
     setNewPassword('');
