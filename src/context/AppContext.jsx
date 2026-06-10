@@ -137,17 +137,18 @@ export const AppProvider = ({ children }) => {
   const [users, setUsers] = useState([]);
   const [pendingRegistrations, setPendingRegistrations] = useState([]);
 
+  const loadUserData = async () => {
+    try {
+      const pbUsers = await fetchAllUsers();
+      setUsers(pbUsers);
+      const pbRegs = await fetchPendingRegistrations();
+      setPendingRegistrations(pbRegs);
+    } catch (err) {
+      console.error('[AppContext] Failed to load user data from PocketBase:', err);
+    }
+  };
+
   useEffect(() => {
-    const loadUserData = async () => {
-      try {
-        const pbUsers = await fetchAllUsers();
-        setUsers(pbUsers);
-        const pbRegs = await fetchPendingRegistrations();
-        setPendingRegistrations(pbRegs);
-      } catch (err) {
-        console.error('[AppContext] Failed to load user data from PocketBase:', err);
-      }
-    };
     loadUserData();
   }, []);
 
@@ -523,6 +524,7 @@ export const AppProvider = ({ children }) => {
       isAdminAuthenticated,
       cart,
       refreshProducts: loadProducts,
+      refreshUsers: loadUserData,
       addProduct,
       updateProduct,
       deleteProduct,

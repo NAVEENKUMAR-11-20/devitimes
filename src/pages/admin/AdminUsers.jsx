@@ -10,6 +10,7 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
     deleteUser, 
     approveRegistration, 
     deleteRegistrationRequest,
+    refreshUsers,
     settings 
   } = useApp();
 
@@ -101,7 +102,7 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
     setShowUserModal(true);
   };
 
-  const handleModalSubmit = (e) => {
+  const handleModalSubmit = async (e) => {
     e.preventDefault();
 
     if (!modalForm.userId.trim() || !modalForm.name.trim() || !modalForm.mobile.trim() || !modalForm.password) {
@@ -130,10 +131,10 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
 
     if (pendingRegIdToApprove) {
       // Approve from self registration request
-      approveRegistration(pendingRegIdToApprove, modalForm.userId.trim(), modalForm.password);
+      await approveRegistration(pendingRegIdToApprove, modalForm.userId.trim(), modalForm.password);
     } else {
       // Manual create
-      createUser({
+      await createUser({
         userId: modalForm.userId.trim(),
         name: modalForm.name.trim(),
         mobile: modalForm.mobile.replace(/[\s-()]/g, ''),
@@ -141,6 +142,8 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
         status: 'active'
       });
     }
+
+    await refreshUsers();
 
     setShowUserModal(false);
     alert('Client account created successfully!');
@@ -285,9 +288,10 @@ Login at: ${settings.websiteUrl}/#/login`;
                             Share via WA 📱
                           </button>
                           <button 
-                            onClick={() => {
+                            onClick={async () => {
                               if (confirm(`Delete account for ${u.name}? This will remove their cart history.`)) {
-                                deleteUser(u.userId);
+                                await deleteUser(u.userId);
+                                await refreshUsers();
                               }
                             }}
                             className="action-icon-btn delete-btn"
@@ -343,9 +347,10 @@ Login at: ${settings.websiteUrl}/#/login`;
                           Create Credentials
                         </button>
                         <button 
-                          onClick={() => {
+                          onClick={async () => {
                             if (confirm(`Delete registration request from ${reg.name}?`)) {
-                              deleteRegistrationRequest(reg.id);
+                              await deleteRegistrationRequest(reg.id);
+                              await refreshUsers();
                             }
                           }}
                           className="btn-secondary"
