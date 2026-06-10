@@ -69,6 +69,7 @@ export const AppProvider = ({ children }) => {
       });
     } catch (err) {
       console.error('[AppContext] Failed to fetch products from PocketBase:', err);
+      throw err;
     }
   };
 
@@ -185,32 +186,30 @@ export const AppProvider = ({ children }) => {
     return false;
   });
 
-  const ensurePbAuth = async () => {
-    if (!pb.authStore.isAdmin) {
-      const email = import.meta.env.VITE_PB_ADMIN_EMAIL || 'admin@devitimes.com';
-      const password = import.meta.env.VITE_PB_ADMIN_PASSWORD || 'admin12345';
-      try {
-        await pb.admins.authWithPassword(email, password);
-      } catch (e) {
-        console.error('[PB] Admin Auth Error:', e);
-      }
-    }
-  };
+  // Removed ensurePbAuth as we are relying on public API rules for guest access
 
   const loadUserData = async () => {
     try {
-      await ensurePbAuth();
       const pbUsers = await fetchAllUsers();
       setUsers(pbUsers);
       const pbRegs = await fetchPendingRegistrations();
       setPendingRegistrations(pbRegs);
     } catch (err) {
       console.error('[AppContext] Failed to load user data from PocketBase:', err);
+      throw err;
     }
   };
 
   useEffect(() => {
-    loadUserData();
+    if (isAdminAuthenticated) {
+      loadUserData().catch(err => {
+        // Will be caught by AdminDashboard if triggered there, but here we just log
+        console.error("Background loadUserData failed:", err);
+      });
+    } else {
+      setUsers([]);
+      setPendingRegistrations([]);
+    }
   }, [isAdminAuthenticated]);
 
   // Cart state, keyed by logged in user id. If no user, empty array
@@ -346,7 +345,6 @@ export const AppProvider = ({ children }) => {
     if (!reg) return null;
 
     try {
-      await ensurePbAuth();
       const newUser = await pbCreateUser({
         userId: customUserId,
         name: reg.name,
@@ -368,7 +366,6 @@ export const AppProvider = ({ children }) => {
 
   const deleteRegistrationRequest = async (regId) => {
     try {
-      await ensurePbAuth();
       await pbDeleteRegistration(regId);
       setPendingRegistrations(prev => prev.filter(r => r.id !== regId));
     } catch (err) {
@@ -379,7 +376,6 @@ export const AppProvider = ({ children }) => {
 
   const createUser = async (user) => {
     try {
-      await ensurePbAuth();
       const newUser = await pbCreateUser(user);
       setUsers(prev => [newUser, ...prev]);
     } catch (err) {
@@ -390,7 +386,6 @@ export const AppProvider = ({ children }) => {
 
   const updateUserStatus = async (userId, status) => {
     try {
-      await ensurePbAuth();
       const user = users.find(u => u.userId === userId);
       if (user && user.pbId) {
         let newName = user.name;
@@ -412,7 +407,6 @@ export const AppProvider = ({ children }) => {
 
   const deleteUser = async (userId) => {
     try {
-      await ensurePbAuth();
       const user = users.find(u => u.userId === userId);
       if (user && user.pbId) {
         await pbDeleteUser(user.pbId);
@@ -427,7 +421,6 @@ export const AppProvider = ({ children }) => {
   // --- User Authentication Actions ---
   const loginUser = async (userId, password) => {
     try {
-      await ensurePbAuth();
       // 1. Search in PocketBase User collection
       const records = await pb.collection('User').getFullList({
         filter: `User_ID = "${userId.trim()}"`
@@ -481,7 +474,6 @@ export const AppProvider = ({ children }) => {
   const checkCurrentUserStatus = async () => {
     if (!currentUser) return true;
     try {
-      await ensurePbAuth();
       const records = await pb.collection('User').getFullList({
         filter: `User_ID = "${currentUser.userId}"`
       });

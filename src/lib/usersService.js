@@ -27,18 +27,16 @@ function mapRegistration(record) {
   };
 }
 
-/** Fetch all users from PocketBase */
 export async function fetchAllUsers() {
   try {
     const records = await pb.collection('User').getFullList({ sort: '-created' });
     return records.map(mapUser);
   } catch (err) {
     console.error('[PB] fetchAllUsers error:', err);
-    return [];
+    throw err;
   }
 }
 
-/** Fetch all pending registrations from PocketBase */
 export async function fetchPendingRegistrations() {
   try {
     const records = await pb.collection('registered_users').getFullList({
@@ -48,7 +46,7 @@ export async function fetchPendingRegistrations() {
     return records.map(mapRegistration);
   } catch (err) {
     console.error('[PB] fetchPendingRegistrations error:', err);
-    return [];
+    throw err;
   }
 }
 

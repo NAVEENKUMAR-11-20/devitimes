@@ -24,7 +24,7 @@ const AdminDashboard = () => {
       ]);
     } catch (err) {
       console.error('[PB] loadData error:', err);
-      setError('Failed to load dashboard data');
+      setError(`Failed to load dashboard data. Ensure PocketBase rules are unlocked. Details: ${err.message}`);
     } finally {
       setLoading(false);
     }

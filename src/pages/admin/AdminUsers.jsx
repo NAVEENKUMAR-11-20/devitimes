@@ -24,7 +24,7 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
 
   // Refresh/refetch users when opening Users page
   React.useEffect(() => {
-    refreshUsers();
+    refreshUsers().catch(err => console.error('[AdminUsers] Failed to refresh users:', err));
   }, [refreshUsers]);
 
   // Reveal password list tracker
