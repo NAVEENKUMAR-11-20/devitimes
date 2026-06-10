@@ -835,7 +835,6 @@ const AdminProducts = () => {
                   Price{renderSortIndicator('salePrice')}
                 </th>
                 <th>Dimensions</th>
-                <th>Pkg No</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -869,7 +868,6 @@ const AdminProducts = () => {
                     </div>
                   </td>
                   <td>{p.size}</td>
-                  <td>{p.packageNo || '-'}</td>
 
                   {/* Status Toggle Switch */}
                   <td>
@@ -973,16 +971,6 @@ const AdminProducts = () => {
                   </select>
                 </div>
 
-                <div className="form-group">
-                  <label className="form-label">STOCK *</label>
-                  <input 
-                    type="text" 
-                    className="form-input"
-                    value={editForm.packageNo || ''}
-                    placeholder="e.g. 52"
-                    onChange={(e) => setEditForm(prev => ({ ...prev, packageNo: e.target.value }))}
-                  />
-                </div>
               </div>
 
               <div className="form-group">

@@ -363,10 +363,9 @@ const AdminPdfImport = () => {
       prev.map(card => {
         if (card.tempId === tempId) {
           const updatedCard = { ...card, [field]: value };
-          // Dynamically compute status: 'Ready' if modelNumber, size, and packageNo are all filled
+           // Dynamically compute status: 'Ready' if modelNumber and size are filled
           const allFilled = String(updatedCard.modelNumber || '').trim() !== '' &&
-                            String(updatedCard.size || '').trim() !== '' &&
-                            String(updatedCard.packageNo || '').trim() !== '';
+                            String(updatedCard.size || '').trim() !== '';
           updatedCard.status = allFilled ? 'Ready' : 'Needs Review';
           return updatedCard;
         }
@@ -393,8 +392,8 @@ const AdminPdfImport = () => {
 
   // ─── Save single card to catalogue (PocketBase) ────────────────────────────
   const handleSaveSingle = async (p) => {
-    if (!p.modelNumber && !p.size && !p.packageNo) {
-      alert('All fields are empty. Please fill in at least one detail before saving.');
+    if (!p.modelNumber && !p.size) {
+      alert('All fields are empty. Please fill in model number or size before saving.');
       return;
     }
 
@@ -446,10 +445,9 @@ const AdminPdfImport = () => {
   const handleConfirmSave = async () => {
     const selected = extractedProducts.filter(p => p.include);
 
-    // Validation: model, size, and packageNo must not all be empty
     for (const p of selected) {
-      if (!p.modelNumber && !p.size && !p.packageNo) {
-        alert(`Page ${p.pageNum}: All fields are empty. Please fill in at least one detail before saving.`);
+      if (!p.modelNumber && !p.size) {
+        alert(`Page ${p.pageNum}: Both fields are empty. Please fill in model number or size before saving.`);
         return;
       }
     }
@@ -1009,18 +1007,7 @@ const AdminPdfImport = () => {
                           </div>
                         </div>
 
-                        {/* PKG No */}
-                        <div className="form-group">
-                          <label className="form-label">PKG NO *</label>
-                          <input
-                            type="text"
-                            className={`form-input ${!p.packageNo ? 'input-error-state' : ''}`}
-                            placeholder="Needs Review"
-                            value={p.packageNo}
-                            onChange={(e) => updateCardField(p.tempId, 'packageNo', e.target.value)}
-                            disabled={!p.include}
-                          />
-                        </div>
+
                       </div>
 
                       {/* Card Level Save Button */}
@@ -1028,7 +1015,7 @@ const AdminPdfImport = () => {
                         <button
                           type="button"
                           className="btn-primary card-save-btn"
-                          disabled={!p.include || (!p.modelNumber && !p.size && !p.packageNo)}
+                          disabled={!p.include || (!p.modelNumber && !p.size)}
                           onClick={() => handleSaveSingle(p)}
                         >
                           SAVE TO CATALOGUE

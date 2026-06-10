@@ -125,7 +125,6 @@ const AdminAddProduct = () => {
     const finalSize = sizeType === 'Custom' ? customSize.trim() : sizeType;
     if (!finalSize) newErrors.size = 'Product size is required.';
     if (!productPrice) newErrors.productPrice = 'Product price is required.';
-    if (!packageNo.trim()) newErrors.packageNo = 'Stock count is required.';
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -393,18 +392,6 @@ const AdminAddProduct = () => {
                 {errors.productPrice && <span className="inline-error-msg font-body">{errors.productPrice}</span>}
               </div>
 
-              {/* Stock count */}
-              <div className="form-group">
-                <label className="form-label">STOCK COUNT *</label>
-                <input 
-                  type="text" 
-                  className={`form-input ${errors.packageNo ? 'input-error-state' : ''}`}
-                  placeholder="e.g. 52"
-                  value={packageNo}
-                  onChange={(e) => setPackageNo(e.target.value)}
-                />
-                {errors.packageNo && <span className="inline-error-msg font-body">{errors.packageNo}</span>}
-              </div>
 
               {/* Live Status Checkbox */}
               <div className="form-checkboxes-row font-body" style={{ marginTop: '16px' }}>
