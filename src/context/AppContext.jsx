@@ -137,8 +137,21 @@ export const AppProvider = ({ children }) => {
   const [users, setUsers] = useState([]);
   const [pendingRegistrations, setPendingRegistrations] = useState([]);
 
+  const ensurePbAuth = async () => {
+    if (!pb.authStore.isAdmin) {
+      const email = import.meta.env.VITE_PB_ADMIN_EMAIL || 'admin@devitimes.com';
+      const password = import.meta.env.VITE_PB_ADMIN_PASSWORD || 'admin12345';
+      try {
+        await pb.admins.authWithPassword(email, password);
+      } catch (e) {
+        console.error('[PB] Admin Auth Error:', e);
+      }
+    }
+  };
+
   const loadUserData = async () => {
     try {
+      await ensurePbAuth();
       const pbUsers = await fetchAllUsers();
       setUsers(pbUsers);
       const pbRegs = await fetchPendingRegistrations();
@@ -333,6 +346,7 @@ export const AppProvider = ({ children }) => {
     if (!reg) return null;
 
     try {
+      await ensurePbAuth();
       const newUser = await pbCreateUser({
         userId: customUserId,
         name: reg.name,
@@ -354,6 +368,7 @@ export const AppProvider = ({ children }) => {
 
   const deleteRegistrationRequest = async (regId) => {
     try {
+      await ensurePbAuth();
       await pbDeleteRegistration(regId);
       setPendingRegistrations(prev => prev.filter(r => r.id !== regId));
     } catch (err) {
@@ -364,6 +379,7 @@ export const AppProvider = ({ children }) => {
 
   const createUser = async (user) => {
     try {
+      await ensurePbAuth();
       const newUser = await pbCreateUser(user);
       setUsers(prev => [newUser, ...prev]);
     } catch (err) {
@@ -372,12 +388,31 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  const updateUserStatus = (userId, status) => {
-    setUsers(prev => prev.map(u => u.userId === userId ? { ...u, status } : u));
+  const updateUserStatus = async (userId, status) => {
+    try {
+      await ensurePbAuth();
+      const user = users.find(u => u.userId === userId);
+      if (user && user.pbId) {
+        let newName = user.name;
+        if (status === 'suspended') {
+          if (!newName.endsWith(' [SUSPENDED]')) {
+            newName = newName + ' [SUSPENDED]';
+          }
+        } else {
+          newName = newName.replace(' [SUSPENDED]', '');
+        }
+        await pb.collection('User').update(user.pbId, { Full_Name: newName });
+      }
+      setUsers(prev => prev.map(u => u.userId === userId ? { ...u, status } : u));
+    } catch (err) {
+      console.error('Failed to update user status:', err);
+      alert('Failed to update user status in PocketBase');
+    }
   };
 
   const deleteUser = async (userId) => {
     try {
+      await ensurePbAuth();
       const user = users.find(u => u.userId === userId);
       if (user && user.pbId) {
         await pbDeleteUser(user.pbId);
@@ -400,9 +435,9 @@ export const AppProvider = ({ children }) => {
       if (records.length > 0) {
         const matchedUser = records[0];
         if (String(matchedUser.password).trim() === String(password).trim()) {
-          const userStatus = matchedUser.status || 'active';
-          if (userStatus !== 'active') {
-            return { success: false, message: "Your account is suspended. Contact admin." };
+          const isSuspended = matchedUser.Full_Name && matchedUser.Full_Name.endsWith(' [SUSPENDED]');
+          if (isSuspended) {
+            return { success: false, message: "Your account is suspended. Please contact admin." };
           }
           
           const sessionObj = {
@@ -441,6 +476,37 @@ export const AppProvider = ({ children }) => {
     setCurrentUser(null);
     setCart([]);
   };
+
+  const checkCurrentUserStatus = async () => {
+    if (!currentUser) return true;
+    try {
+      const records = await pb.collection('User').getFullList({
+        filter: `User_ID = "${currentUser.userId}"`
+      });
+      if (records.length > 0) {
+        const matchedUser = records[0];
+        const isSuspended = matchedUser.Full_Name && matchedUser.Full_Name.endsWith(' [SUSPENDED]');
+        if (isSuspended) {
+          logoutUser();
+          alert('Your account is suspended. Please contact admin.');
+          window.location.hash = '/login';
+          return false;
+        }
+      } else {
+        logoutUser();
+        window.location.hash = '/login';
+        return false;
+      }
+    } catch (err) {
+      console.error('[AppContext] Error checking user status:', err);
+    }
+    return true;
+  };
+
+  // Recheck current user status on app mount / load
+  useEffect(() => {
+    checkCurrentUserStatus();
+  }, []);
 
   // --- Cart Actions ---
   const addToCart = (product, qty = 1) => {
@@ -537,6 +603,7 @@ export const AppProvider = ({ children }) => {
       deleteUser,
       loginUser,
       logoutUser,
+      checkCurrentUserStatus,
       addToCart,
       removeFromCart,
       updateCartQuantity,

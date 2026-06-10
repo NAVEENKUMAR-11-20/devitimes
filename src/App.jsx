@@ -4,6 +4,7 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
 import ErrorBoundary from './components/ErrorBoundary';
+import { useApp } from './context/AppContext';
 
 const ScrollToTopOnNavigation = () => {
   const { pathname } = useLocation();
@@ -11,6 +12,19 @@ const ScrollToTopOnNavigation = () => {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname]);
+
+  return null;
+};
+
+const UserStatusChecker = () => {
+  const { pathname } = useLocation();
+  const { currentUser, checkCurrentUserStatus } = useApp();
+
+  useEffect(() => {
+    if (currentUser) {
+      checkCurrentUserStatus();
+    }
+  }, [pathname, currentUser, checkCurrentUserStatus]);
 
   return null;
 };
@@ -51,6 +65,7 @@ function App() {
     <ErrorBoundary>
       <Router>
         <ScrollToTopOnNavigation />
+        <UserStatusChecker />
         <Routes>
           
           {/* PUBLIC & CLIENT PORTAL ROUTES (WITH NAVBAR/FOOTER) */}

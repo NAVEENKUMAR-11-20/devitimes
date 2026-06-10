@@ -22,6 +22,11 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
     setActiveSubtab(initialTab);
   }, [initialTab]);
 
+  // Refresh/refetch users when opening Users page
+  React.useEffect(() => {
+    refreshUsers();
+  }, [refreshUsers]);
+
   // Reveal password list tracker
   const [revealedPasswords, setRevealedPasswords] = useState({}); // userId -> boolean
 
@@ -46,9 +51,10 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
   };
 
   // Status toggle switch
-  const handleToggleStatus = (userId, currentStatus) => {
+  const handleToggleStatus = async (userId, currentStatus) => {
     const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
-    updateUserStatus(userId, newStatus);
+    await updateUserStatus(userId, newStatus);
+    await refreshUsers();
   };
 
   // Generate 8-character random password helper
@@ -158,7 +164,10 @@ Password: ${user.password}
 Login at: ${settings.websiteUrl}/#/login`;
 
     const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
-    window.open(url, '_blank');
+    const newWindow = window.open(url, '_blank');
+    if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+      window.location.href = url;
+    }
   };
 
   // Filter Active list
@@ -679,12 +688,19 @@ Login at: ${settings.websiteUrl}/#/login`;
           text-transform: uppercase;
         }
 
-        /* Actions layout alignment */
+         /* Actions layout alignment */
         .table-actions-row {
           display: flex;
           gap: 8px;
           align-items: center;
           justify-content: flex-end;
+          white-space: nowrap;
+          flex-wrap: nowrap;
+        }
+
+        .table-actions-row button {
+          touch-action: manipulation;
+          cursor: pointer;
         }
 
         @media (max-width: 768px) {
@@ -719,6 +735,36 @@ Login at: ${settings.websiteUrl}/#/login`;
           .admin-table th, .admin-table td {
             padding: 12px 16px;
           }
+          
+          /* Enforce 44px touch targets on mobile actions column */
+          .table-actions-row {
+            gap: 12px !important;
+          }
+          
+          .table-actions-row button,
+          .table-actions-row .btn-secondary,
+          .table-actions-row .action-icon-btn.delete-btn {
+            height: 44px !important;
+            min-height: 44px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            touch-action: manipulation !important;
+            cursor: pointer !important;
+            box-sizing: border-box !important;
+          }
+          
+          .table-actions-row .btn-secondary {
+            padding: 0 16px !important;
+            font-size: 11px !important;
+          }
+          
+          .table-actions-row .action-icon-btn.delete-btn {
+            width: 44px !important;
+            min-width: 44px !important;
+            font-size: 16px !important;
+          }
+
           .modal-card {
             width: 95vw !important;
             padding: 20px;
