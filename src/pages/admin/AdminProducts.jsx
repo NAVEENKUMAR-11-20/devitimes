@@ -32,6 +32,10 @@ const AdminProducts = () => {
 
   useEffect(() => { loadProducts(); }, []);
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
   // Search & Filter State
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -48,10 +52,6 @@ const AdminProducts = () => {
   // Sorting State
   const [sortField, setSortField] = useState('name');
   const [sortAscending, setSortAscending] = useState(true);
-
-  // Pagination State
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
 
   // Edit Modal State
   const [editingProduct, setEditingProduct] = useState(null);

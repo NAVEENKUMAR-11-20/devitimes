@@ -258,14 +258,34 @@ const Home = () => {
           {/* Left: Text */}
           <div className="hero-left-content">
             <div className="hero-text-blob" aria-hidden="true" />
-            <span className="hero-tag-label uppercase-label">DEVI TIMES COLLECTION</span>
+            
+            <div className="wholesale-badge font-body" style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px',
+              backgroundColor: 'rgba(238,213,155,0.08)',
+              border: '1px solid rgba(238,213,155,0.25)',
+              borderRadius: '20px',
+              color: '#EED59B',
+              fontSize: '11px',
+              fontWeight: '600',
+              letterSpacing: '0.04em',
+              marginBottom: '16px'
+            }}>
+              <span style={{ display: 'inline-block', width: '6px', height: '6px', backgroundColor: '#EED59B', borderRadius: '50%' }}></span>
+              Wholesale Only • Retailers & Dealers Welcome
+            </div>
+
+            <span className="hero-tag-label uppercase-label">WHOLESALE CLOCK DISTRIBUTOR</span>
             <h1 className="hero-heading font-heading">
-              Timeless Elegance <br />
-              <span className="italic-accent">For Every Wall</span>
+              Premium Clocks <br /> for Retail Stores <br />
+              <span className="italic-accent" style={{ display: 'block', marginTop: '12px' }}>
+                Exclusive Wholesale Collection
+              </span>
             </h1>
-            <p className="hero-description font-body">
-              Discover premium clocks crafted with beautiful designs and perfect finishing.
-              Elevate your space with our masterfully crafted timepieces.
+            <p className="hero-description font-body" style={{ maxWidth: '440px' }}>
+              Supplying quality wall clocks to retailers, dealers, distributors, gift shops, and home decor stores. Competitive wholesale pricing, bulk stock availability, and reliable service for your business growth.
             </p>
           </div>
 
@@ -276,10 +296,10 @@ const Home = () => {
             </div>
             <div className="hero-cta-group" style={{ justifyContent: 'center', flexDirection: 'column' }}>
               <Link to="/collection" className="btn-primary hero-cta-btn">
-                EXPLORE COLLECTION &nbsp; →
+                VIEW WHOLESALE COLLECTION &nbsp; →
               </Link>
               <Link to="/register" className="hero-secondary-cta">
-                Register Now
+                REGISTER AS RETAILER
               </Link>
             </div>
           </div>
@@ -435,23 +455,26 @@ const Home = () => {
           flex: 1;
           display: flex;
           flex-direction: column;
-          align-items: flex-start;
+          align-items: center;
+          text-align: center;
           gap: 0;
           position: relative;
           z-index: 1;
+          max-width: 480px;
+          width: 100%;
         }
 
         .hero-text-blob {
           position: absolute;
-          top: -40px;
-          left: -40px;
-          width: 500px;
-          height: 360px;
-          background-color: rgba(255, 255, 255, 0.07);
-          border-radius: 46% 54% 43% 57% / 51% 45% 55% 49%;
+          top: -85px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 600px;
+          height: 600px;
+          background-color: rgba(255, 255, 255, 0.06);
+          border-radius: 50%;
           z-index: -1;
           pointer-events: none;
-          transform: rotate(-3deg);
         }
 
         .hero-tag-label {
@@ -461,11 +484,12 @@ const Home = () => {
         }
 
         .hero-heading {
-          font-size: 58px;
+          font-size: 48px;
           font-weight: 700;
-          line-height: 1.12;
+          line-height: 1.15;
           margin-bottom: 22px;
           color: #ffffff;
+          max-width: 480px;
         }
 
         .italic-accent {
@@ -476,7 +500,7 @@ const Home = () => {
         .hero-description {
           font-size: 16px;
           opacity: 0.82;
-          max-width: 400px;
+          max-width: 440px;
           line-height: 1.65;
           margin-bottom: 36px;
           color: #C8D8EE;
