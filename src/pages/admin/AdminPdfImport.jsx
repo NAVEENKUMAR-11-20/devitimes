@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createProduct } from '../../lib/productsService';
 
@@ -27,6 +27,8 @@ const AdminPdfImport = () => {
   const [step, setStep] = useState(1);
   const [loadingText, setLoadingText] = useState('');
   const [progress, setProgress] = useState(0);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Extracted product cards state
   const [extractedProducts, setExtractedProducts] = useState([]);
@@ -37,16 +39,25 @@ const AdminPdfImport = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [saveProcessing, setSaveProcessing] = useState(false);
 
-  // Cropper modal state
+  // ─── Modern Cropper state ─────────────────────────────────────────────────
   const [showCropModal, setShowCropModal] = useState(false);
   const [cropTargetId, setCropTargetId] = useState(null);
   const [cropImageSrc, setCropImageSrc] = useState('');
-  const [cropZoom, setCropZoom] = useState(70);
-  const [cropX, setCropX] = useState(0);
-  const [cropY, setCropY] = useState(0);
 
-  const originalCanvasRef = useRef(null);
-  const previewCanvasRef = useRef(null);
+  // crop box: x,y = top-left corner in viewport px; size = side length in px
+  const [cropBox, setCropBox]   = useState({ x: 80, y: 80, size: 280 });
+  // image offset from its natural centered position (px)
+  const [imgOffset, setImgOffset] = useState({ x: 0, y: 0 });
+  // zoom multiplier (1 = fit-to-viewport, >1 = zoomed)
+  const [zoomLevel, setZoomLevel] = useState(1);
+
+  // Drag refs (no re-render needed)
+  const cropDragRef    = useRef(null);  // { type, startX, startY, startBox, startOffset }
+  const imgDragRef     = useRef(null);  // { startX, startY, startOffset }
+  const cropViewRef    = useRef(null);  // the DOM viewport div
+  const cropImgRef     = useRef(null);  // the rendered <img> inside the viewport
+  const hiddenCanvasRef = useRef(null); // off-screen canvas for final crop output
+  const previewCanvasRef = useRef(null);// live preview canvas
 
   const fileInputRef = useRef(null);
 
@@ -263,6 +274,7 @@ const AdminPdfImport = () => {
       return;
     }
 
+    setSelectedFile(file);
     setStep(1);
     setLoadingText('Initializing PDF.js library...');
     setProgress(10);
@@ -324,7 +336,6 @@ const AdminPdfImport = () => {
             color: '',
             salePrice: 0,
             originalPrice: null,
-            stockCount: 20,
             description: `Extracted from catalog page ${pageNum}.`,
             include: true,
           });
@@ -336,6 +347,7 @@ const AdminPdfImport = () => {
         console.error('PDF Parsing failed:', err);
         alert('Could not parse PDF catalogue: ' + err.message);
         setStep(1);
+        setSelectedFile(null);
       } finally {
         setProgress(0);
         setLoadingText('');
@@ -351,10 +363,9 @@ const AdminPdfImport = () => {
       prev.map(card => {
         if (card.tempId === tempId) {
           const updatedCard = { ...card, [field]: value };
-          // Dynamically compute status: 'Ready' if modelNumber, size, and packageNo are all filled
+           // Dynamically compute status: 'Ready' if modelNumber and size are filled
           const allFilled = String(updatedCard.modelNumber || '').trim() !== '' &&
-                            String(updatedCard.size || '').trim() !== '' &&
-                            String(updatedCard.packageNo || '').trim() !== '';
+                            String(updatedCard.size || '').trim() !== '';
           updatedCard.status = allFilled ? 'Ready' : 'Needs Review';
           return updatedCard;
         }
@@ -381,8 +392,8 @@ const AdminPdfImport = () => {
 
   // ─── Save single card to catalogue (PocketBase) ────────────────────────────
   const handleSaveSingle = async (p) => {
-    if (!p.modelNumber && !p.size && !p.packageNo) {
-      alert('All fields are empty. Please fill in at least one detail before saving.');
+    if (!p.modelNumber && !p.size) {
+      alert('All fields are empty. Please fill in model number or size before saving.');
       return;
     }
 
@@ -398,7 +409,6 @@ const AdminPdfImport = () => {
         SIZE_DIMENSIONS: p.size || '',
         package_no:      p.packageNo || '',
         price:           Number(p.salePrice) || 0,
-        stock:           Number(p.stockCount) || 0,
         status:          'LIVE',
         is_live:         true,
         category:        p.category || 'Clock',
@@ -435,10 +445,9 @@ const AdminPdfImport = () => {
   const handleConfirmSave = async () => {
     const selected = extractedProducts.filter(p => p.include);
 
-    // Validation: model, size, and packageNo must not all be empty
     for (const p of selected) {
-      if (!p.modelNumber && !p.size && !p.packageNo) {
-        alert(`Page ${p.pageNum}: All fields are empty. Please fill in at least one detail before saving.`);
+      if (!p.modelNumber && !p.size) {
+        alert(`Page ${p.pageNum}: Both fields are empty. Please fill in model number or size before saving.`);
         return;
       }
     }
@@ -461,7 +470,6 @@ const AdminPdfImport = () => {
           SIZE_DIMENSIONS: p.size || '',
           package_no:      p.packageNo || '',
           price:           Number(p.salePrice) || 0,
-          stock:           Number(p.stockCount) || 0,
           status:          'LIVE',
           is_live:         true,
           category:        p.category || 'Clock',
@@ -480,156 +488,266 @@ const AdminPdfImport = () => {
     setStep(3);
   };
 
-  // ─── Image Cropping Handlers & Canvas Render Engine ────────────────────────
+  // ─── Modern Cropper — open / close ──────────────────────────────────────────
   const handleOpenCropper = (product) => {
     setCropTargetId(product.tempId);
     setCropImageSrc(product.images[0]);
-    setCropZoom(70);
-    setCropX(0);
-    setCropY(0);
+    setZoomLevel(1);
+    setImgOffset({ x: 0, y: 0 });
+    // crop box centered, fills 80% of 460px viewport
+    const vpSize = 460;
+    const boxSize = Math.round(vpSize * 0.72);
+    const origin  = Math.round((vpSize - boxSize) / 2);
+    setCropBox({ x: origin, y: origin, size: boxSize });
     setShowCropModal(true);
   };
 
-  const handleSaveCrop = () => {
-    const prevCanvas = previewCanvasRef.current;
-    if (!prevCanvas) return;
-
-    // Convert canvas content to base64 image/png
-    const croppedBase64 = prevCanvas.toDataURL('image/png', 1.0);
-
-    // Update the image preview of the target product card
-    setExtractedProducts(prev =>
-      prev.map(p => p.tempId === cropTargetId ? { ...p, images: [croppedBase64] } : p)
-    );
-
-    // Close modal and reset state
+  const handleCloseCropper = useCallback(() => {
     setShowCropModal(false);
     setCropTargetId(null);
     setCropImageSrc('');
-  };
+  }, []);
 
-  // Disable body scroll when modal is open
-  React.useEffect(() => {
-    if (showCropModal) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'auto';
-    }
-    return () => {
-      document.body.style.overflow = 'auto';
+  // Build the final crop and save it
+  const handleSaveCrop = useCallback(() => {
+    const vpEl  = cropViewRef.current;
+    const imgEl = cropImgRef.current;
+    if (!vpEl || !imgEl) return;
+
+    const vpRect  = vpEl.getBoundingClientRect();
+    const imgRect = imgEl.getBoundingClientRect();
+
+    // Natural image dimensions
+    const natW = imgEl.naturalWidth;
+    const natH = imgEl.naturalHeight;
+
+    // Scale from rendered px → natural px
+    const scaleX = natW / imgRect.width;
+    const scaleY = natH / imgRect.height;
+
+    // Crop box in page coords
+    const cropPageX = vpRect.left + cropBox.x;
+    const cropPageY = vpRect.top  + cropBox.y;
+
+    // Relative to image element's top-left
+    const relX = cropPageX - imgRect.left;
+    const relY = cropPageY - imgRect.top;
+
+    const srcX = Math.max(0, relX * scaleX);
+    const srcY = Math.max(0, relY * scaleY);
+    const srcW = Math.min(cropBox.size * scaleX, natW - srcX);
+    const srcH = Math.min(cropBox.size * scaleY, natH - srcY);
+
+    const outputSize = 600;
+    const canvas = hiddenCanvasRef.current || document.createElement('canvas');
+    canvas.width  = outputSize;
+    canvas.height = outputSize;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, outputSize, outputSize);
+
+    const nativeImg = new window.Image();
+    nativeImg.src = cropImageSrc;
+    nativeImg.onload = () => {
+      ctx.drawImage(nativeImg, srcX, srcY, srcW, srcH, 0, 0, outputSize, outputSize);
+      const croppedBase64 = canvas.toDataURL('image/png', 1.0);
+      setExtractedProducts(prev =>
+        prev.map(p => p.tempId === cropTargetId ? { ...p, images: [croppedBase64] } : p)
+      );
+      handleCloseCropper();
     };
+  }, [cropBox, cropImageSrc, cropTargetId, handleCloseCropper]);
+
+  // Lock body scroll while modal open
+  useEffect(() => {
+    document.body.style.overflow = showCropModal ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
   }, [showCropModal]);
 
-  React.useEffect(() => {
+  // Live preview canvas — redraws whenever crop box or image position changes
+  useEffect(() => {
     if (!showCropModal || !cropImageSrc) return;
+    const vpEl  = cropViewRef.current;
+    const imgEl = cropImgRef.current;
+    const prevCanvas = previewCanvasRef.current;
+    if (!vpEl || !imgEl || !prevCanvas) return;
 
-    const img = new Image();
-    img.src = cropImageSrc;
-    img.onload = () => {
-      const origCanvas = originalCanvasRef.current;
-      const prevCanvas = previewCanvasRef.current;
-      if (!origCanvas || !prevCanvas) return;
+    const draw = () => {
+      const vpRect  = vpEl.getBoundingClientRect();
+      const imgRect = imgEl.getBoundingClientRect();
+      const natW = imgEl.naturalWidth || 1;
+      const natH = imgEl.naturalHeight || 1;
+      const scaleX = natW / imgRect.width;
+      const scaleY = natH / imgRect.height;
+      const cropPageX = vpRect.left + cropBox.x;
+      const cropPageY = vpRect.top  + cropBox.y;
+      const relX = cropPageX - imgRect.left;
+      const relY = cropPageY - imgRect.top;
+      const srcX = Math.max(0, relX * scaleX);
+      const srcY = Math.max(0, relY * scaleY);
+      const srcW = Math.min(cropBox.size * scaleX, natW - srcX);
+      const srcH = Math.min(cropBox.size * scaleY, natH - srcY);
+      const pw = prevCanvas.width;
+      const ph = prevCanvas.height;
+      const ctx = prevCanvas.getContext('2d');
+      ctx.fillStyle = '#f1f5f9';
+      ctx.fillRect(0, 0, pw, ph);
+      const nativeImg = new window.Image();
+      nativeImg.src = cropImageSrc;
+      nativeImg.onload = () => {
+        ctx.drawImage(nativeImg, srcX, srcY, srcW, srcH, 0, 0, pw, ph);
+      };
+      if (imgEl.complete) {
+        ctx.drawImage(imgEl, srcX, srcY, srcW, srcH, 0, 0, pw, ph);
+      }
+    };
+    // small delay so DOM layout is settled
+    const t = setTimeout(draw, 30);
+    return () => clearTimeout(t);
+  }, [showCropModal, cropImageSrc, cropBox, imgOffset, zoomLevel]);
 
-      const origCtx = origCanvas.getContext('2d');
-      const prevCtx = prevCanvas.getContext('2d');
-      if (!origCtx || !prevCtx) return;
+  // ─── Drag: move the image (pan) ─────────────────────────────────────────────
+  const handleImgMouseDown = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    imgDragRef.current = { startX: clientX, startY: clientY, startOffset: { ...imgOffset } };
 
-      const cw = origCanvas.width;
-      const ch = origCanvas.height;
+    const onMove = (me) => {
+      const cx = me.touches ? me.touches[0].clientX : me.clientX;
+      const cy = me.touches ? me.touches[0].clientY : me.clientY;
+      const dx = cx - imgDragRef.current.startX;
+      const dy = cy - imgDragRef.current.startY;
+      setImgOffset({
+        x: imgDragRef.current.startOffset.x + dx,
+        y: imgDragRef.current.startOffset.y + dy,
+      });
+    };
+    const onUp = () => {
+      imgDragRef.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend', onUp);
+  }, [imgOffset]);
 
-      // 1. Clear original canvas
-      origCtx.clearRect(0, 0, cw, ch);
+  // ─── Drag: move the crop box ────────────────────────────────────────────────
+  const handleCropBoxMouseDown = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    cropDragRef.current = { type: 'move', startX: clientX, startY: clientY, startBox: { ...cropBox } };
 
-      // 2. Draw image scaled and centered to fit cw, ch keeping aspect ratio
-      const imgRatio = img.width / img.height;
-      let drawW = cw;
-      let drawH = ch;
-      let startX = 0;
-      let startY = 0;
+    const vpSize = 460;
+    const onMove = (me) => {
+      const cx = me.touches ? me.touches[0].clientX : me.clientX;
+      const cy = me.touches ? me.touches[0].clientY : me.clientY;
+      const dx = cx - cropDragRef.current.startX;
+      const dy = cy - cropDragRef.current.startY;
+      const { startBox } = cropDragRef.current;
+      setCropBox(prev => ({
+        ...prev,
+        x: Math.max(0, Math.min(vpSize - startBox.size, startBox.x + dx)),
+        y: Math.max(0, Math.min(vpSize - startBox.size, startBox.y + dy)),
+      }));
+    };
+    const onUp = () => {
+      cropDragRef.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend', onUp);
+  }, [cropBox]);
 
-      if (imgRatio > 1) {
-        drawH = cw / imgRatio;
-        startY = (ch - drawH) / 2;
-      } else {
-        drawW = ch * imgRatio;
-        startX = (cw - drawW) / 2;
+  // ─── Drag: resize crop box via corner/edge handles ───────────────────────────
+  const handleHandleMouseDown = useCallback((e, handle) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    cropDragRef.current = { type: 'resize', handle, startX: clientX, startY: clientY, startBox: { ...cropBox } };
+
+    const MIN_SIZE = 80;
+    const vpSize = 460;
+    const onMove = (me) => {
+      const cx = me.touches ? me.touches[0].clientX : me.clientX;
+      const cy = me.touches ? me.touches[0].clientY : me.clientY;
+      const dx = cx - cropDragRef.current.startX;
+      const dy = cy - cropDragRef.current.startY;
+      const { startBox, handle: h } = cropDragRef.current;
+      let { x, y, size } = startBox;
+
+      // Maintain square: use the dominant delta
+      const delta = Math.abs(dx) > Math.abs(dy) ? Math.abs(dx) : Math.abs(dy);
+      const sign  = (dx + dy) >= 0 ? 1 : -1;
+
+      if (h === 'se') {
+        size = Math.max(MIN_SIZE, startBox.size + delta * sign);
+      } else if (h === 'sw') {
+        const newSize = Math.max(MIN_SIZE, startBox.size + delta * (dx < 0 ? 1 : -1));
+        x = startBox.x + (startBox.size - newSize);
+        size = newSize;
+      } else if (h === 'ne') {
+        const newSize = Math.max(MIN_SIZE, startBox.size + delta * (dy < 0 ? 1 : -1));
+        y = startBox.y + (startBox.size - newSize);
+        size = newSize;
+      } else if (h === 'nw') {
+        const newSize = Math.max(MIN_SIZE, startBox.size + delta * sign * -1);
+        x = startBox.x + (startBox.size - newSize);
+        y = startBox.y + (startBox.size - newSize);
+        size = newSize;
+      } else if (h === 'n') {
+        const newSize = Math.max(MIN_SIZE, startBox.size - dy);
+        y = startBox.y + (startBox.size - newSize);
+        size = newSize;
+      } else if (h === 's') {
+        size = Math.max(MIN_SIZE, startBox.size + dy);
+      } else if (h === 'e') {
+        size = Math.max(MIN_SIZE, startBox.size + dx);
+      } else if (h === 'w') {
+        const newSize = Math.max(MIN_SIZE, startBox.size - dx);
+        x = startBox.x + (startBox.size - newSize);
+        size = newSize;
       }
 
-      // Draw original image on original canvas
-      origCtx.drawImage(img, startX, startY, drawW, drawH);
+      // Clamp within viewport
+      x = Math.max(0, Math.min(vpSize - size, x));
+      y = Math.max(0, Math.min(vpSize - size, y));
+      size = Math.min(size, vpSize - x, vpSize - y);
 
-      // Calculate crop box size based on zoom slider (20 to 100)
-      const minDrawSize = Math.min(drawW, drawH);
-      const boxSize = minDrawSize * (cropZoom / 100);
-
-      // Calculate center of crop box with panning offsets (-100 to 100)
-      const maxOffsetX = (drawW - boxSize) / 2;
-      const maxOffsetY = (drawH - boxSize) / 2;
-      const offsetX = (cropX / 100) * maxOffsetX;
-      const offsetY = (cropY / 100) * maxOffsetY;
-
-      const centerX = startX + drawW / 2 + offsetX;
-      const centerY = startY + drawH / 2 + offsetY;
-
-      // Calculate crop box left & top
-      const cropLeft = centerX - boxSize / 2;
-      const cropTop = centerY - boxSize / 2;
-
-      // 3. Draw semi-transparent dark mask overlay
-      origCtx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-      origCtx.fillRect(0, 0, cw, ch);
-
-      // 4. Cut out the transparent square region (composite operation)
-      origCtx.globalCompositeOperation = 'destination-out';
-      origCtx.fillStyle = '#FFFFFF';
-      origCtx.fillRect(cropLeft, cropTop, boxSize, boxSize);
-      origCtx.globalCompositeOperation = 'source-over';
-
-      // 5. Draw clean white frame with target indicator
-      origCtx.strokeStyle = '#3B82F6'; // premium blue outline
-      origCtx.lineWidth = 2;
-      origCtx.strokeRect(cropLeft, cropTop, boxSize, boxSize);
-
-      // Draw corner crop marks
-      origCtx.fillStyle = '#3B82F6';
-      const markSize = 8;
-      // top-left
-      origCtx.fillRect(cropLeft - 2, cropTop - 2, markSize, 2);
-      origCtx.fillRect(cropLeft - 2, cropTop - 2, 2, markSize);
-      // top-right
-      origCtx.fillRect(cropLeft + boxSize - markSize + 2, cropTop - 2, markSize, 2);
-      origCtx.fillRect(cropLeft + boxSize, cropTop - 2, 2, markSize);
-      // bottom-left
-      origCtx.fillRect(cropLeft - 2, cropTop + boxSize, markSize, 2);
-      origCtx.fillRect(cropLeft - 2, cropTop + boxSize - markSize + 2, 2, markSize);
-      // bottom-right
-      origCtx.fillRect(cropLeft + boxSize - markSize + 2, cropTop + boxSize, markSize, 2);
-      origCtx.fillRect(cropLeft + boxSize, cropTop + boxSize - markSize + 2, 2, markSize);
-
-      // 6. Generate cropped preview
-      // Scale coordinates back to original image pixels
-      const scaleX = img.width / drawW;
-      const scaleY = img.height / drawH;
-
-      // crop coordinates relative to the drawn image bounds startX/startY
-      const relativeCropLeft = cropLeft - startX;
-      const relativeCropTop = cropTop - startY;
-
-      const imgCropX = relativeCropLeft * scaleX;
-      const imgCropY = relativeCropTop * scaleY;
-      const imgCropW = boxSize * scaleX;
-      const imgCropH = boxSize * scaleY;
-
-      // Clear and draw on preview canvas at 480x480 resolution
-      prevCtx.fillStyle = '#FFFFFF';
-      prevCtx.fillRect(0, 0, prevCanvas.width, prevCanvas.height);
-      prevCtx.drawImage(
-        img,
-        imgCropX, imgCropY, imgCropW, imgCropH,
-        0, 0, prevCanvas.width, prevCanvas.height
-      );
+      setCropBox({ x, y, size });
     };
-  }, [showCropModal, cropImageSrc, cropZoom, cropX, cropY]);
+    const onUp = () => {
+      cropDragRef.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend', onUp);
+  }, [cropBox]);
+
+  // ─── Mouse wheel zoom ────────────────────────────────────────────────────────
+  const handleWheelZoom = useCallback((e) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.08 : 0.08;
+    setZoomLevel(z => Math.max(0.5, Math.min(4, z + delta)));
+  }, []);
 
   const selectedCount = extractedProducts.filter(p => p.include).length;
 
@@ -639,48 +757,159 @@ const AdminPdfImport = () => {
       {/* ── STEP 1: Upload ─────────────────────────────────────────────── */}
       {step === 1 && (
         <div className="pdf-upload-view animate-fade-in">
-          <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-            <h1 className="dashboard-heading font-heading">Import Catalog via PDF</h1>
-            <p className="stats-indicator font-body">
-              Upload your clock catalog PDF. The system will automatically extract
-              <strong> Model No</strong>, <strong>Size</strong>, and <strong>PKG No</strong> from each page.
+          
+          {/* Hero Section */}
+          <div className="pdf-hero-section">
+            <h1 className="pdf-hero-title font-heading">Import Catalog via PDF</h1>
+            <p className="pdf-hero-desc font-body">
+              Upload a catalog PDF and automatically extract product information from every page.
             </p>
+            <div className="pdf-feature-badges">
+              <span className="badge-item">✓ Model Number Extraction</span>
+              <span className="badge-item">✓ Size Detection</span>
+              <span className="badge-item">✓ PKG Number Detection</span>
+              <span className="badge-item">✓ Product Image Capture</span>
+            </div>
           </div>
 
-          <div className="form-card-panel pdf-card-centered">
-            {loadingText ? (
-              <div className="loading-spinner-state">
-                <div className="pdf-spinner"></div>
-                <div className="spinner-progress-bar" style={{ width: '100%' }}>
-                  <div className="progress-fill" style={{ width: `${progress}%` }}></div>
+          <div className="pdf-container-split">
+            
+            {/* Left: Info Card */}
+            <div className="pdf-info-card">
+              <div className="pdf-info-header">
+                <span className="pdf-card-icon">📄</span>
+                <h3 className="pdf-info-title font-heading">Upload Catalogue PDF</h3>
+              </div>
+              <p className="pdf-info-desc font-body">
+                Upload your catalog PDF file. The system will scan each page and automatically extract product information.
+              </p>
+              <div className="pdf-features-list">
+                <h4 className="font-heading">Features List:</h4>
+                <ul>
+                  <li>• Model Number</li>
+                  <li>• Size</li>
+                  <li>• PKG Number</li>
+                  <li>• Product Image</li>
+                </ul>
+              </div>
+              <div className="pdf-max-size-footer">
+                <span className="label">Max File Size:</span>
+                <span className="val">50 MB</span>
+              </div>
+            </div>
+
+            {/* Right: Upload Area & Progress Card */}
+            <div className="pdf-upload-card">
+              <input
+                type="file"
+                accept=".pdf"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                onChange={handleFileChange}
+              />
+
+              {!selectedFile ? (
+                /* Drag and Drop Zone */
+                <div 
+                  className={`pdf-drag-drop-zone ${isDragging ? 'drag-active' : ''}`}
+                  onClick={handleSelectFile}
+                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                    const file = e.dataTransfer.files[0];
+                    if (file) {
+                      const event = { target: { files: [file] } };
+                      handleFileChange(event);
+                    }
+                  }}
+                >
+                  <div className="pdf-upload-icon-wrapper">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="17 8 12 3 7 8"></polyline>
+                      <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                  </div>
+                  <h3 className="drag-title font-heading">Drag & Drop PDF Here</h3>
+                  <p className="drag-subtitle font-body">or click to browse files</p>
+                  
+                  <div className="supported-badges">
+                    <span className="badge pdf-badge">PDF</span>
+                    <span className="badge size-badge">50MB MAX</span>
+                  </div>
                 </div>
-                <h3 className="loading-title font-heading">{loadingText}</h3>
-                <p className="font-body" style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
-                  Do not close this tab while processing.
-                </p>
-              </div>
-            ) : (
-              <div className="upload-active-state">
-                <input
-                  type="file"
-                  accept=".pdf"
-                  ref={fileInputRef}
-                  style={{ display: 'none' }}
-                  onChange={handleFileChange}
-                />
-                <div className="pdf-big-icon">📄</div>
-                <h3 className="pdf-upload-heading font-heading">Upload Catalogue PDF</h3>
-                <p className="pdf-upload-desc font-body">
-                  Each page will be scanned for Model No, Size, and PKG No. 
-                  The clock image will be captured from the same page.
-                </p>
-                <button onClick={handleSelectFile} className="btn-primary select-pdf-btn">
-                  SELECT PDF FILE
-                </button>
-                <span className="pdf-size-helper font-body">Max file size: 50MB</span>
-              </div>
-            )}
+              ) : (
+                /* Selected File Preview & Processing Status */
+                <div className="pdf-progress-preview-card">
+                  {/* File Info Block */}
+                  <div className="preview-file-info">
+                    <div className="file-icon">📄</div>
+                    <div className="file-details">
+                      <h4 className="file-name font-heading">{selectedFile.name}</h4>
+                      <p className="file-size font-body">
+                        {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB &nbsp;|&nbsp; 
+                        <span className="status-highlight">
+                          {progress === 100 ? "Complete" : `Processing (${progress}%)`}
+                        </span>
+                      </p>
+                    </div>
+                    {/* Remove File Option */}
+                    <button 
+                      type="button" 
+                      className="remove-file-btn" 
+                      onClick={() => {
+                        setSelectedFile(null);
+                        setStep(1);
+                        setLoadingText('');
+                        setProgress(0);
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                      }}
+                      title="Remove File"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Processing Section */}
+                  {loadingText && (
+                    <div className="processing-status-wrapper">
+                      <div className="animated-progress-bar">
+                        <div className="progress-fill" style={{ width: `${progress}%` }}></div>
+                      </div>
+                      
+                      <div className="status-milestones font-body">
+                        <div className="milestone-item">
+                          <span className="bullet active">•</span>
+                          <span className={progress >= 10 ? "active" : ""}>Scanning PDF...</span>
+                        </div>
+                        <div className="milestone-item">
+                          <span className={`bullet ${progress >= 25 ? 'active' : ''}`}>•</span>
+                          <span className={progress >= 25 ? "active" : ""}>Extracting Model Numbers...</span>
+                        </div>
+                        <div className="milestone-item">
+                          <span className={`bullet ${progress >= 40 ? 'active' : ''}`}>•</span>
+                          <span className={progress >= 40 ? "active" : ""}>Extracting Product Images...</span>
+                        </div>
+                        <div className="milestone-item">
+                          <span className={`bullet ${progress >= 90 ? 'active' : ''}`}>•</span>
+                          <span className={progress >= 90 ? "active" : ""}>Preparing Products...</span>
+                        </div>
+                      </div>
+
+                      <div className="current-extraction-status">
+                        <div className="extraction-spinner"></div>
+                        <span className="status-text font-body">{loadingText}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
           </div>
+
         </div>
       )}
 
@@ -696,7 +925,7 @@ const AdminPdfImport = () => {
               </p>
             </div>
             <button
-              onClick={() => { setStep(1); setExtractedProducts([]); }}
+              onClick={() => { setStep(1); setExtractedProducts([]); setSelectedFile(null); }}
               className="btn-secondary"
               style={{ height: '40px', padding: '0 16px', fontSize: '11px' }}
             >
@@ -778,31 +1007,7 @@ const AdminPdfImport = () => {
                           </div>
                         </div>
 
-                        {/* PKG No */}
-                        <div className="form-group">
-                          <label className="form-label">PKG NO *</label>
-                          <input
-                            type="text"
-                            className={`form-input ${!p.packageNo ? 'input-error-state' : ''}`}
-                            placeholder="Needs Review"
-                            value={p.packageNo}
-                            onChange={(e) => updateCardField(p.tempId, 'packageNo', e.target.value)}
-                            disabled={!p.include}
-                          />
-                        </div>
 
-                        {/* Stock / Available Products */}
-                        <div className="form-group">
-                          <label className="form-label">STOCK / AVAILABLE PRODUCTS *</label>
-                          <input
-                            type="number"
-                            className={`form-input ${!p.stockCount ? 'input-error-state' : ''}`}
-                            placeholder="e.g. 20"
-                            value={p.stockCount}
-                            onChange={(e) => updateCardField(p.tempId, 'stockCount', Number(e.target.value))}
-                            disabled={!p.include}
-                          />
-                        </div>
                       </div>
 
                       {/* Card Level Save Button */}
@@ -810,7 +1015,7 @@ const AdminPdfImport = () => {
                         <button
                           type="button"
                           className="btn-primary card-save-btn"
-                          disabled={!p.include || (!p.modelNumber && !p.size && !p.packageNo)}
+                          disabled={!p.include || (!p.modelNumber && !p.size)}
                           onClick={() => handleSaveSingle(p)}
                         >
                           SAVE TO CATALOGUE
@@ -881,7 +1086,7 @@ const AdminPdfImport = () => {
               View Products
             </Link>
             <button
-              onClick={() => { setStep(1); setExtractedProducts([]); setSavedCount(0); setFailedCount(0); }}
+              onClick={() => { setStep(1); setExtractedProducts([]); setSavedCount(0); setFailedCount(0); setSelectedFile(null); }}
               className="btn-secondary success-btn"
             >
               Upload Another PDF
@@ -922,108 +1127,168 @@ const AdminPdfImport = () => {
         </div>
       )}
 
-      {/* ── Crop Modal ────────────────────────────────────────────────── */}
+      {/* ── Modern Crop Modal ─────────────────────────────────────────────── */}
       {showCropModal && (
-        <div className="modal-overlay">
-          <div className="modal-card animate-fade-in" style={{ maxWidth: '800px', width: '90%' }}>
-            <button 
-              className="modal-close-btn" 
-              onClick={() => {
-                setShowCropModal(false);
-                setCropTargetId(null);
-                setCropImageSrc('');
-              }}
-              aria-label="Close"
-            >
-              ✕
-            </button>
-            <h3 className="modal-title font-heading">Crop Product Image</h3>
-            <p className="modal-desc font-body" style={{ marginBottom: '16px' }}>
-              Adjust the crop area using the zoom and pan sliders below to frame the clock perfectly.
-            </p>
+        <div className="crop-modal-overlay" onClick={handleCloseCropper}>
+          <div className="crop-modal-dialog animate-fade-in" onClick={e => e.stopPropagation()}>
 
-            <div className="cropper-workspace">
-              {/* Left Column: Original Canvas */}
-              <div className="cropper-panel">
-                <span className="cropper-label font-body">ORIGINAL IMAGE & CROP AREA</span>
-                <div className="canvas-container">
-                  <canvas
-                    ref={originalCanvasRef}
-                    width={360}
-                    height={360}
-                    className="cropper-canvas"
+            {/* Header */}
+            <div className="crop-modal-header">
+              <div>
+                <h3 className="crop-modal-title font-heading">✂ Crop Product Image</h3>
+                <p className="crop-modal-hint font-body">Drag image to pan · Drag corners to resize · Scroll to zoom</p>
+              </div>
+              <button className="crop-close-btn" onClick={handleCloseCropper} aria-label="Close">✕</button>
+            </div>
+
+            {/* Main body: viewport + preview side by side */}
+            <div className="crop-modal-body">
+
+              {/* Left: Interactive crop viewport */}
+              <div className="crop-viewport-wrap">
+                <div
+                  className="crop-viewport"
+                  ref={cropViewRef}
+                  onWheel={handleWheelZoom}
+                  style={{ position: 'relative', width: 460, height: 460, overflow: 'hidden', background: '#1a1a2e', borderRadius: 8, cursor: 'crosshair', userSelect: 'none', flexShrink: 0 }}
+                >
+                  {/* The image — draggable to pan */}
+                  {cropImageSrc && (
+                    <img
+                      ref={cropImgRef}
+                      src={cropImageSrc}
+                      alt="crop source"
+                      draggable={false}
+                      onMouseDown={handleImgMouseDown}
+                      onTouchStart={handleImgMouseDown}
+                      style={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        transform: `translate(calc(-50% + ${imgOffset.x}px), calc(-50% + ${imgOffset.y}px)) scale(${zoomLevel})`,
+                        transformOrigin: 'center center',
+                        maxWidth: 'none',
+                        maxHeight: 'none',
+                        width: 'auto',
+                        height: '100%',
+                        objectFit: 'contain',
+                        cursor: 'grab',
+                        transition: 'none',
+                        pointerEvents: 'auto',
+                        display: 'block',
+                      }}
+                    />
+                  )}
+
+                  {/* Dark overlay: 4 rectangles surrounding the crop box */}
+                  {/* Top */}
+                  <div style={{ position:'absolute', top:0, left:0, width:'100%', height: cropBox.y, background:'rgba(0,0,0,0.55)', pointerEvents:'none' }} />
+                  {/* Bottom */}
+                  <div style={{ position:'absolute', top: cropBox.y + cropBox.size, left:0, width:'100%', height: 460 - cropBox.y - cropBox.size, background:'rgba(0,0,0,0.55)', pointerEvents:'none' }} />
+                  {/* Left */}
+                  <div style={{ position:'absolute', top: cropBox.y, left:0, width: cropBox.x, height: cropBox.size, background:'rgba(0,0,0,0.55)', pointerEvents:'none' }} />
+                  {/* Right */}
+                  <div style={{ position:'absolute', top: cropBox.y, left: cropBox.x + cropBox.size, width: 460 - cropBox.x - cropBox.size, height: cropBox.size, background:'rgba(0,0,0,0.55)', pointerEvents:'none' }} />
+
+                  {/* Crop box */}
+                  <div
+                    className="crop-box"
+                    onMouseDown={handleCropBoxMouseDown}
+                    onTouchStart={handleCropBoxMouseDown}
+                    style={{
+                      position: 'absolute',
+                      left: cropBox.x,
+                      top:  cropBox.y,
+                      width: cropBox.size,
+                      height: cropBox.size,
+                      border: '2px solid #fff',
+                      boxSizing: 'border-box',
+                      cursor: 'move',
+                      boxShadow: '0 0 0 1px rgba(0,0,0,0.4)',
+                    }}
+                  >
+                    {/* Rule-of-thirds grid lines */}
+                    <div style={{ position:'absolute', inset:0, pointerEvents:'none' }}>
+                      <div style={{ position:'absolute', left:'33.33%', top:0, bottom:0, width:1, background:'rgba(255,255,255,0.3)' }} />
+                      <div style={{ position:'absolute', left:'66.66%', top:0, bottom:0, width:1, background:'rgba(255,255,255,0.3)' }} />
+                      <div style={{ position:'absolute', top:'33.33%', left:0, right:0, height:1, background:'rgba(255,255,255,0.3)' }} />
+                      <div style={{ position:'absolute', top:'66.66%', left:0, right:0, height:1, background:'rgba(255,255,255,0.3)' }} />
+                    </div>
+
+                    {/* Corner handles */}
+                    {[['nw','0','0','nwse-resize'],['ne','0','auto','nesw-resize'],['sw','auto','0','nesw-resize'],['se','auto','auto','nwse-resize']].map(([h, t, l, cur]) => (
+                      <div key={h}
+                        onMouseDown={e => handleHandleMouseDown(e, h)}
+                        onTouchStart={e => handleHandleMouseDown(e, h)}
+                        style={{ position:'absolute', top: t === 'auto' ? 'auto' : -6, bottom: t === 'auto' ? -6 : 'auto', left: l === 'auto' ? 'auto' : -6, right: l === 'auto' ? -6 : 'auto', width:14, height:14, background:'#fff', border:'2px solid #2D5DA1', borderRadius:2, cursor: cur, zIndex:10 }}
+                      />
+                    ))}
+
+                    {/* Edge handles */}
+                    {[['n', '50%','0','ns-resize'], ['s','50%','auto','ns-resize'], ['e','auto','50%','ew-resize'], ['w','0','50%','ew-resize']].map(([h, lv, tv, cur]) => (
+                      <div key={h}
+                        onMouseDown={e => handleHandleMouseDown(e, h)}
+                        onTouchStart={e => handleHandleMouseDown(e, h)}
+                        style={{
+                          position:'absolute',
+                          top:    h === 'n' ? -5 : h === 's' ? 'auto' : '50%',
+                          bottom: h === 's' ? -5 : 'auto',
+                          left:   h === 'w' ? -5 : h === 'e' ? 'auto' : '50%',
+                          right:  h === 'e' ? -5 : 'auto',
+                          transform: (h === 'n' || h === 's') ? 'translateX(-50%)' : 'translateY(-50%)',
+                          width: (h === 'n' || h === 's') ? 28 : 10,
+                          height: (h === 'n' || h === 's') ? 10 : 28,
+                          background:'#fff',
+                          border:'2px solid #2D5DA1',
+                          borderRadius: 3,
+                          cursor: cur,
+                          zIndex: 10,
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Zoom slider below viewport */}
+                <div className="crop-zoom-row font-body">
+                  <span>🔍</span>
+                  <input
+                    type="range" min="0.5" max="4" step="0.05"
+                    value={zoomLevel}
+                    onChange={e => setZoomLevel(Number(e.target.value))}
+                    className="crop-zoom-slider"
                   />
+                  <span style={{ minWidth: 36, textAlign: 'right', fontSize: 11, color: '#94a3b8' }}>{Math.round(zoomLevel * 100)}%</span>
                 </div>
               </div>
 
-              {/* Right Column: Cropped Live Preview */}
-              <div className="cropper-panel">
-                <span className="cropper-label font-body">LIVE CROPPED PREVIEW</span>
-                <div className="canvas-container preview-container">
+              {/* Right: Live preview */}
+              <div className="crop-preview-col">
+                <span className="crop-col-label font-body">LIVE PREVIEW (1:1)</span>
+                <div className="crop-preview-frame">
                   <canvas
                     ref={previewCanvasRef}
-                    width={300}
-                    height={300}
-                    className="preview-canvas"
+                    width={220}
+                    height={220}
+                    className="crop-preview-canvas"
                   />
                 </div>
+                <p className="crop-preview-note font-body">Square 1:1 output<br/>600 × 600 px</p>
               </div>
             </div>
 
-            {/* Range Sliders */}
-            <div className="cropper-controls font-body">
-              <div className="control-row">
-                <label>🔍 CROP SIZE (ZOOM)</label>
-                <input
-                  type="range"
-                  min="20"
-                  max="100"
-                  value={cropZoom}
-                  onChange={(e) => setCropZoom(Number(e.target.value))}
-                  className="cropper-slider"
-                />
-              </div>
-
-              <div className="control-row">
-                <label>↔ HORIZONTAL POSITION (X)</label>
-                <input
-                  type="range"
-                  min="-100"
-                  max="100"
-                  value={cropX}
-                  onChange={(e) => setCropX(Number(e.target.value))}
-                  className="cropper-slider"
-                />
-              </div>
-
-              <div className="control-row">
-                <label>↕ VERTICAL POSITION (Y)</label>
-                <input
-                  type="range"
-                  min="-100"
-                  max="100"
-                  value={cropY}
-                  onChange={(e) => setCropY(Number(e.target.value))}
-                  className="cropper-slider"
-                />
-              </div>
-            </div>
-
-            <div className="modal-actions-row" style={{ marginTop: '24px' }}>
-              <button onClick={handleSaveCrop} className="btn-primary modal-btn">
-                Apply & Save Crop
+            {/* Footer actions */}
+            <div className="crop-modal-footer">
+              <button onClick={handleSaveCrop} className="btn-primary crop-apply-btn">
+                Apply &amp; Save Crop
               </button>
-              <button
-                onClick={() => {
-                  setShowCropModal(false);
-                  setCropTargetId(null);
-                  setCropImageSrc('');
-                }}
-                className="btn-secondary modal-btn"
-              >
+              <button onClick={handleCloseCropper} className="btn-secondary crop-cancel-btn">
                 Cancel
               </button>
             </div>
+
+            {/* Hidden canvas for final output */}
+            <canvas ref={hiddenCanvasRef} style={{ display: 'none' }} width={600} height={600} />
           </div>
         </div>
       )}
@@ -1382,6 +1647,194 @@ const AdminPdfImport = () => {
           cursor: pointer;
         }
 
+        /* ═══════════════════════════════════════════════
+           MODERN CROP MODAL
+        ═══════════════════════════════════════════════ */
+        .crop-modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(8, 10, 20, 0.82);
+          backdrop-filter: blur(6px);
+          z-index: 9999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 16px;
+          animation: overlayFadeIn 0.18s ease;
+        }
+
+        .crop-modal-dialog {
+          background: #0f172a;
+          border-radius: 16px;
+          width: 100%;
+          max-width: 840px;
+          max-height: 96vh;
+          overflow-y: auto;
+          box-shadow: 0 32px 80px rgba(0,0,0,0.55);
+          border: 1px solid rgba(255,255,255,0.08);
+          display: flex;
+          flex-direction: column;
+          animation: modalScaleIn 0.22s cubic-bezier(0.34,1.56,0.64,1);
+        }
+
+        .crop-modal-header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          padding: 22px 24px 16px;
+          border-bottom: 1px solid rgba(255,255,255,0.07);
+          flex-shrink: 0;
+        }
+
+        .crop-modal-title {
+          font-size: 18px;
+          font-weight: 700;
+          color: #f1f5f9;
+          margin: 0 0 4px 0;
+        }
+
+        .crop-modal-hint {
+          font-size: 12px;
+          color: #64748b;
+          margin: 0;
+        }
+
+        .crop-close-btn {
+          width: 34px;
+          height: 34px;
+          border-radius: 50%;
+          background: rgba(255,255,255,0.07);
+          border: none;
+          color: #94a3b8;
+          font-size: 15px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: background 0.18s, color 0.18s;
+          flex-shrink: 0;
+        }
+        .crop-close-btn:hover {
+          background: rgba(255,255,255,0.14);
+          color: #f1f5f9;
+        }
+
+        .crop-modal-body {
+          display: flex;
+          gap: 20px;
+          padding: 20px 24px;
+          align-items: flex-start;
+          flex-wrap: wrap;
+        }
+
+        .crop-viewport-wrap {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          flex-shrink: 0;
+        }
+
+        .crop-viewport { touch-action: none; }
+
+        .crop-zoom-row {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 16px;
+          color: #94a3b8;
+        }
+
+        .crop-zoom-slider {
+          flex: 1;
+          height: 4px;
+          background: rgba(255,255,255,0.12);
+          border-radius: 2px;
+          outline: none;
+          accent-color: #3b82f6;
+          cursor: pointer;
+        }
+
+        .crop-preview-col {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 12px;
+          flex: 1;
+          min-width: 200px;
+        }
+
+        .crop-col-label {
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          color: #475569;
+          text-transform: uppercase;
+          align-self: flex-start;
+        }
+
+        .crop-preview-frame {
+          width: 220px;
+          height: 220px;
+          border-radius: 8px;
+          overflow: hidden;
+          border: 2px solid rgba(255,255,255,0.1);
+          background: #1e293b;
+          box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+          flex-shrink: 0;
+        }
+
+        .crop-preview-canvas {
+          display: block;
+          width: 100%;
+          height: 100%;
+        }
+
+        .crop-preview-note {
+          font-size: 11px;
+          color: #475569;
+          text-align: center;
+          margin: 0;
+          line-height: 1.5;
+        }
+
+        .crop-modal-footer {
+          display: flex;
+          justify-content: flex-end;
+          gap: 12px;
+          padding: 16px 24px 20px;
+          border-top: 1px solid rgba(255,255,255,0.07);
+          flex-shrink: 0;
+        }
+
+        .crop-apply-btn {
+          height: 42px;
+          padding: 0 28px;
+          font-size: 12px;
+          letter-spacing: 0.07em;
+          border-radius: 6px;
+        }
+
+        .crop-cancel-btn {
+          height: 42px;
+          padding: 0 20px;
+          font-size: 12px;
+          letter-spacing: 0.07em;
+          border-radius: 6px;
+          border-color: rgba(255,255,255,0.15) !important;
+          color: #94a3b8 !important;
+          background: transparent !important;
+        }
+        .crop-cancel-btn:hover {
+          background: rgba(255,255,255,0.06) !important;
+          color: #f1f5f9 !important;
+        }
+
+        @media (max-width: 640px) {
+          .crop-modal-body { flex-direction: column; align-items: center; }
+          .crop-viewport-wrap { width: 100%; }
+          .crop-preview-frame { width: 160px; height: 160px; }
+        }
+
         /* ── Static save bar ── */
         .bulk-save-action-drawer {
           background-color: #F8FAFC;
@@ -1470,6 +1923,388 @@ const AdminPdfImport = () => {
           .form-grid-2col {
             grid-template-columns: 1fr;
           }
+        }
+
+        /* ── Redesigned PDF Import Upload Screen ── */
+        .pdf-upload-view {
+          display: flex;
+          flex-direction: column;
+          gap: 32px;
+          max-width: 1000px;
+          margin: 0 auto;
+          padding: 20px 0;
+        }
+
+        /* Hero Section */
+        .pdf-hero-section {
+          text-align: center;
+          background: linear-gradient(135deg, #1e293b, #0f172a);
+          padding: 40px 24px;
+          border-radius: 12px;
+          color: #ffffff;
+          box-shadow: var(--card-shadow);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 16px;
+        }
+
+        .pdf-hero-title {
+          font-size: 28px;
+          font-weight: 700;
+          letter-spacing: -0.02em;
+          margin: 0;
+        }
+
+        .pdf-hero-desc {
+          font-size: 15px;
+          color: #94a3b8;
+          max-width: 600px;
+          margin: 0;
+          line-height: 1.6;
+        }
+
+        .pdf-feature-badges {
+          display: flex;
+          gap: 12px;
+          flex-wrap: wrap;
+          justify-content: center;
+          margin-top: 8px;
+        }
+
+        .pdf-feature-badges .badge-item {
+          background-color: rgba(59, 130, 246, 0.15);
+          color: #60a5fa;
+          border: 1px solid rgba(59, 130, 246, 0.3);
+          padding: 6px 14px;
+          border-radius: 20px;
+          font-size: 12px;
+          font-weight: 600;
+          letter-spacing: 0.02em;
+        }
+
+        /* Container Split */
+        .pdf-container-split {
+          display: grid;
+          grid-template-columns: 1fr 1.2fr;
+          gap: 32px;
+        }
+
+        @media (max-width: 768px) {
+          .pdf-container-split {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        /* Info Card */
+        .pdf-info-card {
+          background-color: #ffffff;
+          border: 1px solid var(--border-color);
+          border-radius: 12px;
+          padding: 32px;
+          box-shadow: var(--card-shadow);
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+        }
+
+        .pdf-info-header {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .pdf-card-icon {
+          font-size: 24px;
+        }
+
+        .pdf-info-title {
+          font-size: 18px;
+          font-weight: 700;
+          color: var(--text-primary);
+          margin: 0;
+        }
+
+        .pdf-info-desc {
+          font-size: 13.5px;
+          color: var(--text-secondary);
+          line-height: 1.6;
+          margin: 0;
+        }
+
+        .pdf-features-list {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .pdf-features-list h4 {
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          color: var(--text-muted);
+          margin: 0;
+        }
+
+        .pdf-features-list ul {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .pdf-features-list li {
+          font-size: 13.5px;
+          color: var(--text-primary);
+          font-weight: 600;
+        }
+
+        .pdf-max-size-footer {
+          border-top: 1px solid var(--border-color);
+          padding-top: 16px;
+          margin-top: auto;
+          display: flex;
+          justify-content: space-between;
+          font-size: 13px;
+        }
+
+        .pdf-max-size-footer .label {
+          color: var(--text-muted);
+        }
+
+        .pdf-max-size-footer .val {
+          font-weight: 700;
+          color: var(--text-primary);
+        }
+
+        /* Upload Card & Area */
+        .pdf-upload-card {
+          background-color: #ffffff;
+          border: 1px solid var(--border-color);
+          border-radius: 12px;
+          padding: 32px;
+          box-shadow: var(--card-shadow);
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          min-height: 320px;
+        }
+
+        .pdf-drag-drop-zone {
+          border: 2px dashed #cbd5e1;
+          border-radius: 8px;
+          padding: 40px 24px;
+          text-align: center;
+          cursor: pointer;
+          transition: all var(--transition-speed);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 12px;
+          background-color: #f8fafc;
+        }
+
+        .pdf-drag-drop-zone:hover, .pdf-drag-drop-zone.drag-active {
+          border-color: var(--accent-blue);
+          background-color: rgba(59, 130, 246, 0.02);
+        }
+
+        .pdf-upload-icon-wrapper {
+          color: #94a3b8;
+          transition: color 0.2s ease;
+        }
+
+        .pdf-drag-drop-zone:hover .pdf-upload-icon-wrapper {
+          color: var(--accent-blue);
+        }
+
+        .drag-title {
+          font-size: 16px;
+          font-weight: 700;
+          color: var(--text-primary);
+          margin: 0;
+        }
+
+        .drag-subtitle {
+          font-size: 13px;
+          color: var(--text-muted);
+          margin: 0;
+        }
+
+        .supported-badges {
+          display: flex;
+          gap: 8px;
+          margin-top: 8px;
+        }
+
+        .supported-badges .badge {
+          font-size: 9px;
+          font-weight: 700;
+          padding: 3px 8px;
+          border-radius: 4px;
+        }
+
+        .pdf-badge {
+          background-color: #fee2e2;
+          color: #ef4444;
+        }
+
+        .size-badge {
+          background-color: #f1f5f9;
+          color: #475569;
+        }
+
+        /* File Preview & Progress Card */
+        .pdf-progress-preview-card {
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
+          width: 100%;
+        }
+
+        .preview-file-info {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          background-color: #f8fafc;
+          border: 1px solid var(--border-color);
+          padding: 16px;
+          border-radius: 8px;
+          position: relative;
+        }
+
+        .preview-file-info .file-icon {
+          font-size: 28px;
+        }
+
+        .preview-file-info .file-details {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .preview-file-info .file-name {
+          font-size: 14px;
+          font-weight: 700;
+          color: var(--text-primary);
+          margin: 0;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .preview-file-info .file-size {
+          font-size: 12px;
+          color: var(--text-muted);
+          margin: 0;
+        }
+
+        .preview-file-info .status-highlight {
+          color: var(--accent-blue);
+          font-weight: 600;
+        }
+
+        .remove-file-btn {
+          position: absolute;
+          top: 16px;
+          right: 16px;
+          background: transparent;
+          border: none;
+          color: var(--text-muted);
+          font-size: 16px;
+          cursor: pointer;
+          transition: color 0.2s ease;
+        }
+
+        .remove-file-btn:hover {
+          color: #ef4444;
+        }
+
+        /* Processing progress styles */
+        .processing-status-wrapper {
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+        }
+
+        .animated-progress-bar {
+          height: 6px;
+          width: 100%;
+          background-color: #e2e8f0;
+          border-radius: 3px;
+          overflow: hidden;
+        }
+
+        .animated-progress-bar .progress-fill {
+          height: 100%;
+          background-color: var(--accent-blue);
+          border-radius: 3px;
+          transition: width 0.3s ease;
+        }
+
+        .status-milestones {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .milestone-item {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          font-size: 13px;
+          color: var(--text-muted);
+        }
+
+        .milestone-item .bullet {
+          font-size: 18px;
+          line-height: 1;
+          color: #cbd5e1;
+          transition: color 0.3s ease;
+        }
+
+        .milestone-item .bullet.active {
+          color: var(--accent-blue);
+        }
+
+        .milestone-item span.active {
+          color: var(--text-primary);
+          font-weight: 600;
+        }
+
+        .current-extraction-status {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          background-color: #f0f7ff;
+          border: 1px solid rgba(59, 130, 246, 0.15);
+          padding: 12px 16px;
+          border-radius: 6px;
+          margin-top: 4px;
+        }
+
+        .extraction-spinner {
+          width: 14px;
+          height: 14px;
+          border: 2px solid rgba(59, 130, 246, 0.2);
+          border-top: 2px solid var(--accent-blue);
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+
+        .status-text {
+          font-size: 12.5px;
+          font-weight: 600;
+          color: #1e40af;
+        }
+
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
         }      `}</style>
     </div>
   );

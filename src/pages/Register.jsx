@@ -3,35 +3,55 @@ import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 
 const Register = () => {
-  const { registerUser } = useApp();
+  const { settings } = useApp();
 
-  const [fullName, setFullName] = useState('');
+  const [shopName, setShopName] = useState('');
+  const [ownerName, setOwnerName] = useState('');
+  const [shopAddress, setShopAddress] = useState('');
   const [mobileNumber, setMobileNumber] = useState('');
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
-    if (!fullName.trim()) { setError('Please enter your full name.'); return; }
+
+    // Validations
+    if (!shopName.trim()) { setError('Please enter your Shop Name.'); return; }
+    if (!ownerName.trim()) { setError('Please enter the Owner Name.'); return; }
+    if (!shopAddress.trim()) { setError('Please enter your Shop Address.'); return; }
+    
     const cleanedNumber = mobileNumber.replace(/[\s\-()]/g, '');
     const indianMobileRegex = /^(?:\+91|91)?[6-9]\d{9}$/;
     if (!indianMobileRegex.test(cleanedNumber)) {
-      setError('Please enter a valid 10-digit Indian mobile number.');
+      setError('Please enter a valid 10-digit mobile number.');
       return;
     }
-    registerUser(fullName.trim(), cleanedNumber);
-    setSuccess(true);
+
+    // Format WhatsApp Message
+    const message = `New Retailer Registration\nShop Name: ${shopName.trim()}\nOwner Name: ${ownerName.trim()}\nShop Address: ${shopAddress.trim()}\nMobile Number: ${cleanedNumber}`;
+    
+    // Admin WhatsApp Number
+    const adminWhatsAppRaw = settings?.whatsappNumber || '7358349394';
+    let adminWhatsApp = adminWhatsAppRaw.replace(/\D/g, '');
+    if (adminWhatsApp.length === 10) {
+      adminWhatsApp = '91' + adminWhatsApp;
+    }
+
+    const encodedMessage = encodeURIComponent(message);
+    const waUrl = `https://wa.me/${adminWhatsApp}?text=${encodedMessage}`;
+
+    // Open WhatsApp in new tab
+    window.open(waUrl, '_blank');
   };
 
   return (
-    <div className="auth-split-page">
-
-      {/* Left — Navy Brand Panel */}
-      <div className="auth-brand-panel">
-        <div className="auth-brand-inner">
-          <svg className="auth-panel-clock" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="100" cy="100" r="90" fill="none" stroke="rgba(126,179,232,0.2)" strokeWidth="1.5"/>
+    <div className="retailer-register-page">
+      <div className="register-container animate-fade-in">
+        
+        {/* Logo Section */}
+        <div className="logo-header">
+          <svg className="register-logo-clock" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="100" cy="100" r="90" fill="none" stroke="rgba(126,179,232,0.25)" strokeWidth="1.5"/>
             <circle cx="100" cy="100" r="80" fill="rgba(255,255,255,0.04)" stroke="rgba(126,179,232,0.35)" strokeWidth="2"/>
             {Array.from({length:12}).map((_,i) => {
               const a = (i*30*Math.PI)/180;
@@ -49,318 +69,275 @@ const Register = () => {
             <circle cx="100" cy="100" r="5" fill="#7EB3E8"/>
             <circle cx="100" cy="100" r="2.5" fill="#1A2332"/>
           </svg>
-
-          <h1 className="auth-panel-brand font-logo">DEVI TIMES</h1>
-          <p className="auth-panel-tagline font-heading">Join Our Exclusive Circle</p>
-
-          <div className="auth-panel-divider"/>
-
-          <p className="auth-panel-desc font-body">
-            Register your interest and our team will create your personal login credentials — delivered to your WhatsApp.
-          </p>
-
-          <div className="auth-steps">
-            {[
-              { num: '01', label: 'Submit your details' },
-              { num: '02', label: 'We verify & create credentials' },
-              { num: '03', label: 'Receive login via WhatsApp' },
-              { num: '04', label: 'Browse & order timepieces' },
-            ].map(step => (
-              <div key={step.num} className="auth-step-item">
-                <span className="auth-step-num">{step.num}</span>
-                <span className="auth-step-label">{step.label}</span>
-              </div>
-            ))}
-          </div>
+          <h1 className="register-brand-title font-logo">DEVI TIMES</h1>
         </div>
-      </div>
 
-      {/* Right — White Form Panel */}
-      <div className="auth-form-panel">
-        <div className="auth-form-inner animate-fade-in">
+        {/* Form Card */}
+        <div className="register-card">
+          <div className="register-card-header">
+            <h2 className="register-title font-heading">Retailer Registration</h2>
+            <p className="register-subtitle font-body">Register your shop to access our wholesale clock collection</p>
+          </div>
 
-          {success ? (
-            /* ── Success State ── */
-            <div className="success-state">
-              <div className="success-icon-ring">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5">
-                  <polyline points="20 6 9 17 4 12"/>
+          <form onSubmit={handleSubmit} className="register-form">
+            
+            {error && (
+              <div className="register-error-banner font-body">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink:0}}>
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
                 </svg>
+                {error}
               </div>
-              <h2 className="font-heading" style={{fontSize:'30px',color:'var(--text-primary)',marginBottom:'12px'}}>Registration Submitted!</h2>
-              <p className="font-body" style={{color:'var(--text-secondary)',fontSize:'15px',lineHeight:'1.65',marginBottom:'8px'}}>
-                Your request has been received. Our admin will create your login credentials and share them with you.
-              </p>
-              <p className="font-body" style={{color:'var(--text-muted)',fontSize:'13px',marginBottom:'36px'}}>
-                You will receive your <strong>User ID</strong> and <strong>Password</strong> via WhatsApp shortly.
-              </p>
-              <Link to="/" className="btn-primary" style={{width:'100%',height:'48px',fontSize:'12px'}}>
-                ← Back to Home
-              </Link>
-              <Link to="/login" className="btn-secondary" style={{width:'100%',height:'48px',fontSize:'12px',marginTop:'12px'}}>
-                Already have credentials? Sign In
-              </Link>
+            )}
+
+            <div className="form-group">
+              <label className="register-form-label font-body">SHOP NAME</label>
+              <input 
+                type="text" 
+                className="register-form-input" 
+                placeholder="Enter your registered shop name"
+                value={shopName} 
+                onChange={e => setShopName(e.target.value)} 
+                required
+              />
             </div>
-          ) : (
-            /* ── Register Form ── */
-            <>
-              <div className="auth-form-header">
-                <h2 className="auth-form-title font-heading">Create Account</h2>
-                <p className="auth-form-subtitle font-body">Submit your details to request access</p>
-              </div>
 
-              <form onSubmit={handleSubmit} className="auth-form">
+            <div className="form-group">
+              <label className="register-form-label font-body">OWNER NAME</label>
+              <input 
+                type="text" 
+                className="register-form-input" 
+                placeholder="Enter owner's full name"
+                value={ownerName} 
+                onChange={e => setOwnerName(e.target.value)} 
+                required
+              />
+            </div>
 
-                {error && (
-                  <div className="auth-error-banner">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink:0}}>
-                      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                    </svg>
-                    {error}
-                  </div>
-                )}
+            <div className="form-group">
+              <label className="register-form-label font-body">SHOP ADDRESS</label>
+              <textarea 
+                className="register-form-input register-form-textarea" 
+                placeholder="Enter complete shop address with city & PIN"
+                value={shopAddress} 
+                onChange={e => setShopAddress(e.target.value)} 
+                rows="3"
+                required
+              />
+            </div>
 
-                <div className="form-group">
-                  <label className="form-label">FULL NAME</label>
-                  <input type="text" id="reg-fullname" className="form-input" placeholder="e.g. Arjun Sharma"
-                    value={fullName} onChange={e => setFullName(e.target.value)} />
-                </div>
+            <div className="form-group">
+              <label className="register-form-label font-body">MOBILE NUMBER</label>
+              <input 
+                type="tel" 
+                className="register-form-input" 
+                placeholder="e.g. +91 98765 43210"
+                value={mobileNumber} 
+                onChange={e => setMobileNumber(e.target.value)} 
+                required
+              />
+              <span className="form-input-help font-body">Credentials will be sent to this WhatsApp number</span>
+            </div>
 
-                <div className="form-group">
-                  <label className="form-label">MOBILE NUMBER</label>
-                  <input type="tel" id="reg-mobile" className="form-input" placeholder="+91 XXXXX XXXXX"
-                    value={mobileNumber} onChange={e => setMobileNumber(e.target.value)} />
-                  <span style={{fontSize:'11px',color:'var(--text-muted)',marginTop:'6px'}}>
-                    Indian mobile number — credentials will be sent to this number via WhatsApp
-                  </span>
-                </div>
+            <button type="submit" className="btn-primary register-submit-btn font-body">
+              SEND &nbsp; →
+            </button>
 
-                <button type="submit" id="reg-submit-btn" className="btn-primary auth-submit-btn">
-                  SUBMIT REQUEST &nbsp; →
-                </button>
+            <div className="register-switch font-body">
+              Already have credentials? &nbsp;
+              <Link to="/login" className="register-switch-link">Sign In</Link>
+            </div>
 
-                <div className="auth-switch font-body">
-                  Already have credentials? &nbsp;
-                  <Link to="/login" className="auth-switch-link">Sign in →</Link>
-                </div>
-
-              </form>
-            </>
-          )}
+          </form>
         </div>
       </div>
 
       <style>{`
-        .auth-split-page {
-          display: flex;
+        .retailer-register-page {
+          background: linear-gradient(135deg, var(--secondary-dark) 0%, var(--primary-dark-bg) 100%);
           min-height: calc(100vh - var(--navbar-height));
-        }
-
-        .auth-brand-panel {
-          width: 44%;
-          background: linear-gradient(160deg, #1E2C42 0%, #1A2332 50%, #162030 100%);
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: 60px 48px;
+          padding: 60px 20px;
+          color: #ffffff;
           position: relative;
           overflow: hidden;
         }
 
-        .auth-brand-panel::before {
+        .retailer-register-page::before {
+          content: '';
+          position: absolute;
+          width: 500px; height: 500px;
+          border-radius: 50%;
+          background: radial-gradient(circle, rgba(45,93,161,0.15) 0%, transparent 70%);
+          top: -200px; right: -100px;
+          pointer-events: none;
+        }
+
+        .retailer-register-page::after {
           content: '';
           position: absolute;
           width: 400px; height: 400px;
           border-radius: 50%;
-          background: radial-gradient(circle, rgba(45,93,161,0.18) 0%, transparent 70%);
-          top: -100px; right: -80px;
+          background: radial-gradient(circle, rgba(74,127,193,0.1) 0%, transparent 70%);
+          bottom: -150px; left: -100px;
           pointer-events: none;
         }
 
-        .auth-brand-panel::after {
-          content: '';
-          position: absolute;
-          width: 300px; height: 300px;
-          border-radius: 50%;
-          background: radial-gradient(circle, rgba(74,127,193,0.12) 0%, transparent 70%);
-          bottom: -60px; left: -50px;
-          pointer-events: none;
-        }
-
-        .auth-brand-inner {
+        .register-container {
+          width: 100%;
+          max-width: 460px;
           position: relative;
           z-index: 1;
           display: flex;
           flex-direction: column;
           align-items: center;
-          text-align: center;
-          max-width: 340px;
         }
 
-        .auth-panel-clock {
-          width: 150px;
-          height: 150px;
-          margin-bottom: 28px;
-          filter: drop-shadow(0 10px 32px rgba(45,93,161,0.45));
+        .logo-header {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          margin-bottom: 24px;
         }
 
-        .auth-panel-brand {
-          font-size: 26px;
+        .register-logo-clock {
+          width: 90px;
+          height: 90px;
+          margin-bottom: 12px;
+          filter: drop-shadow(0 8px 20px rgba(45,93,161,0.4));
+        }
+
+        .register-brand-title {
+          font-size: 24px;
           font-weight: 700;
-          letter-spacing: 0.22em;
+          letter-spacing: 0.2em;
+          color: #ffffff;
+        }
+
+        .register-card {
+          width: 100%;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          backdrop-filter: blur(12px);
+          border-radius: 12px;
+          padding: 40px 32px;
+          box-shadow: 0 20px 48px rgba(0, 0, 0, 0.2);
+        }
+
+        .register-card-header {
+          text-align: center;
+          margin-bottom: 32px;
+        }
+
+        .register-title {
+          font-size: 26px;
+          font-weight: 600;
           color: #ffffff;
           margin-bottom: 8px;
         }
 
-        .auth-panel-tagline {
-          font-size: 17px;
-          color: var(--text-accent-on-dark);
-          font-style: italic;
-          margin-bottom: 24px;
-        }
-
-        .auth-panel-divider {
-          width: 48px; height: 1px;
-          background: rgba(126,179,232,0.4);
-          margin-bottom: 20px;
-        }
-
-        .auth-panel-desc {
+        .register-subtitle {
           font-size: 13px;
-          color: rgba(200,216,238,0.75);
-          line-height: 1.7;
-          margin-bottom: 28px;
+          color: rgba(200, 216, 238, 0.7);
+          line-height: 1.5;
         }
 
-        .auth-steps {
+        .register-form {
           display: flex;
           flex-direction: column;
-          gap: 12px;
-          width: 100%;
-          text-align: left;
+          gap: 20px;
         }
 
-        .auth-step-item {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          padding: 10px 14px;
-          border: 1px solid rgba(126,179,232,0.18);
-          border-radius: 2px;
-          background: rgba(255,255,255,0.03);
-        }
-
-        .auth-step-num {
-          font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.06em;
-          color: #4A7FC1;
-          flex-shrink: 0;
-        }
-
-        .auth-step-label {
-          font-size: 12px;
-          color: rgba(200,216,238,0.8);
-          font-weight: 500;
-        }
-
-        /* ── Form Panel ── */
-        .auth-form-panel {
-          flex: 1;
-          background-color: #ffffff;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 60px 48px;
-        }
-
-        .auth-form-inner {
-          width: 100%;
-          max-width: 400px;
-        }
-
-        .auth-form-header { margin-bottom: 36px; }
-
-        .auth-form-title {
-          font-size: 34px;
-          color: var(--text-primary);
-          margin-bottom: 8px;
-          line-height: 1.2;
-        }
-
-        .auth-form-subtitle {
-          font-size: 14px;
-          color: var(--text-muted);
-        }
-
-        .auth-form {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .auth-error-banner {
+        .register-error-banner {
           display: flex;
           align-items: center;
           gap: 10px;
-          background-color: #FEF2F2;
-          border: 1px solid #FCA5A5;
-          color: #DC2626;
+          background-color: rgba(254, 242, 242, 0.1);
+          border: 1px solid rgba(252, 165, 165, 0.3);
+          color: #FCA5A5;
           padding: 12px 16px;
-          border-radius: 3px;
+          border-radius: 4px;
           font-size: 13px;
-          margin-bottom: 20px;
         }
 
-        .auth-submit-btn {
+        .register-form-label {
+          font-size: 11px;
+          font-weight: 700;
+          color: rgba(200, 216, 238, 0.8);
+          letter-spacing: 0.05em;
+          margin-bottom: 8px;
+          display: block;
+        }
+
+        .register-form-input {
+          width: 100%;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1.5px solid rgba(255, 255, 255, 0.1);
+          border-radius: 4px;
+          padding: 12px 14px;
+          color: #ffffff;
+          font-size: 14px;
+          outline: none;
+          transition: border-color 0.25s ease, background-color 0.25s ease;
+          box-sizing: border-box;
+        }
+
+        .register-form-input:focus {
+          border-color: var(--accent-blue);
+          background: rgba(255, 255, 255, 0.07);
+        }
+
+        .register-form-textarea {
+          resize: vertical;
+          font-family: inherit;
+        }
+
+        .form-input-help {
+          font-size: 11px;
+          color: rgba(200, 216, 238, 0.5);
+          margin-top: 6px;
+          display: block;
+        }
+
+        .register-submit-btn {
+          width: 100%;
           height: 48px;
           font-size: 12px;
-          margin-top: 10px;
-          width: 100%;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          margin-top: 8px;
+          cursor: pointer;
         }
 
-        .auth-switch {
+        .register-switch {
           text-align: center;
           font-size: 13px;
-          color: var(--text-muted);
+          color: rgba(200, 216, 238, 0.6);
           margin-top: 24px;
-          padding-top: 24px;
-          border-top: 1px solid var(--border-color);
+          padding-top: 20px;
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
         }
 
-        .auth-switch-link {
+        .register-switch-link {
           color: var(--accent-blue);
           font-weight: 700;
+          text-decoration: none;
+          transition: color 0.2s ease;
         }
 
-        .auth-switch-link:hover { color: var(--button-primary-hover); }
-
-        /* ── Success State ── */
-        .success-state {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          text-align: center;
-        }
-
-        .success-icon-ring {
-          width: 72px; height: 72px;
-          border-radius: 50%;
-          background: #D1FAE5;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin-bottom: 28px;
-          box-shadow: 0 0 0 8px rgba(16,185,129,0.1);
-        }
-
-        @media (max-width: 900px) {
-          .auth-brand-panel { display: none; }
-          .auth-form-panel { padding: 48px 32px; }
+        .register-switch-link:hover {
+          color: #BDDAF5;
         }
 
         @media (max-width: 480px) {
-          .auth-form-panel { padding: 40px 20px; }
-          .auth-form-title { font-size: 28px; }
+          .register-card {
+            padding: 30px 20px;
+          }
+          .register-title {
+            font-size: 22px;
+          }
         }
       `}</style>
     </div>

@@ -1,14 +1,45 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import ClockSvg from '../../components/ClockSvg';
 import {
   fetchAllProducts,
   updateProduct as pbUpdateProduct,
   deleteProduct as pbDeleteProduct,
+  fetchProductById,
+  getProductImageUrl,
 } from '../../lib/productsService';
 import pb from '../../lib/pocketbase';
+import { useApp } from '../../context/AppContext';
+
+// Helper to read file as base64 without losing quality (formerly compressImage)
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      resolve(event.target.result);
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+}
+
+// Convert base64 data URI to File
+const base64ToFile = (base64Str, filename) => {
+  const arr = base64Str.split(',');
+  const mime = arr[0].match(/:(.*?);/)[1];
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new File([u8arr], filename, { type: mime });
+};
+
+const adminGalleriesCache = {};
 
 const AdminProducts = () => {
+  const { refreshProducts } = useApp();
   // ── PocketBase state ──────────────────────────────────────────────────────
   const [products, setProducts]   = useState([]);
   const [pbLoading, setPbLoading] = useState(true);
@@ -32,6 +63,65 @@ const AdminProducts = () => {
 
   useEffect(() => { loadProducts(); }, []);
 
+  // Fetch JSON galleries in the background for products that have them
+  useEffect(() => {
+    let isMounted = true;
+    products.forEach(prod => {
+      if (!prod._jsonUrl || prod._jsonFetched) return;
+
+      const cacheKey = prod._jsonUrl + '?' + (prod.updatedAt || '');
+      const cacheVal = adminGalleriesCache[cacheKey];
+      
+      // Case 1: Already loaded and cached
+      if (Array.isArray(cacheVal)) {
+        setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, images: cacheVal, _jsonFetched: true } : p));
+        return;
+      }
+
+      // Case 2: Currently fetching
+      if (cacheVal === 'fetching') {
+        return;
+      }
+
+      // Case 3: Failed/empty
+      if (cacheVal === 'failed') {
+        setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, _jsonFetched: true } : p));
+        return;
+      }
+
+      // Case 4: Not started yet
+      adminGalleriesCache[cacheKey] = 'fetching';
+      const fetchUrl = prod._jsonUrl + (prod._jsonUrl.includes('?') ? '&' : '?') + 't=' + (prod.updatedAt ? encodeURIComponent(prod.updatedAt) : Date.now());
+      fetch(fetchUrl, { cache: 'no-store' })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (Array.isArray(data)) {
+            adminGalleriesCache[cacheKey] = data;
+            if (isMounted) {
+              setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, images: data, _jsonFetched: true } : p));
+            }
+          } else {
+            adminGalleriesCache[cacheKey] = 'failed';
+            if (isMounted) {
+              setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, _jsonFetched: true } : p));
+            }
+          }
+        })
+        .catch(err => {
+          console.error('Error loading gallery for admin:', prod.id, err);
+          adminGalleriesCache[cacheKey] = 'failed';
+          if (isMounted) {
+            setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, _jsonFetched: true } : p));
+          }
+        });
+    });
+    return () => { isMounted = false; };
+  }, [products]);
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
   // Search & Filter State
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -44,30 +134,34 @@ const AdminProducts = () => {
     return () => clearTimeout(timer);
   }, [searchInput]);
   const [statusFilter, setStatusFilter] = useState('ALL'); // ALL, LIVE, HIDDEN
-  const [categoryFilter, setCategoryFilter] = useState('ALL'); // ALL, or specific categories
 
   // Sorting State
   const [sortField, setSortField] = useState('name');
   const [sortAscending, setSortAscending] = useState(true);
 
-  // Pagination State
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-
   // Edit Modal State
   const [editingProduct, setEditingProduct] = useState(null);
   const [editForm, setEditForm] = useState({
-    name: '', category: 'Modern Minimalist', modelNumber: '', size: '', packageNo: '',
-    color: '', salePrice: 0, originalPrice: 0, stockCount: 0,
+    color: '', salePrice: 0, originalPrice: 0,
     description: '', isOnSale: false, isLive: true, images: []
   });
+
+  // Cropper modal state for image gallery edit
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [cropTargetIndex, setCropTargetIndex] = useState(null); // index of target image in editForm.images
+  const [cropImageSrc, setCropImageSrc] = useState('');
+  const [cropBox, setCropBox] = useState({ x: 50, y: 50, size: 200 });
+  const [imgDimensions, setImgDimensions] = useState({ width: 0, height: 0, naturalWidth: 0, naturalHeight: 0 });
+  const dragStartRef = useRef(null);
+  const previewCanvasRef = useRef(null);
+  const cropImageRef = useRef(null);
 
   // Delete Confirmation Modal State
   const [deletingProductId, setDeletingProductId] = useState(null);
 
-  // Disable body scroll when delete modal is open
+  // Disable body scroll when delete modal or crop modal is open
   useEffect(() => {
-    if (deletingProductId) {
+    if (deletingProductId || showCropModal) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'auto';
@@ -75,7 +169,184 @@ const AdminProducts = () => {
     return () => {
       document.body.style.overflow = 'auto';
     };
-  }, [deletingProductId]);
+  }, [deletingProductId, showCropModal]);
+
+  // Handle image dimensions loaded
+  const handleImageLoad = (e) => {
+    const { width, height } = e.target.getBoundingClientRect();
+    const naturalWidth = e.target.naturalWidth;
+    const naturalHeight = e.target.naturalHeight;
+    setImgDimensions({ width, height, naturalWidth, naturalHeight });
+    
+    // Initialize crop box to be a square at the center of the image
+    const minDim = Math.min(width, height);
+    const boxSize = minDim * 0.7; // 70% of min dimension
+    const boxX = (width - boxSize) / 2;
+    const boxY = (height - boxSize) / 2;
+    setCropBox({ x: boxX, y: boxY, size: boxSize });
+  };
+
+  const handleStartAction = (e, action) => {
+    e.preventDefault();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    dragStartRef.current = {
+      mouseX: clientX,
+      mouseY: clientY,
+      boxX: cropBox.x,
+      boxY: cropBox.y,
+      boxSize: cropBox.size,
+      action
+    };
+  };
+
+  // Drag and resize mouse/touch window listeners
+  useEffect(() => {
+    const handleMove = (e) => {
+      if (!dragStartRef.current) return;
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const start = dragStartRef.current;
+      const dx = clientX - start.mouseX;
+      const dy = clientY - start.mouseY;
+
+      if (start.action === 'dragging') {
+        let newX = start.boxX + dx;
+        let newY = start.boxY + dy;
+        newX = Math.max(0, Math.min(newX, imgDimensions.width - start.boxSize));
+        newY = Math.max(0, Math.min(newY, imgDimensions.height - start.boxSize));
+        setCropBox({ x: newX, y: newY, size: start.boxSize });
+      } else if (start.action === 'resizing-se') {
+        const diff = Math.max(dx, dy);
+        const newSize = Math.max(40, Math.min(start.boxSize + diff, imgDimensions.width - start.boxX, imgDimensions.height - start.boxY));
+        setCropBox(prev => ({ ...prev, size: newSize }));
+      } else if (start.action === 'resizing-sw') {
+        const diff = -dx;
+        const maxSize = Math.min(start.boxSize + start.boxX, imgDimensions.height - start.boxY);
+        const newSize = Math.max(40, Math.min(start.boxSize + diff, maxSize));
+        const newX = start.boxX - (newSize - start.boxSize);
+        setCropBox({ x: newX, y: start.boxY, size: newSize });
+      } else if (start.action === 'resizing-ne') {
+        const diff = dx;
+        const maxSize = Math.min(imgDimensions.width - start.boxX, start.boxSize + start.boxY);
+        const newSize = Math.max(40, Math.min(start.boxSize + diff, maxSize));
+        const newY = start.boxY - (newSize - start.boxSize);
+        setCropBox({ x: start.boxX, y: newY, size: newSize });
+      } else if (start.action === 'resizing-nw') {
+        const diff = -dx;
+        const maxSize = Math.min(start.boxSize + start.boxX, start.boxSize + start.boxY);
+        const newSize = Math.max(40, Math.min(start.boxSize + diff, maxSize));
+        const newX = start.boxX - (newSize - start.boxSize);
+        const newY = start.boxY - (newSize - start.boxSize);
+        setCropBox({ x: newX, y: newY, size: newSize });
+      }
+    };
+
+    const handleEnd = () => {
+      dragStartRef.current = null;
+    };
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleEnd);
+    window.addEventListener('touchmove', handleMove, { passive: false });
+    window.addEventListener('touchend', handleEnd);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleEnd);
+      window.removeEventListener('touchmove', handleMove);
+      window.removeEventListener('touchend', handleEnd);
+    };
+  }, [cropBox, imgDimensions]);
+
+  // Update preview canvas whenever cropBox or image loaded updates
+  useEffect(() => {
+    if (!showCropModal || !cropImageSrc || !imgDimensions.width || !imgDimensions.height) return;
+
+    const img = cropImageRef.current;
+    if (!img) return;
+
+    const prevCanvas = previewCanvasRef.current;
+    if (!prevCanvas) return;
+    const prevCtx = prevCanvas.getContext('2d');
+    if (!prevCtx) return;
+
+    const scaleX = imgDimensions.naturalWidth / imgDimensions.width;
+    const scaleY = imgDimensions.naturalHeight / imgDimensions.height;
+    const sourceX = cropBox.x * scaleX;
+    const sourceY = cropBox.y * scaleY;
+    const sourceSize = cropBox.size * scaleX;
+
+    prevCtx.fillStyle = '#FFFFFF';
+    prevCtx.fillRect(0, 0, prevCanvas.width, prevCanvas.height);
+    try {
+      prevCtx.drawImage(
+        img,
+        sourceX, sourceY, sourceSize, sourceSize,
+        0, 0, prevCanvas.width, prevCanvas.height
+      );
+    } catch (e) {
+      console.error('[ERROR] Failed to draw crop preview:', e);
+    }
+  }, [showCropModal, cropImageSrc, cropBox, imgDimensions]);
+
+  const handleOpenCropper = (imgUrl, index) => {
+    setCropTargetIndex(index);
+    let finalUrl = imgUrl;
+    if (imgUrl && (imgUrl.startsWith('http://') || imgUrl.startsWith('https://'))) {
+      finalUrl = imgUrl + (imgUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
+    }
+    setCropImageSrc(finalUrl);
+    setImgDimensions({ width: 0, height: 0, naturalWidth: 0, naturalHeight: 0 });
+    setShowCropModal(true);
+  };
+
+  const handleSaveCrop = () => {
+    const img = cropImageRef.current;
+    if (!img || !imgDimensions.width || !imgDimensions.height) return;
+
+    // Calculate source coordinates in the original image's natural dimensions
+    const scaleX = imgDimensions.naturalWidth / imgDimensions.width;
+    const scaleY = imgDimensions.naturalHeight / imgDimensions.height;
+    const sourceX = cropBox.x * scaleX;
+    const sourceY = cropBox.y * scaleY;
+    const sourceSize = cropBox.size * scaleX;
+
+    // Create an offscreen canvas matching the high-resolution crop dimensions
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = Math.round(sourceSize);
+    exportCanvas.height = Math.round(sourceSize);
+
+    const exportCtx = exportCanvas.getContext('2d');
+    if (!exportCtx) return;
+
+    // Enable high-quality image smoothing
+    exportCtx.imageSmoothingEnabled = true;
+    exportCtx.imageSmoothingQuality = 'high';
+
+    // Draw the high-resolution crop portion
+    exportCtx.drawImage(
+      img,
+      sourceX, sourceY, sourceSize, sourceSize,
+      0, 0, exportCanvas.width, exportCanvas.height
+    );
+
+    // Export in JPEG format at high quality (0.95)
+    const croppedBase64 = exportCanvas.toDataURL('image/jpeg', 0.95);
+
+    setEditForm(prev => {
+      const updatedImages = [...prev.images];
+      updatedImages[cropTargetIndex] = croppedBase64;
+      return {
+        ...prev,
+        images: updatedImages
+      };
+    });
+
+    setShowCropModal(false);
+    setCropTargetIndex(null);
+    setCropImageSrc('');
+  };
 
   // Instant notification feedback state
   const [toastMessage, setToastMessage] = useState('');
@@ -137,7 +408,7 @@ const AdminProducts = () => {
     try {
       const failed = await processInBatches(
         itemsToDelete, 
-        (p) => pb.collection('products').delete(p.pbId || p.id), 
+        (p) => pb.collection('products').delete(p.pbId || p.id, { requestKey: null }), 
         10
       );
       const successCount = itemsToDelete.length - failed.length;
@@ -149,6 +420,7 @@ const AdminProducts = () => {
       } else {
         triggerToast(`${successCountTracker + successCount} products deleted successfully!`);
         await loadProducts();
+        await refreshProducts();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     } catch (err) {
@@ -194,6 +466,7 @@ const AdminProducts = () => {
     triggerToast(`Completed with ${failedIds.length} errors.`);
     setFailedIds([]);
     await loadProducts();
+    await refreshProducts();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -225,6 +498,7 @@ const AdminProducts = () => {
     
     try {
       await pbUpdateProduct(product.pbId || id, { is_live: !currentStatus });
+      await refreshProducts();
     } catch (err) {
       // Revert on error
       setProducts(prev => prev.map(p => p.id === id ? { ...p, isLive: currentStatus } : p));
@@ -250,8 +524,9 @@ const AdminProducts = () => {
     
     try {
       await ensurePbAuth();
-      await pb.collection('products').delete(product?.pbId || idToDelete);
+      await pb.collection('products').delete(product?.pbId || idToDelete, { requestKey: null });
       triggerToast('Product deleted successfully');
+      await refreshProducts();
     } catch (err) {
       // Revert on error at exact position if possible
       if (product) setProducts(prev => [product, ...prev]);
@@ -261,47 +536,122 @@ const AdminProducts = () => {
   };
 
   // Trigger Edit Form
-  const triggerEdit = (product) => {
-    setEditingProduct(product);
-    setEditForm({ ...product, _newImageFile: null });
+  const triggerEdit = async (product) => {
+    console.log('[DEBUG] Selected product before opening edit modal:', product);
+    triggerToast('Fetching latest product details...');
+    try {
+      const latestProduct = await fetchProductById(product.pbId || product.id);
+      console.log('[DEBUG] Fetched latest product details:', latestProduct);
+      
+      // Ensure gallery images are resolved properly
+      let productImages = latestProduct.images || [];
+      if (productImages.length === 0) {
+        const imageUrl = getProductImageUrl(latestProduct);
+        if (imageUrl && !imageUrl.toLowerCase().split('?')[0].endsWith('.json')) {
+          productImages = [imageUrl];
+        }
+      }
+      
+      setEditingProduct(latestProduct);
+      setEditForm({
+        ...latestProduct,
+        images: productImages,
+        _newImageFile: null
+      });
+    } catch (err) {
+      triggerToast('Error loading product details.');
+      console.error('[ERROR] Failed to fetch latest product details:', err);
+    }
   };
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
-    if (!editForm.modelNumber.trim() || !editForm.size.trim()) {
-      alert('Please fill in all required fields marked with *');
+    console.log('[DEBUG] handleEditSubmit entered. editForm:', editForm);
+    const modelNumStr = String(editForm.modelNumber || '').trim();
+    const sizeStr = String(editForm.size || '').trim();
+
+    if (!modelNumStr) {
+      alert('Model number is required.');
       return;
     }
+    if (!sizeStr) {
+      alert('Size is required.');
+      return;
+    }
+    if (editForm.salePrice === undefined || editForm.salePrice === '') {
+      alert('Sale price is required.');
+      return;
+    }
+
     try {
       const pbId = editForm.pbId || editForm.id;
-      await pbUpdateProduct(pbId, {
-        MODEL_NUMBER:    editForm.modelNumber,
-        SIZE_DIMENSIONS: editForm.size,
-        package_no:      editForm.packageNo || '',
+      
+      const payload = {
+        MODEL_NUMBER:    modelNumStr,
+        SIZE_DIMENSIONS: sizeStr,
+        package_no:      editForm.packageNo ? (isNaN(Number(editForm.packageNo)) ? editForm.packageNo : Number(editForm.packageNo)) : '',
         price:           Number(editForm.salePrice),
-        stock:           Number(editForm.stockCount),
         is_live:         editForm.isLive,
-        imageFile:       editForm._newImageFile || undefined,
-      });
+        original_price:  editForm.originalPrice !== undefined && editForm.originalPrice !== null && editForm.originalPrice !== '' ? Number(editForm.originalPrice) : null,
+        is_on_sale:      editForm.isOnSale,
+        description:     editForm.description || '',
+        category:        editForm.category || 'Modern Minimalist',
+        color:           editForm.color || '',
+      };
+
+      if (editForm.images.length === 0) {
+        payload.imageFile = null;
+      } else if (editForm.images.length === 1) {
+        const singleImg = editForm.images[0];
+        if (singleImg.startsWith('data:')) {
+          payload.imageFile = base64ToFile(singleImg, `product_${modelNumStr}.jpg`);
+        } else {
+          if (editingProduct._jsonUrl) {
+            const jsonString = JSON.stringify(editForm.images);
+            const jsonFile = new File([jsonString], 'gallery.json', { type: 'application/json' });
+            payload.imageFile = jsonFile;
+          }
+        }
+      } else {
+        const jsonString = JSON.stringify(editForm.images);
+        const jsonFile = new File([jsonString], 'gallery.json', { type: 'application/json' });
+        payload.imageFile = jsonFile;
+      }
+
+      console.log('[DEBUG] updated payload before saving:', payload);
+
+      const response = await pbUpdateProduct(pbId, payload);
+      console.log('[DEBUG] PocketBase update response:', response);
+
       setEditingProduct(null);
       triggerToast('Product updated successfully');
       await loadProducts();
+      await refreshProducts();
     } catch (err) {
       triggerToast('Error saving product');
-      console.error(err);
+      console.error('[ERROR] Error updating product:', err);
     }
   };
 
   // Image helpers for Edit Modal
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const previewUrl = URL.createObjectURL(file);
-    setEditForm(prev => ({
-      ...prev,
-      images: [previewUrl, ...prev.images.slice(1)],
-      _newImageFile: file,
-    }));
+  const handleImageUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+
+    if (editForm.images.length + files.length > 10) {
+      alert('You can upload a maximum of 10 images.');
+      return;
+    }
+
+    try {
+      const compressedUrls = await Promise.all(files.map(file => compressImage(file)));
+      setEditForm(prev => ({
+        ...prev,
+        images: [...prev.images, ...compressedUrls]
+      }));
+    } catch (err) {
+      console.error('Error compressing/uploading images:', err);
+    }
   };
 
   const removeEditImage = (indexToRemove) => {
@@ -319,15 +669,14 @@ const AdminProducts = () => {
         const isLive = p.isLive !== undefined ? p.isLive : true;
         if (statusFilter === 'LIVE' && !isLive) return false;
         if (statusFilter === 'HIDDEN' && isLive) return false;
-        // Category checks
-        if (categoryFilter !== 'ALL' && p.category !== categoryFilter) return false;
         // Search text check
         const q = searchQuery.toLowerCase().trim();
-        const safeName = (p.name || '').toString().toLowerCase();
         const safeModel = (p.modelNumber || '').toString().toLowerCase();
-        const safeCat = (p.category || '').toString().toLowerCase();
+        const safePrice = (p.salePrice || '').toString().toLowerCase();
+        const safePkg = (p.packageNo || '').toString().toLowerCase();
+        const safeSize = (p.size || '').toString().toLowerCase();
         
-        return safeName.includes(q) || safeModel.includes(q) || safeCat.includes(q);
+        return safeModel.includes(q) || safePrice.includes(q) || safePkg.includes(q) || safeSize.includes(q);
       })
       .sort((a, b) => {
         let valA = a[sortField] !== undefined && a[sortField] !== null ? a[sortField] : '';
@@ -341,7 +690,7 @@ const AdminProducts = () => {
         if (valA > valB) return sortAscending ? 1 : -1;
         return 0;
       });
-  }, [products, searchQuery, statusFilter, categoryFilter, sortField, sortAscending]);
+  }, [products, searchQuery, statusFilter, sortField, sortAscending]);
 
   // Paginated elements
   const paginatedProducts = useMemo(() => {
@@ -433,7 +782,7 @@ const AdminProducts = () => {
         <div className="search-control-wrapper">
           <input 
             type="text" 
-            placeholder="Search catalogue by name, category, or model..."
+            placeholder="Search catalogue by model number, package number, or dimensions..."
             className="form-input search-catalogue-input"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
@@ -464,19 +813,6 @@ const AdminProducts = () => {
             </button>
           </div>
 
-          <div className="category-select-wrapper">
-            <select 
-              className="form-input category-select-filter"
-              value={categoryFilter}
-              onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1); }}
-            >
-              <option value="ALL">All Categories</option>
-              {categories.map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
-
         </div>
 
       </div>
@@ -499,10 +835,6 @@ const AdminProducts = () => {
                   Price{renderSortIndicator('salePrice')}
                 </th>
                 <th>Dimensions</th>
-                <th>Pkg No</th>
-                <th onClick={() => requestSort('stockCount')} className="sortable-header">
-                  Stock{renderSortIndicator('stockCount')}
-                </th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -515,7 +847,12 @@ const AdminProducts = () => {
                   <td>
                     <div className="table-thumb-wrapper">
                       {p.images && p.images.length > 0 ? (
-                        <img src={p.images[0]} alt={p.name} className="table-thumbnail-img" />
+                        <img 
+                          src={p.images[0]} 
+                          alt={p.name} 
+                          className="table-thumbnail-img" 
+                          onError={(e) => { e.target.onerror = null; e.target.src = "/placeholder.svg"; }}
+                        />
                       ) : (
                         <ClockSvg model={p.modelNumber} category={p.category} color={p.color} size={40} />
                       )}
@@ -531,12 +868,6 @@ const AdminProducts = () => {
                     </div>
                   </td>
                   <td>{p.size}</td>
-                  <td>{p.packageNo || '-'}</td>
-                  <td>
-                    <span className={`stock-cell ${p.stockCount <= 0 ? 'out-stock' : p.stockCount <= 5 ? 'low-stock' : ''}`}>
-                      {p.stockCount} pcs
-                    </span>
-                  </td>
 
                   {/* Status Toggle Switch */}
                   <td>
@@ -623,67 +954,32 @@ const AdminProducts = () => {
 
                 <div className="form-group">
                   <label className="form-label">SIZE *</label>
-                  <input 
-                    type="text" 
+                  <select 
                     className="form-input"
                     value={editForm.size}
-                    placeholder="e.g. 300 × 300 MM"
                     onChange={(e) => setEditForm(prev => ({ ...prev, size: e.target.value }))}
-                  />
+                  >
+                    <option value="">Select Size</option>
+                    <option value="300 × 300 MM">300 × 300 MM</option>
+                    <option value="350 × 350 MM">350 × 350 MM</option>
+                    <option value="400 × 400 MM">400 × 400 MM</option>
+                    <option value="450 × 450 MM">450 × 450 MM</option>
+                    <option value="500 × 500 MM">500 × 500 MM</option>
+                    {editForm.size && !["300 × 300 MM", "350 × 350 MM", "400 × 400 MM", "450 × 450 MM", "500 × 500 MM"].includes(editForm.size) && (
+                      <option value={editForm.size}>{editForm.size}</option>
+                    )}
+                  </select>
                 </div>
 
-                <div className="form-group">
-                  <label className="form-label">PKG NO *</label>
-                  <input 
-                    type="text" 
-                    className="form-input"
-                    value={editForm.packageNo || ''}
-                    placeholder="e.g. 52"
-                    onChange={(e) => setEditForm(prev => ({ ...prev, packageNo: e.target.value }))}
-                  />
-                </div>
-              </div>
-
-              <div className="form-grid-3col">
-                <div className="form-group">
-                  <label className="form-label">SALE PRICE (₹) *</label>
-                  <input 
-                    type="number" 
-                    className="form-input"
-                    value={editForm.salePrice}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, salePrice: Number(e.target.value) }))}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">ORIGINAL PRICE (₹)</label>
-                  <input 
-                    type="number" 
-                    className="form-input"
-                    value={editForm.originalPrice || ''}
-                    placeholder="e.g. 120"
-                    onChange={(e) => setEditForm(prev => ({ ...prev, originalPrice: e.target.value ? Number(e.target.value) : null }))}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">PIECES AVAILABLE *</label>
-                  <input 
-                    type="number" 
-                    className="form-input"
-                    value={editForm.stockCount}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, stockCount: Number(e.target.value) }))}
-                  />
-                </div>
               </div>
 
               <div className="form-group">
-                <label className="form-label">DESCRIPTION</label>
-                <textarea 
-                  className="form-textarea"
-                  rows="3"
-                  value={editForm.description}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
+                <label className="form-label">PRICE (₹) *</label>
+                <input 
+                  type="number" 
+                  className="form-input"
+                  value={editForm.salePrice}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, salePrice: Number(e.target.value) }))}
                 />
               </div>
 
@@ -724,13 +1020,28 @@ const AdminProducts = () => {
                 <div className="modal-gallery-row">
                   {editForm.images.map((img, index) => (
                     <div key={index} className="modal-gallery-thumb">
-                      <img src={img} alt="preview" />
+                      <img 
+                        src={img} 
+                        alt="preview" 
+                        onClick={() => handleOpenCropper(img, index)}
+                        style={{ cursor: 'pointer' }}
+                        title="Click to Crop/Resize"
+                      />
                       <button 
                         type="button" 
                         className="remove-thumb-x"
                         onClick={() => removeEditImage(index)}
                       >
                         &times;
+                      </button>
+                      <button 
+                        type="button" 
+                        className="edit-thumb-pencil"
+                        onClick={() => handleOpenCropper(img, index)}
+                        title="Crop / Resize"
+                        style={{ border: 'none' }}
+                      >
+                        ✏️
                       </button>
                     </div>
                   ))}
@@ -841,6 +1152,130 @@ const AdminProducts = () => {
                 style={{ padding: '8px 16px', background: '#F59E0B', borderColor: '#F59E0B', color: 'black' }}
               >
                 Retry Failed
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- CROP MODAL OVERLAY --- */}
+      {showCropModal && (
+        <div className="modal-overlay">
+          <div className="modal-card animate-fade-in" style={{ maxWidth: '800px', width: '95%' }}>
+            <button 
+              className="modal-close-btn" 
+              onClick={() => {
+                setShowCropModal(false);
+                setCropTargetIndex(null);
+                setCropImageSrc('');
+              }}
+              aria-label="Close"
+            >
+              ✕
+            </button>
+            <h3 className="modal-title font-heading">Crop Product Image</h3>
+            <p className="modal-desc font-body" style={{ marginBottom: '16px' }}>
+              Drag the crop selection box to move it, or drag its corner handles to resize. The live preview on the right shows exactly what will be saved.
+            </p>
+
+            <div className="cropper-workspace">
+              {/* Left Column: Draggable Image Crop Area */}
+              <div className="cropper-panel">
+                <span className="cropper-label font-body">ORIGINAL IMAGE & CROP AREA</span>
+                <div 
+                  className="crop-container" 
+                  style={{
+                    position: 'relative',
+                    display: 'inline-block',
+                    backgroundColor: '#F8FAFC',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '6px',
+                    overflow: 'hidden',
+                    boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.02)',
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
+                    maxWidth: '100%'
+                  }}
+                >
+                  <img 
+                    ref={cropImageRef}
+                    src={cropImageSrc} 
+                    alt="To Crop" 
+                    crossOrigin="anonymous"
+                    onLoad={handleImageLoad}
+                    style={{
+                      display: 'block',
+                      maxWidth: '100%',
+                      maxHeight: '380px',
+                      objectFit: 'contain',
+                      pointerEvents: 'none',
+                      userSelect: 'none',
+                      WebkitUserSelect: 'none'
+                    }}
+                  />
+                  {imgDimensions.width > 0 && (
+                    <>
+                      {/* Dark Overlays Outside Crop Area */}
+                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: cropBox.y, backgroundColor: 'rgba(0,0,0,0.5)', pointerEvents: 'none' }} />
+                      <div style={{ position: 'absolute', top: cropBox.y + cropBox.size, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', pointerEvents: 'none' }} />
+                      <div style={{ position: 'absolute', top: cropBox.y, left: 0, width: cropBox.x, height: cropBox.size, backgroundColor: 'rgba(0,0,0,0.5)', pointerEvents: 'none' }} />
+                      <div style={{ position: 'absolute', top: cropBox.y, left: cropBox.x + cropBox.size, right: 0, height: cropBox.size, backgroundColor: 'rgba(0,0,0,0.5)', pointerEvents: 'none' }} />
+
+                      {/* Draggable Crop Selection Box */}
+                      <div 
+                        className="crop-box" 
+                        style={{
+                          position: 'absolute',
+                          left: cropBox.x,
+                          top: cropBox.y,
+                          width: cropBox.size,
+                          height: cropBox.size,
+                          border: '2px dashed #3B82F6',
+                          cursor: 'move',
+                          boxSizing: 'border-box'
+                        }}
+                        onMouseDown={(e) => handleStartAction(e, 'dragging')}
+                        onTouchStart={(e) => handleStartAction(e, 'dragging')}
+                      >
+                        {/* Interactive Corner Resize Handles */}
+                        <div className="crop-handle nw" style={{ position: 'absolute', width: '12px', height: '12px', backgroundColor: '#FFFFFF', border: '2px solid #3B82F6', borderRadius: '50%', cursor: 'nwse-resize', top: '-6px', left: '-6px', zIndex: 10, boxSizing: 'border-box' }} onMouseDown={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-nw'); }} onTouchStart={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-nw'); }} />
+                        <div className="crop-handle ne" style={{ position: 'absolute', width: '12px', height: '12px', backgroundColor: '#FFFFFF', border: '2px solid #3B82F6', borderRadius: '50%', cursor: 'nesw-resize', top: '-6px', right: '-6px', zIndex: 10, boxSizing: 'border-box' }} onMouseDown={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-ne'); }} onTouchStart={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-ne'); }} />
+                        <div className="crop-handle sw" style={{ position: 'absolute', width: '12px', height: '12px', backgroundColor: '#FFFFFF', border: '2px solid #3B82F6', borderRadius: '50%', cursor: 'nesw-resize', bottom: '-6px', left: '-6px', zIndex: 10, boxSizing: 'border-box' }} onMouseDown={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-sw'); }} onTouchStart={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-sw'); }} />
+                        <div className="crop-handle se" style={{ position: 'absolute', width: '12px', height: '12px', backgroundColor: '#FFFFFF', border: '2px solid #3B82F6', borderRadius: '50%', cursor: 'nwse-resize', bottom: '-6px', right: '-6px', zIndex: 10, boxSizing: 'border-box' }} onMouseDown={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-se'); }} onTouchStart={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-se'); }} />
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Right Column: Live Cropped Preview */}
+              <div className="cropper-panel">
+                <span className="cropper-label font-body">LIVE CROPPED PREVIEW</span>
+                <div className="canvas-container preview-container">
+                  <canvas
+                    ref={previewCanvasRef}
+                    width={300}
+                    height={300}
+                    className="preview-canvas"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-actions-row" style={{ marginTop: '24px' }}>
+              <button onClick={handleSaveCrop} className="btn-primary modal-btn">
+                Apply & Save Crop
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCropModal(false);
+                  setCropTargetIndex(null);
+                  setCropImageSrc('');
+                }}
+                className="btn-secondary modal-btn"
+              >
+                Cancel
               </button>
             </div>
           </div>
@@ -962,11 +1397,6 @@ const AdminProducts = () => {
           font-weight: 700;
         }
 
-        .category-select-filter {
-          height: 36px;
-          font-size: 12px;
-          width: 180px;
-        }
 
         /* Table Design */
         .table-container-card {
@@ -1055,19 +1485,6 @@ const AdminProducts = () => {
           font-size: 11px;
           color: var(--text-muted);
           text-decoration: line-through;
-        }
-
-        .stock-cell {
-          font-weight: 600;
-          color: #10B981;
-        }
-
-        .stock-cell.low-stock {
-          color: #F59E0B;
-        }
-
-        .stock-cell.out-stock {
-          color: #EF4444;
         }
 
         /* Status toggle custom switch button */
@@ -1271,6 +1688,29 @@ const AdminProducts = () => {
           font-weight: bold;
         }
 
+        .edit-thumb-pencil {
+          position: absolute;
+          bottom: -6px;
+          right: -6px;
+          width: 20px;
+          height: 20px;
+          background-color: #3B82F6;
+          color: #ffffff;
+          font-size: 9px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+          transition: transform 0.2s ease, background-color 0.2s ease;
+        }
+
+        .edit-thumb-pencil:hover {
+          background-color: #2563EB;
+          transform: scale(1.1);
+        }
+
         .modal-add-thumb-btn {
           width: 60px;
           height: 60px;
@@ -1311,7 +1751,7 @@ const AdminProducts = () => {
           .search-control-wrapper {
             width: 100%;
           }
-          .search-catalogue-input, .category-select-filter {
+          .search-catalogue-input {
             width: 100%;
           }
           .table-container-card {
@@ -1332,6 +1772,84 @@ const AdminProducts = () => {
             width: 95vw;
             padding: 20px;
           }
+        }
+
+        /* ── Image Cropper Modal ── */
+        .cropper-workspace {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 24px;
+          margin-bottom: 24px;
+        }
+
+        @media (max-width: 640px) {
+          .cropper-workspace {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        .cropper-panel {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .cropper-label {
+          font-size: 10px;
+          font-weight: 700;
+          color: var(--text-muted);
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+        }
+
+        .canvas-container {
+          background-color: #F8FAFC;
+          border: 1px solid var(--border-color);
+          border-radius: 6px;
+          padding: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 100%;
+          box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
+        }
+
+        .crop-container {
+          position: relative;
+          display: inline-block;
+          max-width: 100%;
+        }
+
+        .crop-box {
+          position: absolute;
+          border: 2px dashed #3B82F6;
+          cursor: move;
+          box-sizing: border-box;
+        }
+
+        .crop-handle {
+          position: absolute;
+          width: 12px;
+          height: 12px;
+          background-color: #FFFFFF;
+          border: 2px solid #3B82F6;
+          border-radius: 50%;
+          z-index: 10;
+          box-sizing: border-box;
+          transition: transform 0.1s ease;
+        }
+
+        .crop-handle:hover {
+          transform: scale(1.3);
+        }
+
+        .preview-canvas {
+          max-width: 100%;
+          height: auto;
+          background: #FFF;
+          border-radius: 4px;
+          box-shadow: 0 4px 10px rgba(0,0,0,0.05);
         }
       `}</style>
     </div>

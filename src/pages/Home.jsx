@@ -1,7 +1,10 @@
-import React, { useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import ClockSvg from '../components/ClockSvg';
+import {
+  getImage, getList,
+  LIST_KEYS, collectionImageKey, posterImageKey,
+} from '../lib/homepageImagesDb';
 
 // ─── Animated Hero Clock (pure SVG, no images) ───────────────────────────────
 const AnimatedHeroClock = () => {
@@ -196,10 +199,77 @@ const AnimatedHeroClock = () => {
 };
 
 // ─── Main Home Component ──────────────────────────────────────────────────────
-const Home = () => {
-  const { products } = useApp();
+const DEFAULT_COLLECTIONS = [
+  { id: 'col_0', name: 'Premium Wall Clocks',    defaultImage: '/collection_images/premium wall clock.jpg' },
+  { id: 'col_1', name: 'Modern Collection',       defaultImage: '/collection_images/modern wall clock.jpg' },
+  { id: 'col_2', name: 'Wooden Collection',       defaultImage: '/collection_images/wooden wall clock.avif' },
+  { id: 'col_3', name: 'Metal Collection',        defaultImage: '/collection_images/mettal wall clock.webp' },
+  { id: 'col_4', name: 'Luxury Collection',       defaultImage: '/collection_images/luxury wall clock.jpg' },
+  { id: 'col_5', name: 'Living Room Collection',  defaultImage: '/collection_images/living wall clock.webp' },
+  { id: 'col_6', name: 'Vintage Collection',      defaultImage: '/collection_images/vintage clock.webp' },
+  { id: 'col_7', name: 'Large Wall Clocks',       defaultImage: '/collection_images/large wall clock.jpg' },
+];
 
-  const previewProducts = products.filter(p => p.isLive).slice(0, 8);
+const DEFAULT_POSTERS = [
+  { id: 'poster_0', name: 'Wholesale Showcase Banner', defaultImage: '/luxury_clock_showroom.png' },
+];
+
+const Home = () => {
+  const navigate = useNavigate();
+  const { settings } = useApp();
+  const waNumber = (settings?.whatsappNumber || '7358349394').replace(/\D/g, '');
+  const waLink = `https://wa.me/${waNumber}?text=${encodeURIComponent('Hello, I am interested in placing a wholesale order for Devi Clocks. Please share the product catalogue and pricing.')}`;
+
+  // ── Custom homepage images from IndexedDB (admin-managed) ──────────────────
+  const [collections, setCollections] = useState(DEFAULT_COLLECTIONS);
+  const [collImgMap, setCollImgMap]   = useState({});
+  const [posterList, setPosterList]   = useState(DEFAULT_POSTERS);
+  const [posterImgMap, setPosterImgMap] = useState({});
+
+  const loadHomepageImages = async () => {
+    try {
+      // Collections
+      const storedCols = await getList(LIST_KEYS.COLLECTIONS);
+      const cols = storedCols || DEFAULT_COLLECTIONS;
+      setCollections(cols);
+      const cMap = {};
+      for (const c of cols) {
+        const img = await getImage(collectionImageKey(c.id));
+        if (img) cMap[c.id] = img;
+      }
+      setCollImgMap(cMap);
+
+      // Posters
+      const storedPosters = await getList(LIST_KEYS.POSTERS);
+      const posts = storedPosters || DEFAULT_POSTERS;
+      setPosterList(posts);
+      const pMap = {};
+      for (const p of posts) {
+        const img = await getImage(posterImageKey(p.id));
+        if (img) pMap[p.id] = img;
+      }
+      setPosterImgMap(pMap);
+    } catch (err) {
+      console.warn('[Home] Failed to load custom homepage images:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadHomepageImages();
+    // Re-load instantly when admin saves changes
+    window.addEventListener('homepageImagesUpdated', loadHomepageImages);
+    return () => window.removeEventListener('homepageImagesUpdated', loadHomepageImages);
+  }, []);
+
+  const handleCollectionClick = (categoryName) => {
+    navigate('/collection', { state: { selectedCategory: categoryName } });
+  };
+
+  // Active poster (first in list, or null if list is empty)
+  const activePoster = posterList[0] || null;
+  const posterSrc = activePoster
+    ? (posterImgMap[activePoster.id] || activePoster.defaultImage || null)
+    : null;
 
   return (
     <div className="home-root">
@@ -219,14 +289,34 @@ const Home = () => {
           {/* Left: Text */}
           <div className="hero-left-content">
             <div className="hero-text-blob" aria-hidden="true" />
-            <span className="hero-tag-label uppercase-label">DEVI TIMES COLLECTION</span>
+            
+            <div className="wholesale-badge font-body" style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px',
+              backgroundColor: 'rgba(238,213,155,0.08)',
+              border: '1px solid rgba(238,213,155,0.25)',
+              borderRadius: '20px',
+              color: '#EED59B',
+              fontSize: '11px',
+              fontWeight: '600',
+              letterSpacing: '0.04em',
+              marginBottom: '16px'
+            }}>
+              <span style={{ display: 'inline-block', width: '6px', height: '6px', backgroundColor: '#EED59B', borderRadius: '50%' }}></span>
+              Wholesale Only • Retailers & Dealers Welcome
+            </div>
+
+            <span className="hero-tag-label uppercase-label">WHOLESALE CLOCK DISTRIBUTOR</span>
             <h1 className="hero-heading font-heading">
-              Timeless Elegance <br />
-              <span className="italic-accent">For Every Wall</span>
+              Premium Clocks <br /> for Retail Stores <br />
+              <span className="italic-accent" style={{ display: 'block', marginTop: '12px' }}>
+                Exclusive Wholesale Collection
+              </span>
             </h1>
-            <p className="hero-description font-body">
-              Discover premium clocks crafted with beautiful designs and perfect finishing.
-              Elevate your space with our masterfully crafted timepieces.
+            <p className="hero-description font-body" style={{ maxWidth: '440px' }}>
+              Supplying quality wall clocks to retailers, dealers, distributors, gift shops, and home decor stores. Competitive wholesale pricing, bulk stock availability, and reliable service for your business growth.
             </p>
           </div>
 
@@ -237,10 +327,10 @@ const Home = () => {
             </div>
             <div className="hero-cta-group" style={{ justifyContent: 'center', flexDirection: 'column' }}>
               <Link to="/collection" className="btn-primary hero-cta-btn">
-                EXPLORE COLLECTION &nbsp; →
+                VIEW WHOLESALE COLLECTION &nbsp; →
               </Link>
               <Link to="/register" className="hero-secondary-cta">
-                Register Now
+                REGISTER AS RETAILER
               </Link>
             </div>
           </div>
@@ -249,90 +339,74 @@ const Home = () => {
       </section>
 
 
-      {/* ── Collection Preview ── */}
-      <section className="collection-preview-section">
+      {/* ── Shop by Collection Section ── */}
+      <section className="collections-showcase-section">
         <div className="container">
-
-          <div className="preview-header">
-            <span className="uppercase-label preview-label">OUR COLLECTION</span>
-            <h2 className="preview-title font-heading">Curated Timepieces</h2>
-            <p className="preview-subtitle font-body">
-              Explore our handpicked selection of premium wall clocks
-            </p>
+          <div className="section-header-center">
+            <span className="section-tag uppercase-label">CURATED TIMEPIECES</span>
+            <h2 className="section-heading font-heading">Shop by Collection</h2>
+            <div className="section-heading-line"></div>
           </div>
 
-          {previewProducts.length === 0 ? (
-            <div className="empty-grid-fallback">
-              <p>No products are currently live in the shop.</p>
-            </div>
-          ) : (
-            <div className="grid-products">
-              {previewProducts.map((product) => {
-                const hasSale = product.isOnSale;
+          {/* Desktop Grid & Mobile Carousel */}
+          <div className="collections-grid-carousel">
+            {collections.map((col, idx) => (
+              <div 
+                key={col.id || idx} 
+                className="collection-card-item animate-fade-in"
+                onClick={() => handleCollectionClick(col.name)}
+                style={{ animationDelay: `${idx * 0.05}s` }}
+              >
+                <div className="collection-card-img-wrapper">
+                  <img
+                    src={collImgMap[col.id] || col.defaultImage || col.image || ''}
+                    alt={col.name}
+                    className="collection-card-img"
+                  />
+                  <div className="collection-card-overlay"></div>
+                </div>
+                <div className="collection-card-content">
+                  <h3 className="collection-card-title font-heading">{col.name}</h3>
+                  <span className="collection-card-cta">EXPLORE COLLECTION &nbsp; →</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-                return (
-                  <div key={product.id} className="card-product animate-fade-in">
 
-                    {/* Image Area */}
-                    <div className="card-image-area">
-                      {hasSale && <span className="badge-sale absolute-badge">SALE</span>}
-                      {product.images && product.images.length > 0 ? (
-                        <img src={product.images[0]} alt={product.name} />
-                      ) : (
-                        <ClockSvg
-                          model={product.modelNumber}
-                          category={product.category}
-                          color={product.color}
-                          size={150}
-                        />
-                      )}
-                    </div>
-
-                    {/* Text Area */}
-                    <div className="card-text-area">
-                      <div>
-                        <span className="category-label">{product.category}</span>
-                        <h3 className="product-name font-heading" style={{ marginTop: '4px' }}>
-                          {product.name}
-                        </h3>
-                        <div style={{ marginTop: '6px', fontSize: '10px', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>
-                          MODEL: <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>{product.modelNumber}</span>
-                        </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                          SIZE: {product.size}
-                        </div>
-                      </div>
-
-                      <div className="pricing-row">
-                        <span className="price-bold">₹{product.salePrice}</span>
-                        {product.originalPrice && (
-                          <span className="price-strikethrough">₹{product.originalPrice}</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Button Row */}
-                    <div className="card-button-row">
-                      <Link to={`/product/${product.id}`} className="btn-secondary btn-text" style={{ padding: '8px 0', fontSize: '11px' }}>
-                        DETAILS
-                      </Link>
-                      <Link to={`/product/${product.id}`} className="btn-primary btn-text" style={{ padding: '8px 0', fontSize: '11px' }}>
-                        ORDER
-                      </Link>
-                    </div>
-
-                  </div>
-                );
-              })}
+      {/* ── Wholesale Order Banner (Luxury Showcase Card) ── */}
+      <section className="wholesale-banner-section">
+        <div className="wholesale-card">
+          {/* Left Side: Product Showcase Image */}
+          {posterSrc && (
+            <div className="wholesale-card-image-wrapper">
+              <img 
+                src={posterSrc}
+                alt={activePoster?.name || 'Premium Wall Clock Showroom'} 
+                className="wholesale-card-image"
+              />
             </div>
           )}
 
-          <div className="view-all-wrapper">
-            <Link to="/collection" className="btn-secondary view-all-btn">
-              VIEW ALL PRODUCTS
+          {/* Right Side: Content Area */}
+          <div className="wholesale-card-content">
+            <span className="wholesale-tag uppercase-label">WHOLESALE COLLECTION</span>
+
+            <h2 className="wholesale-title font-heading">
+              Built for Wholesale Business <br />
+              <span className="italic-accent">Curated for Every Store</span>
+            </h2>
+
+            <p className="wholesale-subtitle font-body">
+              Discover bestselling clock collections with competitive wholesale pricing, reliable quality, and designs your customers will love.
+            </p>
+
+            <Link to="/collection" className="explore-collection-btn font-heading">
+              EXPLORE COLLECTION &nbsp; →
             </Link>
           </div>
-
         </div>
       </section>
 
@@ -340,7 +414,7 @@ const Home = () => {
       <section className="brand-band">
         <div className="container brand-band-inner">
           <p className="font-heading brand-band-text">
-            Where Every Second Is <span className="italic-accent">Art</span>
+            Your Trusted Wholesale Clock <span className="italic-accent">Partner</span>
           </p>
           <Link to="/register" className="btn-primary">
             GET STARTED
@@ -418,23 +492,26 @@ const Home = () => {
           flex: 1;
           display: flex;
           flex-direction: column;
-          align-items: flex-start;
+          align-items: center;
+          text-align: center;
           gap: 0;
           position: relative;
           z-index: 1;
+          max-width: 480px;
+          width: 100%;
         }
 
         .hero-text-blob {
           position: absolute;
-          top: -40px;
-          left: -40px;
-          width: 500px;
-          height: 360px;
-          background-color: rgba(255, 255, 255, 0.07);
-          border-radius: 46% 54% 43% 57% / 51% 45% 55% 49%;
+          top: -85px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 600px;
+          height: 600px;
+          background-color: rgba(255, 255, 255, 0.06);
+          border-radius: 50%;
           z-index: -1;
           pointer-events: none;
-          transform: rotate(-3deg);
         }
 
         .hero-tag-label {
@@ -444,11 +521,12 @@ const Home = () => {
         }
 
         .hero-heading {
-          font-size: 58px;
+          font-size: 48px;
           font-weight: 700;
-          line-height: 1.12;
+          line-height: 1.15;
           margin-bottom: 22px;
           color: #ffffff;
+          max-width: 480px;
         }
 
         .italic-accent {
@@ -459,7 +537,7 @@ const Home = () => {
         .hero-description {
           font-size: 16px;
           opacity: 0.82;
-          max-width: 400px;
+          max-width: 440px;
           line-height: 1.65;
           margin-bottom: 36px;
           color: #C8D8EE;
@@ -514,115 +592,124 @@ const Home = () => {
           filter: drop-shadow(0 20px 48px rgba(45,93,161,0.55));
         }
 
-        /* ── Feature Strip ── */
-        .feature-strip {
-          background-color: var(--secondary-dark);
-          padding: 28px 0;
-          border-top: 1px solid rgba(255,255,255,0.06);
-          border-bottom: 1px solid rgba(255,255,255,0.06);
-        }
-
-        .feature-strip-grid {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 0;
-        }
-
-        .feature-item {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          padding: 12px 20px;
-          border-right: 1px solid rgba(255,255,255,0.08);
-        }
-        .feature-item:last-child {
-          border-right: none;
-        }
-
-        .feature-icon {
-          font-size: 22px;
-          color: var(--text-accent-on-dark);
-          opacity: 0.85;
-          flex-shrink: 0;
-        }
-
-        .feature-title {
-          font-size: 13px;
-          font-weight: 700;
-          color: #FFFFFF;
-          letter-spacing: 0.04em;
-          margin-bottom: 2px;
-        }
-
-        .feature-desc {
-          font-size: 11px;
-          color: rgba(200,216,238,0.6);
-          letter-spacing: 0.02em;
-        }
-
-        /* ── Collection Preview ── */
-        .collection-preview-section {
-          background-color: var(--page-bg);
-          padding: 88px 0;
-        }
-
-        .preview-header {
-          text-align: center;
-          margin-bottom: 56px;
-        }
-
-        .preview-label {
-          color: var(--accent-blue);
-          display: block;
-          margin-bottom: 10px;
-        }
-
-        .preview-title {
-          font-size: 42px;
-          color: var(--text-primary);
-          margin-bottom: 10px;
-          line-height: 1.15;
-        }
-
-        .preview-subtitle {
-          color: var(--text-muted);
-          font-size: 15px;
-        }
-
-        .pricing-row {
-          margin-top: 16px;
-          display: flex;
-          align-items: baseline;
-          gap: 8px;
-        }
-
-        .absolute-badge {
-          position: absolute;
-          top: 0;
-          left: 0;
-          z-index: 10;
-        }
-
-        .empty-grid-fallback {
-          text-align: center;
-          padding: 40px;
-          color: var(--text-muted);
-        }
-
-        .view-all-wrapper {
+        /* ── Wholesale Banner (Luxury Showcase Card) ── */
+        .wholesale-banner-section {
+          padding: 0;
+          margin-top: 48px;
+          margin-bottom: 48px;
           display: flex;
           justify-content: center;
-          margin-top: 56px;
+          align-items: center;
+          width: 100%;
+          background: transparent;
         }
 
-        .view-all-btn {
-          padding: 14px 40px;
-          border-color: var(--text-primary);
-          color: var(--text-primary);
+        .wholesale-card {
+          width: 90%;
+          max-width: 880px; /* Reduced card width */
+          background: linear-gradient(135deg, #FDF7EA 0%, #EED59B 100%); /* Premium light gold champagne gradient */
+          border: 1.5px solid #DDD1B3; /* Subtle light gold border */
+          border-radius: 24px; /* Tighter border radius */
+          box-shadow: 0 20px 48px rgba(26, 35, 50, 0.1);
+          overflow: hidden;
+          display: grid;
+          grid-template-columns: 1.05fr 0.95fr;
+          align-items: center;
+          transition: transform 0.3s ease;
+          animation: wsBannerFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
         }
-        .view-all-btn:hover {
-          background-color: var(--text-primary);
+        @keyframes wsBannerFadeIn {
+          from { opacity: 0; transform: translateY(20px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .wholesale-card-image-wrapper {
+          width: 100%;
+          height: 100%;
+          min-height: 300px; /* Reduced image height */
+          overflow: hidden;
+          position: relative;
+        }
+
+        .wholesale-card-image {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+          transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .wholesale-card:hover .wholesale-card-image {
+          transform: scale(1.04); /* Slight image zoom on hover */
+        }
+
+        .wholesale-card-content {
+          padding: 36px 40px; /* Compact padding */
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          justify-content: center;
+        }
+
+        .wholesale-tag {
+          color: #B68B1D; /* Deep gold-bronze for tag accent */
+          letter-spacing: 0.2em;
+          font-size: 10px;
+          font-weight: 800;
+          margin-bottom: 10px;
+          display: block;
+        }
+
+        .wholesale-title {
+          font-size: 28px; /* Compact font size */
+          font-weight: 700;
+          color: #1A2332; /* Navy text */
+          line-height: 1.25;
+          margin-bottom: 12px;
+          letter-spacing: -0.01em;
+          display: block;
+        }
+
+        .wholesale-title .italic-accent {
+          color: #B68B1D; /* Deep gold-bronze italic accent for beautiful tone harmony */
+          font-style: italic;
+        }
+
+        .wholesale-subtitle {
+          font-size: 13px;
+          color: #2D3748; /* Slate gray for high legibility on light gold background */
+          line-height: 1.55;
+          margin-bottom: 22px;
+          max-width: 400px;
+        }
+
+        /* Explore Collection Button */
+        .explore-collection-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          background-color: #1A2332; /* Navy background button */
           color: #ffffff;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          padding: 12px 24px;
+          border-radius: 4px;
+          text-decoration: none;
+          transition: all 0.25s ease;
+          box-shadow: 0 4px 14px rgba(26, 35, 50, 0.15);
+          white-space: nowrap;
+          border: 1px solid #1A2332;
+        }
+        .explore-collection-btn:hover {
+          background-color: transparent;
+          color: #1A2332;
+          transform: translateY(-2px);
+          box-shadow: 0 8px 20px rgba(26, 35, 50, 0.18);
+        }
+        .explore-collection-btn:active {
+          transform: translateY(0);
         }
 
         /* ── Brand Band ── */
@@ -642,13 +729,139 @@ const Home = () => {
           color: #FFFFFF;
         }
 
+        /* ── Shop by Collection Showcase ── */
+        .collections-showcase-section {
+          padding: 80px 0;
+          background-color: var(--page-bg);
+        }
+
+        .section-header-center {
+          text-align: center;
+          margin-bottom: 48px;
+        }
+
+        .section-tag {
+          color: var(--accent-blue);
+          letter-spacing: 0.16em;
+          font-size: 11px;
+          font-weight: 700;
+          display: block;
+          margin-bottom: 8px;
+        }
+
+        .section-heading {
+          font-size: 38px;
+          color: var(--text-primary);
+          font-weight: 700;
+          line-height: 1.2;
+        }
+
+        .section-heading-line {
+          width: 60px;
+          height: 3px;
+          background-color: var(--accent-blue);
+          margin: 16px auto 0 auto;
+          border-radius: 2px;
+        }
+
+        .collections-grid-carousel {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 28px;
+        }
+
+        .collection-card-item {
+          position: relative;
+          border-radius: 12px;
+          overflow: hidden;
+          aspect-ratio: 4 / 5;
+          cursor: pointer;
+          box-shadow: 0 4px 20px rgba(26, 35, 50, 0.08);
+          transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), 
+                      box-shadow 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+          -webkit-tap-highlight-color: transparent; /* Remove default tap highlight on mobile */
+        }
+
+        .collection-card-item:hover {
+          transform: translateY(-8px);
+          box-shadow: 0 12px 32px rgba(26, 35, 50, 0.16);
+        }
+
+        .collection-card-item:active {
+          transform: translateY(-2px) scale(0.97); /* Instant active feedback on touch */
+          box-shadow: 0 4px 12px rgba(26, 35, 50, 0.1);
+          transition: transform 0.1s ease;
+        }
+
+        .collection-card-img-wrapper {
+          width: 100%;
+          height: 100%;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .collection-card-img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .collection-card-item:hover .collection-card-img {
+          transform: scale(1.08);
+        }
+
+        .collection-card-overlay {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(to bottom, rgba(26, 35, 50, 0.1) 0%, rgba(26, 35, 50, 0.85) 100%);
+          transition: background 0.4s ease;
+        }
+
+        .collection-card-item:hover .collection-card-overlay {
+          background: linear-gradient(to bottom, rgba(26, 35, 50, 0.2) 0%, rgba(26, 35, 50, 0.9) 100%);
+        }
+
+        .collection-card-content {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          padding: 24px;
+          z-index: 2;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .collection-card-title {
+          color: #ffffff;
+          font-size: 22px;
+          font-weight: 600;
+          margin-bottom: 8px;
+          line-height: 1.2;
+          letter-spacing: 0.02em;
+        }
+
+        .collection-card-cta {
+          color: rgba(255, 255, 255, 0.85);
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          transition: color 0.3s ease, transform 0.3s ease;
+          display: inline-flex;
+          align-items: center;
+        }
+
+        .collection-card-item:hover .collection-card-cta {
+          color: #ffffff;
+          transform: translateX(4px);
+        }
+
         /* ── Responsive ── */
         @media (max-width: 1024px) {
           .hero-heading { font-size: 44px; }
-          .feature-strip-grid { grid-template-columns: repeat(2, 1fr); }
-          .feature-item:nth-child(2) { border-right: none; }
-          .feature-item:nth-child(3) { border-right: none; border-top: 1px solid rgba(255,255,255,0.08); }
-          .feature-item:nth-child(4) { border-top: 1px solid rgba(255,255,255,0.08); }
         }
 
         @media (max-width: 768px) {
@@ -656,7 +869,7 @@ const Home = () => {
             min-height: 100vh;
             padding: 100px 16px 60px 16px;
           }
-          
+
           .hero-section::after {
             content: '';
             position: absolute;
@@ -673,7 +886,7 @@ const Home = () => {
             gap: 40px;
           }
           .hero-left-content { align-items: center; }
-          
+
           .hero-text-blob {
             top: 40%;
             left: 50%;
@@ -683,7 +896,7 @@ const Home = () => {
             border-radius: 50%;
             opacity: 0.15;
           }
-          
+
           .hero-right-content { justify-content: center; margin-right: 0; width: 100%; }
           .hero-heading { font-size: 38px; line-height: 1.2; margin-bottom: 16px; }
           .hero-description { font-size: 15px; max-width: 100%; margin-bottom: 0; }
@@ -708,15 +921,59 @@ const Home = () => {
             object-fit: contain;
           }
 
-          .feature-strip-grid { grid-template-columns: 1fr; }
-          .feature-item { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.08); }
-          .feature-item:last-child { border-bottom: none; }
+          /* Collections mobile swipeable carousel overrides */
+          .collections-showcase-section {
+            padding: 56px 0;
+          }
+          .collections-grid-carousel {
+            display: flex;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            gap: 16px;
+            padding: 8px 4px 24px 4px;
+            scrollbar-width: none; /* Hide scrollbar for Firefox */
+            -webkit-overflow-scrolling: touch;
+          }
+          .collections-grid-carousel::-webkit-scrollbar {
+            display: none; /* Hide scrollbar for Chrome/Safari */
+          }
+          .collection-card-item {
+            flex: 0 0 75%; /* Viewport width on mobile */
+            scroll-snap-align: center;
+            aspect-ratio: 4 / 5;
+          }
+          .collection-card-title {
+            font-size: 18px;
+          }
+
+          .wholesale-banner-section {
+            margin-top: 32px;
+            margin-bottom: 32px;
+          }
+          .wholesale-card {
+            grid-template-columns: 1fr;
+            border-radius: 16px;
+            max-width: 480px;
+          }
+          .wholesale-card-image-wrapper {
+            min-height: 220px;
+            max-height: 240px;
+          }
+          .wholesale-card-content {
+            padding: 28px 24px;
+            align-items: center;
+            text-align: center;
+          }
+          .wholesale-title { font-size: 24px; }
+          .wholesale-subtitle { font-size: 12.5px; max-width: 100%; margin-bottom: 18px; }
         }
 
         @media (max-width: 480px) {
           .hero-heading { font-size: 30px; }
-          .preview-title { font-size: 32px; }
           .brand-band-text { font-size: 28px; }
+          .wholesale-title { font-size: 22px; }
+          .wholesale-subtitle { font-size: 12px; margin-bottom: 14px; }
+          .explore-collection-btn { font-size: 9.5px; padding: 10px 18px; }
         }
       `}</style>
     </div>

@@ -1,48 +1,23 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createProduct } from '../../lib/productsService';
+import { useApp } from '../../context/AppContext';
 
-// Canvas-based image compression helper as specified in the prompt
-function compressImage(file, maxWidth = 800, quality = 0.75) {
-  return new Promise((resolve) => {
+// Helper to read file as base64 without losing quality (formerly compressImage)
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-
-        // Calculate aspect ratio resizing
-        if (width > height) {
-          if (width > maxWidth) {
-            height = Math.round((height * maxWidth) / width);
-            width = maxWidth;
-          }
-        } else {
-          if (height > maxWidth) {
-            width = Math.round((width * maxWidth) / height);
-            height = maxWidth;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        
-        // Export to JPEG base64 string
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      };
-      img.src = event.target.result;
+      resolve(event.target.result);
     };
+    reader.onerror = (err) => reject(err);
     reader.readAsDataURL(file);
   });
 }
 
 const AdminAddProduct = () => {
   const navigate = useNavigate();
+  const { refreshProducts } = useApp();
   // PocketBase: no context needed — save directly
   const [isSaving, setIsSaving] = useState(false);
 
@@ -53,33 +28,29 @@ const AdminAddProduct = () => {
   // Validation errors
   const [errors, setErrors] = useState({});
 
+  // Confirmation modal
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  // Pending draft flag (set when Save as Draft triggers confirm)
+  const [pendingForceDraft, setPendingForceDraft] = useState(false);
+
+  // Toast notification
+  const [toastMsg, setToastMsg] = useState({ text: '', type: '' }); // type: 'success' | 'error'
+  const showToast = (text, type = 'success') => {
+    setToastMsg({ text, type });
+    setTimeout(() => setToastMsg({ text: '', type: '' }), 3000);
+  };
+
   // Image loading indicators
   const [compressing, setCompressing] = useState(false);
 
   // Form Fields State
-  const [name, setName] = useState('');
-  const [category, setCategory] = useState('Modern Minimalist');
   const [modelNumber, setModelNumber] = useState('');
   const [sizeType, setSizeType] = useState('300 × 300 MM');
   const [customSize, setCustomSize] = useState('');
-  const [color, setColor] = useState('');
-  const [salePrice, setSalePrice] = useState('');
-  const [originalPrice, setOriginalPrice] = useState('');
-  const [stockCount, setStockCount] = useState('');
-  const [description, setDescription] = useState('');
-  const [isOnSale, setIsOnSale] = useState(false);
-  const [isLive, setIsLive] = useState(true); // default live
+  const [productPrice, setProductPrice] = useState('');
+  const [packageNo, setPackageNo] = useState('');
+  const [isLive, setIsLive] = useState(true);
   const [images, setImages] = useState([]); // array of { url: string, file: File }
-
-  // Swatch colors helper list
-  const swatchOptions = [
-    { label: 'Black', hex: '#000000' },
-    { label: 'White', hex: '#FFFFFF' },
-    { label: 'Navy Blue', hex: '#1E3A8A' },
-    { label: 'Brushed Silver', hex: '#E2E8F0' },
-    { label: 'Champagne Gold', hex: '#F59E0B' },
-    { label: 'Bronze', hex: '#78350F' }
-  ];
 
   // Common sizes helper list
   const sizeOptions = [
@@ -135,58 +106,86 @@ const AdminAddProduct = () => {
 
   // Reset form to add another product
   const handleResetForm = () => {
-    setName('');
-    setCategory('Modern Minimalist');
     setModelNumber('');
     setSizeType('300 × 300 MM');
     setCustomSize('');
-    setColor('');
-    setSalePrice('');
-    setOriginalPrice('');
-    setStockCount('');
-    setDescription('');
-    setIsOnSale(false);
+    setProductPrice('');
+    setPackageNo('');
     setIsLive(true);
     setImages([]);
     setErrors({});
     setIsSuccess(false);
   };
 
-  // Submit product — save to PocketBase
-  const handleSubmit = async (e, forceDraft = false) => {
-    e.preventDefault();
+  // Validate form fields — returns true if valid, sets errors otherwise
+  const validateForm = () => {
     setErrors({});
-
     const newErrors = {};
     if (!modelNumber.trim()) newErrors.modelNumber = 'Model number is required.';
     const finalSize = sizeType === 'Custom' ? customSize.trim() : sizeType;
     if (!finalSize) newErrors.size = 'Product size is required.';
-    if (!salePrice) newErrors.salePrice = 'Sale price is required.';
-    if (!stockCount) newErrors.stockCount = 'Available pieces count is required.';
-
+    if (!productPrice) newErrors.productPrice = 'Product price is required.';
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
+      return false;
     }
+    return true;
+  };
 
+  // Called when SAVE PRODUCT is clicked — validate then show confirm modal
+  const handleSaveClick = (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+    setPendingForceDraft(false);
+    setShowConfirmModal(true);
+  };
+
+  // Called when SAVE AS DRAFT is clicked — validate then save directly (no confirm)
+  const handleDraftClick = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+    await doSave(true);
+  };
+
+  // Actual save to PocketBase
+  const doSave = async (forceDraft = false) => {
+    const finalSize = sizeType === 'Custom' ? customSize.trim() : sizeType;
+    const finalIsLive = forceDraft ? false : isLive;
     setIsSaving(true);
     try {
+      let imageFilePayload = null;
+      if (images.length === 1) {
+        imageFilePayload = images[0].file;
+      } else if (images.length > 1) {
+        const base64List = await Promise.all(images.map(img => compressImage(img.file)));
+        const jsonString = JSON.stringify(base64List);
+        imageFilePayload = new File([jsonString], 'gallery.json', { type: 'application/json' });
+      }
+
       await createProduct({
         MODEL_NUMBER:    modelNumber.trim(),
         SIZE_DIMENSIONS: finalSize,
-        package_no:      '',
-        price:           Number(salePrice),
-        stock:           Number(stockCount),
-        is_live:         forceDraft ? false : isLive,
-        imageFile:       images.length > 0 ? images[0].file : null,
+        package_no:      packageNo.trim(),
+        price:           Number(productPrice),
+        is_live:         finalIsLive,
+        imageFile:       imageFilePayload,
       });
+
+      // Refresh global products state immediately
+      await refreshProducts();
+
       setSuccessProductName(modelNumber.trim());
-      setIsSuccess(true);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setShowConfirmModal(false);
+      showToast('✅ Product added successfully.');
+      setTimeout(() => {
+        setIsSuccess(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }, 800);
     } catch (err) {
       console.error('[PB] createProduct error:', err);
-      alert('Failed to save product to PocketBase. Make sure PocketBase is running on https://pocketbase-production-ec1e.up.railway.app');
+      setShowConfirmModal(false);
+      showToast('❌ Failed to add product. Please try again.', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -194,6 +193,42 @@ const AdminAddProduct = () => {
 
   return (
     <div className="admin-add-root font-body">
+
+      {/* Toast Notification */}
+      {toastMsg.text && (
+        <div className={`ap-toast ap-toast--${toastMsg.type}`}>
+          {toastMsg.text}
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="confirm-modal-overlay" onClick={() => !isSaving && setShowConfirmModal(false)}>
+          <div className="confirm-modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="confirm-modal-icon">📦</div>
+            <h2 className="confirm-modal-title font-heading">Confirm Product Upload</h2>
+            <p className="confirm-modal-msg font-body">Are you sure you want to add this product?</p>
+            <div className="confirm-modal-actions">
+              <button
+                className="btn-primary confirm-modal-yes"
+                onClick={() => doSave(false)}
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <><span className="confirm-spinner"></span> Saving...</>
+                ) : 'Yes, Add Product'}
+              </button>
+              <button
+                className="btn-secondary confirm-modal-cancel"
+                onClick={() => setShowConfirmModal(false)}
+                disabled={isSaving}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* 1. Success Screen View */}
       {isSuccess ? (
@@ -224,7 +259,7 @@ const AdminAddProduct = () => {
             <p className="stats-indicator font-body">Add a luxury timepiece manually. Fields marked with * are required.</p>
           </div>
 
-          <form className="admin-form product-create-form" onSubmit={(e) => handleSubmit(e, false)}>
+          <form className="admin-form product-create-form" onSubmit={handleSaveClick}>
             
             {/* Left Block: Image Drag-n-Drop area */}
             <div className="form-card-panel">
@@ -303,35 +338,6 @@ const AdminAddProduct = () => {
             {/* Right Block: Product Details fields */}
             <div className="form-card-panel" style={{ marginTop: '24px' }}>
               <h3 className="panel-heading font-heading">Product Details</h3>
-              
-              {/* Product Name */}
-              <div className="form-group">
-                <label className="form-label">PRODUCT NAME *</label>
-                <input 
-                  type="text" 
-                  className={`form-input ${errors.name ? 'input-error-state' : ''}`}
-                  placeholder="e.g. Obsidian Classic"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-                {errors.name && <span className="inline-error-msg font-body">{errors.name}</span>}
-              </div>
-
-              {/* Category */}
-              <div className="form-group">
-                <label className="form-label">CATEGORY *</label>
-                <select 
-                  className="form-input"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                >
-                  <option value="Modern Minimalist">Modern Minimalist</option>
-                  <option value="Contemporary">Contemporary</option>
-                  <option value="Luxury Vintage">Luxury Vintage</option>
-                  <option value="Classic">Classic</option>
-                  <option value="Special Edition">Special Edition</option>
-                </select>
-              </div>
 
               {/* Model Number */}
               <div className="form-group">
@@ -373,122 +379,30 @@ const AdminAddProduct = () => {
                 {errors.size && <span className="inline-error-msg font-body">{errors.size}</span>}
               </div>
 
-              {/* Color swatches and input */}
+              {/* Product Price */}
               <div className="form-group">
-                <label className="form-label">COLOR FINISH *</label>
+                <label className="form-label">PRODUCT PRICE *</label>
                 <input 
-                  type="text" 
-                  className={`form-input ${errors.color ? 'input-error-state' : ''}`}
-                  placeholder="e.g. Matte Black"
-                  value={color}
-                  onChange={(e) => setColor(e.target.value)}
+                  type="number" 
+                  className={`form-input ${errors.productPrice ? 'input-error-state' : ''}`}
+                  placeholder="e.g. ₹1500"
+                  value={productPrice}
+                  onChange={(e) => setProductPrice(e.target.value)}
                 />
-                {errors.color && <span className="inline-error-msg font-body">{errors.color}</span>}
-                
-                {/* Palette selection helpers */}
-                <div className="swatches-helper-list font-body">
-                  {swatchOptions.map(sw => (
-                    <button 
-                      key={sw.label} 
-                      type="button" 
-                      className="swatch-btn"
-                      onClick={() => setColor(sw.label)}
-                    >
-                      <span className="swatch-circle" style={{ backgroundColor: sw.hex }}></span>
-                      <span>{sw.label}</span>
-                    </button>
-                  ))}
-                </div>
+                {errors.productPrice && <span className="inline-error-msg font-body">{errors.productPrice}</span>}
               </div>
 
-              {/* Price Fields */}
-              <div className="form-grid-3col">
-                
-                <div className="form-group">
-                  <label className="form-label">SALE PRICE (₹) *</label>
-                  <input 
-                    type="number" 
-                    className={`form-input ${errors.salePrice ? 'input-error-state' : ''}`}
-                    placeholder="e.g. 89"
-                    value={salePrice}
-                    onChange={(e) => setSalePrice(e.target.value)}
-                  />
-                  {errors.salePrice && <span className="inline-error-msg font-body">{errors.salePrice}</span>}
-                </div>
 
-                <div className="form-group">
-                  <label className="form-label">ORIGINAL PRICE (₹)</label>
-                  <input 
-                    type="number" 
-                    className="form-input"
-                    placeholder="e.g. 120"
-                    value={originalPrice}
-                    onChange={(e) => setOriginalPrice(e.target.value)}
-                  />
-                  <span className="help-subtext font-body">Original price shows as strikethrough if filled</span>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">PIECES AVAILABLE *</label>
-                  <input 
-                    type="number" 
-                    className={`form-input ${errors.stockCount ? 'input-error-state' : ''}`}
-                    placeholder="e.g. 50"
-                    value={stockCount}
-                    onChange={(e) => setStockCount(e.target.value)}
-                  />
-                  {errors.stockCount && <span className="inline-error-msg font-body">{errors.stockCount}</span>}
-                </div>
-
-              </div>
-
-              {/* Description */}
-              <div className="form-group">
-                <label className="form-label">DESCRIPTION</label>
-                <textarea 
-                  className="form-textarea" 
-                  rows="4" 
-                  placeholder="Product description, materials, features..."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                />
-              </div>
-
-              {/* Badges toggles */}
-              <div className="form-group">
+              {/* Live Status Checkbox */}
+              <div className="form-checkboxes-row font-body" style={{ marginTop: '16px' }}>
                 <label className="checkbox-container">
                   <input 
                     type="checkbox" 
-                    checked={isOnSale}
-                    onChange={(e) => setIsOnSale(e.target.checked)}
+                    checked={isLive}
+                    onChange={(e) => setIsLive(e.target.checked)}
                   />
-                  <strong>IS ON SALE?</strong>
+                  <span>Make Product Live</span>
                 </label>
-              </div>
-
-              {/* Radio status */}
-              <div className="form-group">
-                <label className="form-label">CATALOGUE STATUS</label>
-                <div className="radio-group font-body">
-                  <label className="radio-label">
-                    <input 
-                      type="radio" 
-                      name="catalogStatus" 
-                      checked={isLive === true} 
-                      onChange={() => setIsLive(true)}
-                    />
-                    <span>Live (Visible to users)</span>
-                  </label>
-                  <label className="radio-label">
-                    <input 
-                      type="radio" 
-                      name="catalogStatus" 
-                      checked={isLive === false} 
-                      onChange={() => setIsLive(false)}
-                    />
-                    <span>Hidden (Draft mode)</span>
-                  </label>
-                </div>
               </div>
 
             </div>
@@ -496,15 +410,15 @@ const AdminAddProduct = () => {
             {/* Form Footer Action button block */}
             <div className="form-submit-row" style={{ marginTop: '32px' }}>
               <button type="submit" className="btn-primary form-action-submit-btn" disabled={isSaving}>
-                {isSaving ? 'SAVING...' : 'SAVE PRODUCT'}
+                SAVE PRODUCT
               </button>
               <button 
                 type="button" 
                 className="btn-secondary form-action-draft-btn"
-                onClick={(e) => handleSubmit(e, true)}
+                onClick={handleDraftClick}
                 disabled={isSaving}
               >
-                SAVE AS DRAFT
+                {isSaving ? 'SAVING...' : 'SAVE AS DRAFT'}
               </button>
               <Link to="/admin/products" className="form-cancel-link font-body">
                 Cancel
@@ -834,6 +748,143 @@ const AdminAddProduct = () => {
           font-size: 11px;
           letter-spacing: 0.1em;
           text-transform: uppercase;
+        }
+
+        /* ── Confirm Modal ─────────────────────────────── */
+        .confirm-modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(15, 23, 42, 0.55);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9000;
+          padding: 20px;
+          animation: overlayFadeIn 0.18s ease;
+        }
+        @keyframes overlayFadeIn {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+
+        .confirm-modal-box {
+          background: #ffffff;
+          border-radius: 8px;
+          padding: 36px 32px 28px;
+          width: 100%;
+          max-width: 420px;
+          text-align: center;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.18);
+          animation: modalScaleIn 0.2s cubic-bezier(0.34,1.56,0.64,1);
+        }
+        @keyframes modalScaleIn {
+          from { opacity: 0; transform: scale(0.88); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+
+        .confirm-modal-icon {
+          font-size: 36px;
+          margin-bottom: 14px;
+        }
+
+        .confirm-modal-title {
+          font-size: 18px;
+          font-weight: 700;
+          color: var(--text-primary);
+          margin-bottom: 8px;
+        }
+
+        .confirm-modal-msg {
+          font-size: 14px;
+          color: var(--text-secondary);
+          margin-bottom: 28px;
+          line-height: 1.5;
+        }
+
+        .confirm-modal-actions {
+          display: flex;
+          gap: 12px;
+          justify-content: center;
+        }
+
+        .confirm-modal-yes {
+          flex: 1;
+          height: 44px;
+          font-size: 12px;
+          max-width: 200px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+        }
+
+        .confirm-modal-cancel {
+          flex: 1;
+          height: 44px;
+          font-size: 12px;
+          max-width: 120px;
+        }
+
+        /* Spinner inside modal button */
+        .confirm-spinner {
+          display: inline-block;
+          width: 13px;
+          height: 13px;
+          border: 2px solid rgba(255,255,255,0.4);
+          border-top-color: #ffffff;
+          border-radius: 50%;
+          animation: confirmSpin 0.6s linear infinite;
+          flex-shrink: 0;
+        }
+        @keyframes confirmSpin {
+          to { transform: rotate(360deg); }
+        }
+
+        /* ── Toast Notification ────────────────────────── */
+        .ap-toast {
+          position: fixed;
+          bottom: 28px;
+          left: 50%;
+          transform: translateX(-50%);
+          padding: 12px 24px;
+          border-radius: 6px;
+          font-size: 13px;
+          font-weight: 500;
+          z-index: 9999;
+          white-space: nowrap;
+          box-shadow: 0 8px 24px rgba(0,0,0,0.14);
+          animation: toastSlideUp 0.25s ease;
+        }
+        @keyframes toastSlideUp {
+          from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+          to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+        .ap-toast--success {
+          background: #1E293B;
+          color: #ffffff;
+        }
+        .ap-toast--error {
+          background: #DC2626;
+          color: #ffffff;
+        }
+
+        @media (max-width: 480px) {
+          .confirm-modal-box {
+            padding: 28px 20px 22px;
+          }
+          .confirm-modal-actions {
+            flex-direction: column;
+          }
+          .confirm-modal-yes,
+          .confirm-modal-cancel {
+            max-width: 100%;
+          }
+          .ap-toast {
+            width: calc(100% - 32px);
+            white-space: normal;
+            text-align: center;
+            bottom: 16px;
+          }
         }
       `}</style>
     </div>

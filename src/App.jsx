@@ -1,16 +1,40 @@
-import React from 'react';
-import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
 import ErrorBoundary from './components/ErrorBoundary';
+import { useApp } from './context/AppContext';
+
+const ScrollToTopOnNavigation = () => {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+};
+
+const UserStatusChecker = () => {
+  const { pathname } = useLocation();
+  const { currentUser, checkCurrentUserStatus } = useApp();
+
+  useEffect(() => {
+    if (currentUser) {
+      checkCurrentUserStatus();
+    }
+  }, [pathname, currentUser, checkCurrentUserStatus]);
+
+  return null;
+};
 
 // Pages
 import Home from './pages/Home';
 import Collection from './pages/Collection';
 import ProductDetail from './pages/ProductDetail';
-import Register from './pages/Register';
 import Login from './pages/Login';
+import Register from './pages/Register';
 import Cart from './pages/Cart';
 import CheckoutSuccess from './pages/CheckoutSuccess';
 
@@ -40,14 +64,16 @@ function App() {
   return (
     <ErrorBoundary>
       <Router>
+        <ScrollToTopOnNavigation />
+        <UserStatusChecker />
         <Routes>
           
           {/* PUBLIC & CLIENT PORTAL ROUTES (WITH NAVBAR/FOOTER) */}
           <Route path="/" element={<ClientLayout><Home /></ClientLayout>} />
           <Route path="/collection" element={<ClientLayout><Collection /></ClientLayout>} />
           <Route path="/product/:id" element={<ClientLayout><ProductDetail /></ClientLayout>} />
-          <Route path="/register" element={<ClientLayout><Register /></ClientLayout>} />
           <Route path="/login" element={<ClientLayout><Login /></ClientLayout>} />
+          <Route path="/register" element={<ClientLayout><Register /></ClientLayout>} />
           
           {/* PROTECTED CLIENT ROUTES */}
           <Route path="/cart" element={<ClientLayout><Cart /></ClientLayout>} />

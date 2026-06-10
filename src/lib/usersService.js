@@ -2,14 +2,16 @@ import pb from './pocketbase';
 
 // Map PocketBase user record → app user shape
 function mapUser(record) {
+  const isSuspended = record.Full_Name && record.Full_Name.endsWith(' [SUSPENDED]');
+  const cleanName = isSuspended ? record.Full_Name.replace(' [SUSPENDED]', '') : (record.Full_Name || '');
   return {
     id: record.id,
     pbId: record.id,
     userId: record.User_ID || record.id,
-    name: record.Full_Name || '',
+    name: cleanName,
     mobile: record.moblieno || record.mobileno || '',
     password: record.password || '',
-    status: 'active',
+    status: isSuspended ? 'suspended' : 'active',
     createdAt: record.created,
   };
 }

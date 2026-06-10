@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { fetchAllProducts } from '../lib/productsService';
+import { fetchAllProducts, mapRecord } from '../lib/productsService';
 import { fetchAllUsers, fetchPendingRegistrations, createRegistration as pbCreateRegistration, deleteRegistration as pbDeleteRegistration, updateRegistrationStatus as pbUpdateRegistrationStatus, createUser as pbCreateUser, deleteUser as pbDeleteUser } from '../lib/usersService';
+import pb from '../lib/pocketbase';
 
 const AppContext = createContext();
 
@@ -15,47 +16,126 @@ const defaultSettings = {
   adminPassword: "lumiere@admin2024"
 };
 
+// Global cache for fetched JSON galleries to avoid duplicate network requests
+const fetchedGalleriesCache = {};
+
 export const AppProvider = ({ children }) => {
   // Products — fetched from PocketBase on mount (no more localStorage/seedProducts)
   const [products, setProducts] = useState([]);
 
+  const fetchJsonGalleryIfNeeded = async (product, callback) => {
+    if (!product._jsonUrl) return;
+    const cacheKey = product._jsonUrl + '?' + (product.updatedAt || '');
+    const cacheVal = fetchedGalleriesCache[cacheKey];
+    if (Array.isArray(cacheVal)) {
+      callback(product.id, cacheVal);
+      return;
+    }
+    if (cacheVal === 'fetching' || cacheVal === 'failed') {
+      return;
+    }
+
+    fetchedGalleriesCache[cacheKey] = 'fetching';
+    try {
+      const fetchUrl = product._jsonUrl + (product._jsonUrl.includes('?') ? '&' : '?') + 't=' + (product.updatedAt ? encodeURIComponent(product.updatedAt) : Date.now());
+      const res = await fetch(fetchUrl, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          fetchedGalleriesCache[cacheKey] = data;
+          callback(product.id, data);
+          return;
+        }
+      }
+      fetchedGalleriesCache[cacheKey] = 'failed';
+    } catch (err) {
+      console.error('Failed to fetch JSON gallery for product:', product.id, err);
+      fetchedGalleriesCache[cacheKey] = 'failed';
+    }
+  };
+
+  const loadProducts = async () => {
+    try {
+      const pbProducts = await fetchAllProducts();
+      setProducts(pbProducts);
+
+      // Fetch JSON galleries in the background
+      pbProducts.forEach(prod => {
+        if (prod._jsonUrl) {
+          fetchJsonGalleryIfNeeded(prod, (id, images) => {
+            setProducts(prev => prev.map(p => p.id === id ? { ...p, images } : p));
+          });
+        }
+      });
+    } catch (err) {
+      console.error('[AppContext] Failed to fetch products from PocketBase:', err);
+    }
+  };
+
   useEffect(() => {
-    const loadProducts = async () => {
+    let isMounted = true;
+    let pollIntervalId = null;
+
+    loadProducts();
+
+    const subscribeToProducts = async () => {
       try {
-        const pbProducts = await fetchAllProducts();
-        console.log('[AppContext] Loaded products from PocketBase:', pbProducts.length);
-        setProducts(pbProducts);
+        await pb.collection('products').subscribe('*', (e) => {
+          console.log('[AppContext] PocketBase real-time event:', e.action, e.record);
+          if (!isMounted) return;
+          if (e.action === 'create') {
+            const newProd = mapRecord(e.record);
+            setProducts(prev => {
+              if (prev.some(p => p.id === newProd.id)) return prev;
+              return [newProd, ...prev];
+            });
+            if (newProd._jsonUrl) {
+              fetchJsonGalleryIfNeeded(newProd, (id, images) => {
+                if (isMounted) {
+                  setProducts(prev => prev.map(p => p.id === id ? { ...p, images } : p));
+                }
+              });
+            }
+          } else if (e.action === 'update') {
+            const updatedProd = mapRecord(e.record);
+            setProducts(prev => prev.map(p => p.id === updatedProd.id ? updatedProd : p));
+            if (updatedProd._jsonUrl) {
+              fetchJsonGalleryIfNeeded(updatedProd, (id, images) => {
+                if (isMounted) {
+                  setProducts(prev => prev.map(p => p.id === id ? { ...p, images } : p));
+                }
+              });
+            }
+          } else if (e.action === 'delete') {
+            setProducts(prev => prev.filter(p => p.id !== e.record.id));
+          }
+        });
+        console.log('[AppContext] Successfully subscribed to PocketBase products collection.');
       } catch (err) {
-        console.error('[AppContext] Failed to fetch products from PocketBase:', err);
-        setProducts([]);
+        console.warn('[AppContext] PocketBase real-time subscription failed, relying on polling fallback:', err);
       }
     };
-    loadProducts();
+
+    subscribeToProducts();
+
+    // Setup polling fallback every 3 seconds
+    pollIntervalId = setInterval(() => {
+      loadProducts();
+    }, 3000);
+
+    return () => {
+      isMounted = false;
+      if (pollIntervalId) {
+        clearInterval(pollIntervalId);
+      }
+      pb.collection('products').unsubscribe('*').catch(err => {
+        // Ignore unsubscribe errors on cleanup
+      });
+    };
   }, []);
 
   const [users, setUsers] = useState([]);
   const [pendingRegistrations, setPendingRegistrations] = useState([]);
-
-  useEffect(() => {
-    // Only fetch sensitive admin data if the admin is authenticated locally
-    if (!isAdminAuthenticated) {
-      setUsers([]);
-      setPendingRegistrations([]);
-      return;
-    }
-
-    const loadUserData = async () => {
-      try {
-        const pbUsers = await fetchAllUsers();
-        setUsers(pbUsers);
-        const pbRegs = await fetchPendingRegistrations();
-        setPendingRegistrations(pbRegs);
-      } catch (err) {
-        console.error('[AppContext] Failed to load user data from PocketBase:', err);
-      }
-    };
-    loadUserData();
-  }, [isAdminAuthenticated]);
 
   const [settings, setSettings] = useState(() => {
     const saved = localStorage.getItem('lumiere_settings');
@@ -70,17 +150,68 @@ export const AppProvider = ({ children }) => {
     return parsedSettings;
   });
 
-  // User Session (sessionStorage)
+  // User Session (sessionStorage and localStorage)
   const [currentUser, setCurrentUser] = useState(() => {
-    const saved = sessionStorage.getItem('lumiere_current_user');
+    const savedSession = sessionStorage.getItem('lumiere_current_user');
+    const savedLocal = localStorage.getItem('lumiere_current_user');
+    const saved = savedSession || savedLocal;
     return saved ? JSON.parse(saved) : null;
   });
 
-  // Admin Session (sessionStorage)
+  // Admin Session (persisted in localStorage and validated against current settings)
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() => {
-    const saved = sessionStorage.getItem('lumiere_admin_auth');
-    return saved === 'true';
+    const savedToken = localStorage.getItem('lumiere_admin_auth_token');
+    if (savedToken) {
+      try {
+        const parsed = JSON.parse(savedToken);
+        const currentSavedSettings = localStorage.getItem('lumiere_settings');
+        const activePassword = currentSavedSettings 
+          ? JSON.parse(currentSavedSettings)?.adminPassword || defaultSettings.adminPassword
+          : defaultSettings.adminPassword;
+        const activeUsername = currentSavedSettings
+          ? JSON.parse(currentSavedSettings)?.adminUsername || 'admin'
+          : 'admin';
+          
+        if (parsed.isAuthenticated && parsed.authPassword === activePassword && parsed.authUsername === activeUsername) {
+          return true;
+        } else {
+          localStorage.removeItem('lumiere_admin_auth_token');
+        }
+      } catch (e) {
+        console.error("Admin auth parsing error:", e);
+        localStorage.removeItem('lumiere_admin_auth_token');
+      }
+    }
+    return false;
   });
+
+  const ensurePbAuth = async () => {
+    if (!pb.authStore.isAdmin) {
+      const email = import.meta.env.VITE_PB_ADMIN_EMAIL || 'admin@devitimes.com';
+      const password = import.meta.env.VITE_PB_ADMIN_PASSWORD || 'admin12345';
+      try {
+        await pb.admins.authWithPassword(email, password);
+      } catch (e) {
+        console.error('[PB] Admin Auth Error:', e);
+      }
+    }
+  };
+
+  const loadUserData = async () => {
+    try {
+      await ensurePbAuth();
+      const pbUsers = await fetchAllUsers();
+      setUsers(pbUsers);
+      const pbRegs = await fetchPendingRegistrations();
+      setPendingRegistrations(pbRegs);
+    } catch (err) {
+      console.error('[AppContext] Failed to load user data from PocketBase:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadUserData();
+  }, [isAdminAuthenticated]);
 
   // Cart state, keyed by logged in user id. If no user, empty array
   const [cart, setCart] = useState([]);
@@ -94,6 +225,66 @@ export const AppProvider = ({ children }) => {
       setCart([]);
     }
   }, [currentUser]);
+
+  // Watch settings admin credentials and invalidate session if they change
+  useEffect(() => {
+    const savedToken = localStorage.getItem('lumiere_admin_auth_token');
+    if (savedToken) {
+      try {
+        const parsed = JSON.parse(savedToken);
+        const activeUsername = settings.adminUsername || 'admin';
+        if (parsed.authPassword !== settings.adminPassword || parsed.authUsername !== activeUsername) {
+          localStorage.removeItem('lumiere_admin_auth_token');
+          setIsAdminAuthenticated(false);
+        }
+      } catch (e) {
+        localStorage.removeItem('lumiere_admin_auth_token');
+        setIsAdminAuthenticated(false);
+      }
+    }
+  }, [settings.adminPassword, settings.adminUsername]);
+
+  // Synchronize admin auth states and invalidate sessions across tabs in real-time
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'lumiere_settings') {
+        try {
+          const newSettings = JSON.parse(e.newValue);
+          const savedToken = localStorage.getItem('lumiere_admin_auth_token');
+          if (savedToken && newSettings) {
+            const parsedToken = JSON.parse(savedToken);
+            const activeUsername = newSettings.adminUsername || 'admin';
+            if (parsedToken.authPassword !== newSettings.adminPassword || parsedToken.authUsername !== activeUsername) {
+              localStorage.removeItem('lumiere_admin_auth_token');
+              setIsAdminAuthenticated(false);
+            }
+          }
+        } catch (err) {
+          console.error("Storage change error:", err);
+        }
+      }
+      if (e.key === 'lumiere_admin_auth_token') {
+        if (!e.newValue) {
+          setIsAdminAuthenticated(false);
+        } else {
+          try {
+            const parsedToken = JSON.parse(e.newValue);
+            const activeUsername = settings.adminUsername || 'admin';
+            if (parsedToken.isAuthenticated && parsedToken.authPassword === settings.adminPassword && parsedToken.authUsername === activeUsername) {
+              setIsAdminAuthenticated(true);
+            } else {
+              setIsAdminAuthenticated(false);
+            }
+          } catch (err) {
+            setIsAdminAuthenticated(false);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [settings.adminPassword, settings.adminUsername]);
 
   // Products are now fetched from PocketBase — no localStorage sync needed
 
@@ -155,6 +346,7 @@ export const AppProvider = ({ children }) => {
     if (!reg) return null;
 
     try {
+      await ensurePbAuth();
       const newUser = await pbCreateUser({
         userId: customUserId,
         name: reg.name,
@@ -176,6 +368,7 @@ export const AppProvider = ({ children }) => {
 
   const deleteRegistrationRequest = async (regId) => {
     try {
+      await ensurePbAuth();
       await pbDeleteRegistration(regId);
       setPendingRegistrations(prev => prev.filter(r => r.id !== regId));
     } catch (err) {
@@ -186,6 +379,7 @@ export const AppProvider = ({ children }) => {
 
   const createUser = async (user) => {
     try {
+      await ensurePbAuth();
       const newUser = await pbCreateUser(user);
       setUsers(prev => [newUser, ...prev]);
     } catch (err) {
@@ -194,12 +388,31 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  const updateUserStatus = (userId, status) => {
-    setUsers(prev => prev.map(u => u.userId === userId ? { ...u, status } : u));
+  const updateUserStatus = async (userId, status) => {
+    try {
+      await ensurePbAuth();
+      const user = users.find(u => u.userId === userId);
+      if (user && user.pbId) {
+        let newName = user.name;
+        if (status === 'suspended') {
+          if (!newName.endsWith(' [SUSPENDED]')) {
+            newName = newName + ' [SUSPENDED]';
+          }
+        } else {
+          newName = newName.replace(' [SUSPENDED]', '');
+        }
+        await pb.collection('User').update(user.pbId, { Full_Name: newName });
+      }
+      setUsers(prev => prev.map(u => u.userId === userId ? { ...u, status } : u));
+    } catch (err) {
+      console.error('Failed to update user status:', err);
+      alert('Failed to update user status in PocketBase');
+    }
   };
 
   const deleteUser = async (userId) => {
     try {
+      await ensurePbAuth();
       const user = users.find(u => u.userId === userId);
       if (user && user.pbId) {
         await pbDeleteUser(user.pbId);
@@ -212,30 +425,90 @@ export const AppProvider = ({ children }) => {
   };
 
   // --- User Authentication Actions ---
-  const loginUser = (userId, password) => {
-    const matchedUser = users.find(u => u.userId.toLowerCase() === userId.toLowerCase() && u.password === password);
-    if (!matchedUser) {
-      return { success: false, message: "Invalid User ID or Password. Please check your credentials." };
-    }
-    if (matchedUser.status !== 'active') {
-      return { success: false, message: "Your account is suspended. Contact admin." };
-    }
+  const loginUser = async (userId, password) => {
+    try {
+      await ensurePbAuth();
+      // 1. Search in PocketBase User collection
+      const records = await pb.collection('User').getFullList({
+        filter: `User_ID = "${userId.trim()}"`
+      });
 
-    const sessionObj = {
-      userId: matchedUser.userId,
-      name: matchedUser.name,
-      mobile: matchedUser.mobile
-    };
-    sessionStorage.setItem('lumiere_current_user', JSON.stringify(sessionObj));
-    setCurrentUser(sessionObj);
-    return { success: true };
+      if (records.length > 0) {
+        const matchedUser = records[0];
+        if (String(matchedUser.password).trim() === String(password).trim()) {
+          const isSuspended = matchedUser.Full_Name && matchedUser.Full_Name.endsWith(' [SUSPENDED]');
+          if (isSuspended) {
+            return { success: false, message: "Your account is suspended. Please contact admin." };
+          }
+          
+          const sessionObj = {
+            userId: matchedUser.User_ID || matchedUser.id,
+            name: matchedUser.Full_Name || 'Valued Customer',
+            mobile: matchedUser.moblieno || matchedUser.mobileno || ''
+          };
+          sessionStorage.setItem('lumiere_current_user', JSON.stringify(sessionObj));
+          localStorage.setItem('lumiere_current_user', JSON.stringify(sessionObj));
+          setCurrentUser(sessionObj);
+          return { success: true };
+        } else {
+          return { success: false, message: "Invalid username or password. Please contact admin." };
+        }
+      }
+
+      // 2. Check if there's a pending registration request with matching name/mobile
+      const pendingRegs = await pb.collection('registered_users').getFullList({
+        filter: `status = "pending" && (user_name = "${userId.trim()}" || mobile_no = "${userId.trim()}")`
+      });
+
+      if (pendingRegs.length > 0) {
+        return { success: false, message: "Your account is not approved yet. Please contact admin." };
+      }
+
+      return { success: false, message: "Invalid username or password. Please contact admin." };
+    } catch (err) {
+      console.error('[AppContext] loginUser error:', err);
+      return { success: false, message: "Invalid username or password. Please contact admin." };
+    }
   };
 
   const logoutUser = () => {
     sessionStorage.removeItem('lumiere_current_user');
+    localStorage.removeItem('lumiere_current_user');
     setCurrentUser(null);
     setCart([]);
   };
+
+  const checkCurrentUserStatus = async () => {
+    if (!currentUser) return true;
+    try {
+      await ensurePbAuth();
+      const records = await pb.collection('User').getFullList({
+        filter: `User_ID = "${currentUser.userId}"`
+      });
+      if (records.length > 0) {
+        const matchedUser = records[0];
+        const isSuspended = matchedUser.Full_Name && matchedUser.Full_Name.endsWith(' [SUSPENDED]');
+        if (isSuspended) {
+          logoutUser();
+          alert('Your account is suspended. Please contact admin.');
+          window.location.hash = '/login';
+          return false;
+        }
+      } else {
+        logoutUser();
+        window.location.hash = '/login';
+        return false;
+      }
+    } catch (err) {
+      console.error('[AppContext] Error checking user status:', err);
+    }
+    return true;
+  };
+
+  // Recheck current user status on app mount / load
+  useEffect(() => {
+    checkCurrentUserStatus();
+  }, []);
 
   // --- Cart Actions ---
   const addToCart = (product, qty = 1) => {
@@ -244,10 +517,8 @@ export const AppProvider = ({ children }) => {
 
     if (existingIndex > -1) {
       const newQty = newCart[existingIndex].quantity + qty;
-      const finalQty = Math.min(newQty, product.stockCount);
-      newCart[existingIndex].quantity = finalQty;
+      newCart[existingIndex].quantity = newQty;
     } else {
-      const finalQty = Math.min(qty, product.stockCount);
       newCart.push({
         productId: product.id,
         productName: product.name,
@@ -256,7 +527,7 @@ export const AppProvider = ({ children }) => {
         size: product.size,
         color: product.color,
         unitPrice: product.salePrice,
-        quantity: finalQty,
+        quantity: qty,
         image: product.images && product.images.length > 0 ? product.images[0] : null
       });
     }
@@ -268,8 +539,8 @@ export const AppProvider = ({ children }) => {
     saveCartForUser(newCart);
   };
 
-  const updateCartQuantity = (productId, quantity, maxStock) => {
-    const finalQty = Math.max(1, Math.min(quantity, maxStock));
+  const updateCartQuantity = (productId, quantity) => {
+    const finalQty = Math.max(1, quantity);
     const newCart = cart.map(item => {
       if (item.productId === productId) {
         return { ...item, quantity: finalQty };
@@ -285,8 +556,14 @@ export const AppProvider = ({ children }) => {
 
   // --- Admin Configuration Actions ---
   const loginAdmin = (username, password) => {
-    if (username === 'admin' && password === settings.adminPassword) {
-      sessionStorage.setItem('lumiere_admin_auth', 'true');
+    const activeUsername = settings.adminUsername || 'admin';
+    if (username === activeUsername && password === settings.adminPassword) {
+      const token = {
+        isAuthenticated: true,
+        authUsername: activeUsername,
+        authPassword: settings.adminPassword
+      };
+      localStorage.setItem('lumiere_admin_auth_token', JSON.stringify(token));
       setIsAdminAuthenticated(true);
       return true;
     }
@@ -294,7 +571,7 @@ export const AppProvider = ({ children }) => {
   };
 
   const logoutAdmin = () => {
-    sessionStorage.removeItem('lumiere_admin_auth');
+    localStorage.removeItem('lumiere_admin_auth_token');
     setIsAdminAuthenticated(false);
   };
 
@@ -314,6 +591,8 @@ export const AppProvider = ({ children }) => {
       currentUser,
       isAdminAuthenticated,
       cart,
+      refreshProducts: loadProducts,
+      refreshUsers: loadUserData,
       addProduct,
       updateProduct,
       deleteProduct,
@@ -326,6 +605,7 @@ export const AppProvider = ({ children }) => {
       deleteUser,
       loginUser,
       logoutUser,
+      checkCurrentUserStatus,
       addToCart,
       removeFromCart,
       updateCartQuantity,

@@ -1,13 +1,24 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import ClockSvg from '../components/ClockSvg';
-import { fetchAllProducts } from '../lib/productsService';
-import pb from '../lib/pocketbase';
+import { getProductImageUrl } from '../lib/productsService';
 
 const Collection = () => {
-  const { products: contextProducts, currentUser, addToCart } = useApp();
+  const { products: contextProducts, currentUser, loginUser, logoutUser, addToCart } = useApp();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const getProductDisplayImage = (product) => {
+    if (product?.images && product.images.length > 0) {
+      return product.images[0];
+    }
+    const imageUrl = getProductImageUrl(product);
+    if (imageUrl && !imageUrl.toLowerCase().split('?')[0].endsWith('.json')) {
+      return imageUrl;
+    }
+    return "/placeholder.svg";
+  };
 
   // Local state for auto-refreshing products
   const [liveProducts, setLiveProducts] = useState(Array.isArray(contextProducts) ? contextProducts : []);
@@ -26,82 +37,43 @@ const Collection = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Poll PocketBase for updates every 10 seconds
-  useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const records = await pb.collection("products").getFullList({
-          sort: "-created",
-        });
-        
-        // Map PocketBase fields safely to match what the UI expects
-        const mappedRecords = (records || []).map(record => ({
-          id: record?.id || Math.random().toString(),
-          name: record?.name || record?.MODEL_NUMBER || "Wall Clock",
-          modelNumber: record?.MODEL_NUMBER || "N/A",
-          category: record?.category || "All",
-          size: record?.SIZE_DIMENSIONS || "N/A",
-          packageNo: record?.package_no || "N/A",
-          salePrice: Number(record?.price) || 0,
-          originalPrice: null,
-          isOnSale: false,
-          stockCount: Number(record?.stock) || 0,
-          isLive: record?.is_live !== undefined ? record.is_live : true,
-          status: record?.status || "live",
-          color: '',
-          prodimage: record?.prodimage || null,
-          images: record?.prodimage ? [pb.files.getURL(record, record.prodimage)] : ["/placeholder.png"]
-        }));
-
-        setLiveProducts(mappedRecords);
-      } catch (error) {
-        console.error("Collection page fetch error:", error);
-        setLiveProducts([]);
-      }
-    };
-
-    fetchProducts(); // Initial fetch
-    const intervalId = setInterval(fetchProducts, 10000);
-    return () => clearInterval(intervalId);
-  }, []);
-
-  // Search & Filter State
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState('ALL');
-  
   // Auth Modal State
   const [showAuthModal, setShowAuthModal] = useState(false);
   
   // Success toast/feedback per product
   const [addedProductId, setAddedProductId] = useState(null);
 
-  // Categories list
-  const categories = ['ALL', 'MODERN MINIMALIST', 'CONTEMPORARY', 'LUXURY VINTAGE'];
+  // Collection Protection Login States
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState('');
 
-  // Filter products in real time
+  const handleProtectedLogin = async (e) => {
+    e.preventDefault();
+    setLoginError('');
+    setIsLoggingIn(true);
+    try {
+      const response = await loginUser(loginUsername, loginPassword);
+      if (response.success) {
+        setLoginUsername('');
+        setLoginPassword('');
+      } else {
+        setLoginError(response.message);
+      }
+    } catch (err) {
+      setLoginError('An unexpected error occurred. Please contact admin.');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+  // Filter products in real time (only keep live ones)
   const filteredProducts = useMemo(() => {
-    return (liveProducts || []).filter(p => {
-      if (!p) return false;
-      // Only show live products to customers
-      if (!p.isLive) return false;
-
-      // Category check
-      const safeCat = (p.category || '').toString().toUpperCase();
-      const matchesCategory = 
-        activeCategory === 'ALL' || 
-        safeCat === activeCategory;
-
-      // Search query check
-      const query = (searchQuery || '').toString().toLowerCase().trim();
-      const safeName = (p.name || '').toString().toLowerCase();
-      const safeModel = (p.modelNumber || '').toString().toLowerCase();
-      const matchesSearch = 
-        safeName.includes(query) || 
-        safeModel.includes(query);
-
-      return matchesCategory && matchesSearch;
+    return (liveProducts || []).filter((product) => {
+      if (!product) return false;
+      return !!product.isLive;
     });
-  }, [liveProducts, activeCategory, searchQuery]);
+  }, [liveProducts]);
 
   // Handle click on "ORDER" button
   const handleOrder = (product) => {
@@ -121,62 +93,124 @@ const Collection = () => {
       
       {/* 1. Page Header */}
       <header className="collection-header animate-fade-in">
-        <div className="container">
+        <div className="container" style={{ position: 'relative' }}>
           <span className="uppercase-label" style={{color:'rgba(126,179,232,0.85)',display:'block',marginBottom:'10px'}}>DEVI TIMES</span>
           <h1 className="collection-title font-heading">Our Collection</h1>
           <p className="collection-subtitle font-body">Discover our curated selection of premium handcrafted wall clocks</p>
         </div>
       </header>
 
-      {/* 2. Search & Filters Bar */}
-      <section className="filters-bar-section">
-        <div className="container filters-container">
-          
-          {/* Search Box */}
-          <div className="search-box-wrapper">
-            <svg className="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8A9BB0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-            <input 
-              type="text" 
-              className="search-input"
-              placeholder="Search by name or model number..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            {searchQuery && (
-              <button className="clear-search-btn" onClick={() => setSearchQuery('')} aria-label="Clear Search">
-                &times;
-              </button>
-            )}
+      {!currentUser ? (
+        <section className="collection-login-section animate-fade-in" style={{ padding: '60px 0', minHeight: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="container" style={{ display: 'flex', justifyContent: 'center' }}>
+            <div className="collection-login-card" style={{
+              background: '#ffffff',
+              border: '1px solid var(--border-color)',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.06)',
+              borderRadius: '4px',
+              padding: '40px 36px',
+              width: '100%',
+              maxWidth: '440px',
+              boxSizing: 'border-box'
+            }}>
+              <h2 className="collection-login-title font-heading" style={{ fontSize: '26px', color: 'var(--text-primary)', marginBottom: '8px', textAlign: 'center' }}>
+                Wholesale Portal Access
+              </h2>
+              <p className="collection-login-subtitle font-body" style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '28px', textAlign: 'center', lineHeight: '1.5' }}>
+                Please sign in with your User ID and Password to explore the Devi Times wholesale clocks collection.
+              </p>
+
+              <form onSubmit={handleProtectedLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {loginError && (
+                  <div className="auth-error-banner font-body" style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    backgroundColor: '#FEF2F2',
+                    border: '1.5px solid #FCA5A5',
+                    color: '#DC2626',
+                    padding: '12px 16px',
+                    borderRadius: '3px',
+                    fontSize: '13px'
+                  }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink:0}}>
+                      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                    {loginError}
+                  </div>
+                )}
+
+                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label className="form-label uppercase-label" style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', letterSpacing: '0.05em' }}>Username / User ID</label>
+                  <input 
+                    type="text" 
+                    id="col-userid"
+                    className="form-input" 
+                    placeholder="Enter your User ID"
+                    value={loginUsername}
+                    onChange={(e) => setLoginUsername(e.target.value)}
+                    style={{
+                      height: '44px',
+                      padding: '0 14px',
+                      border: '1.5px solid var(--border-color)',
+                      borderRadius: '3px',
+                      outline: 'none',
+                      fontSize: '13px'
+                    }}
+                    required
+                  />
+                </div>
+
+                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label className="form-label uppercase-label" style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', letterSpacing: '0.05em' }}>Password</label>
+                  <input 
+                    type="password" 
+                    id="col-password"
+                    className="form-input" 
+                    placeholder="Enter your password"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    style={{
+                      height: '44px',
+                      padding: '0 14px',
+                      border: '1.5px solid var(--border-color)',
+                      borderRadius: '3px',
+                      outline: 'none',
+                      fontSize: '13px'
+                    }}
+                    required
+                  />
+                </div>
+
+                <button type="submit" id="col-submit-btn" className="btn-primary collection-login-btn" style={{
+                  height: '46px',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  letterSpacing: '0.08em',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }} disabled={isLoggingIn}>
+                  {isLoggingIn ? (
+                    <div className="loading-spinner" style={{ 
+                      width: '20px', height: '20px', border: '2px solid rgba(255,255,255,0.3)', 
+                      borderTop: '2px solid #ffffff', borderRadius: '50%', 
+                      margin: '0 auto', animation: 'spin 0.6s linear infinite' 
+                    }}></div>
+                  ) : 'ACCESS COLLECTION'}
+                </button>
+
+                <div style={{ textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)', borderTop: '1px solid var(--border-color)', paddingTop: '20px', marginTop: '10px' }}>
+                  Don't have an approved account? &nbsp;
+                  <Link to="/register" style={{ color: 'var(--accent-blue)', fontWeight: '700' }}>Register here →</Link>
+                </div>
+              </form>
+            </div>
           </div>
-
-          {/* Category Filter Buttons */}
-          <div className="category-filters-wrapper">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                className={`filter-btn uppercase-label ${activeCategory === cat ? 'active' : ''}`}
-                onClick={() => setActiveCategory(cat)}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-
-        </div>
-      </section>
-
-      {/* 3. Product Count Label */}
-      <section className="count-label-section">
-        <div className="container">
-          <div className="count-label uppercase-label">
-            SHOWING {(filteredProducts || []).length} PRODUCTS
-          </div>
-        </div>
-      </section>
-
+        </section>
+      ) : (
+        <>
       {/* 4. Product Grid */}
       <section className="products-grid-section">
         <div className="container">
@@ -191,14 +225,7 @@ const Collection = () => {
             </div>
           ) : !Array.isArray(filteredProducts) || filteredProducts.length === 0 ? (
             <div className="empty-results-box font-body">
-              <p>No products available</p>
-              <button 
-                className="btn-secondary" 
-                onClick={() => { setSearchQuery(''); setActiveCategory('ALL'); }}
-                style={{ marginTop: '16px' }}
-              >
-                Reset Filters
-              </button>
+              <p>No products available in the collection.</p>
             </div>
           ) : (
             <div className="grid-products">
@@ -207,6 +234,7 @@ const Collection = () => {
                 const isSale = product.isOnSale;
                 const isAdded = addedProductId === product.id;
 
+
                 return (
                   <div key={product.id || Math.random()} className="card-product animate-fade-in">
                     
@@ -214,9 +242,9 @@ const Collection = () => {
                     <div className="card-image-area">
                       {isSale && <span className="badge-sale absolute-badge">SALE</span>}
                       <img 
-                        src={product?.images?.[0] || "/placeholder.png"} 
+                        src={getProductDisplayImage(product)} 
                         alt={product?.name || 'Wall Clock'} 
-                        onError={(e) => { e.target.onerror = null; e.target.src = "/placeholder.png"; }}
+                        onError={(e) => { e.target.onerror = null; e.target.src = "/placeholder.svg"; }}
                       />
                     </div>
 
@@ -259,9 +287,8 @@ const Collection = () => {
                           fontSize: '11px',
                           backgroundColor: isAdded ? '#059669' : 'var(--button-primary-fill)' 
                         }}
-                        disabled={product.stockCount <= 0}
                       >
-                        {product.stockCount <= 0 ? 'OUT OF STOCK' : isAdded ? '✓ ADDED' : 'ORDER'}
+                        {isAdded ? '✓ ADDED' : 'ORDER'}
                       </button>
                     </div>
 
@@ -272,6 +299,8 @@ const Collection = () => {
           )}
         </div>
       </section>
+        </>
+      )}
 
       {/* 5. Authentication Required Modal */}
       {showAuthModal && (
@@ -356,102 +385,9 @@ const Collection = () => {
           font-size: 15px;
         }
 
-        /* ── Filters Bar ── */
-        .filters-bar-section {
-          padding: 18px 0;
-          background-color: #ffffff;
-          border-bottom: 1px solid var(--border-color);
-          position: sticky;
-          top: var(--navbar-height);
-          z-index: 100;
-          box-shadow: 0 2px 8px rgba(26,35,50,0.06);
-        }
+        /* ── Unified Control Panel Removed ── */
 
-        .filters-container {
-          display: flex;
-          align-items: center;
-          gap: 20px;
-        }
-
-        @media (max-width: 768px) {
-          .filters-container { flex-direction: column; align-items: stretch; gap: 12px; }
-        }
-
-        .search-box-wrapper {
-          flex: 1;
-          position: relative;
-          display: flex;
-          align-items: center;
-        }
-
-        .search-icon { position: absolute; left: 14px; pointer-events: none; }
-
-        .search-input {
-          width: 100%;
-          height: 42px;
-          padding: 0 42px;
-          border: 1.5px solid var(--border-color);
-          border-radius: 3px;
-          outline: none;
-          color: var(--text-primary);
-          background: #fff;
-          font-size: 13px;
-          transition: border-color var(--transition-speed) ease, box-shadow var(--transition-speed) ease;
-        }
-
-        .search-input::placeholder { color: var(--text-muted); }
-
-        .search-input:focus {
-          border-color: var(--accent-blue);
-          box-shadow: 0 0 0 3px rgba(45,93,161,0.10);
-        }
-
-        .clear-search-btn {
-          position: absolute;
-          right: 14px;
-          font-size: 20px;
-          color: var(--text-muted);
-          line-height: 1;
-        }
-
-        .clear-search-btn:hover { color: var(--text-primary); }
-
-        .category-filters-wrapper {
-          display: flex;
-          gap: 8px;
-          overflow-x: auto;
-          white-space: nowrap;
-          padding-bottom: 2px;
-          flex-shrink: 0;
-        }
-
-        .filter-btn {
-          height: 40px;
-          padding: 0 16px;
-          border: 1.5px solid var(--border-color);
-          border-radius: 3px;
-          background-color: #ffffff;
-          color: var(--text-secondary);
-          transition: all var(--transition-speed) ease;
-          flex-shrink: 0;
-          font-size: 10px;
-          letter-spacing: 0.1em;
-          font-weight: 700;
-        }
-
-        .filter-btn:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
-
-        .filter-btn.active {
-          background-color: var(--primary-dark-bg);
-          border-color: var(--primary-dark-bg);
-          color: #ffffff;
-        }
-
-        .count-label-section { padding: 16px 0; background: var(--page-bg); }
-
-        .count-label { font-size: 11px; color: var(--text-muted); letter-spacing: 0.12em; }
-
-        .products-grid-section { padding-bottom: 40px; }
+        .products-grid-section { padding: 48px 0 40px 0; }
 
         .empty-results-box {
           text-align: center;

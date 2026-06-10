@@ -1,23 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchAllProducts } from '../../lib/productsService';
+import { useApp } from '../../context/AppContext';
 
 const AdminDashboard = () => {
-  // State for data
-  const [products, setProducts] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [pendingRegistrations, setPendingRegistrations] = useState([]);
+  const {
+    products,
+    users,
+    pendingRegistrations,
+    refreshProducts,
+    refreshUsers
+  } = useApp();
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Load data from PocketBase and any other sources
+  // Load data from PocketBase
   const loadData = async () => {
     try {
       setLoading(true);
-      const prod = await fetchAllProducts();
-      setProducts(prod);
-      // For users and pending registrations we still rely on context placeholder (if any), fallback to empty arrays
-      // If you have a usersService, you can replace with real fetch.
+      await Promise.all([
+        refreshProducts(),
+        refreshUsers()
+      ]);
     } catch (err) {
       console.error('[PB] loadData error:', err);
       setError('Failed to load dashboard data');

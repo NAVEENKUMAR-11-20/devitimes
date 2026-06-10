@@ -10,6 +10,7 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
     deleteUser, 
     approveRegistration, 
     deleteRegistrationRequest,
+    refreshUsers,
     settings 
   } = useApp();
 
@@ -20,6 +21,11 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
   React.useEffect(() => {
     setActiveSubtab(initialTab);
   }, [initialTab]);
+
+  // Refresh/refetch users when opening Users page
+  React.useEffect(() => {
+    refreshUsers();
+  }, [refreshUsers]);
 
   // Reveal password list tracker
   const [revealedPasswords, setRevealedPasswords] = useState({}); // userId -> boolean
@@ -45,9 +51,10 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
   };
 
   // Status toggle switch
-  const handleToggleStatus = (userId, currentStatus) => {
+  const handleToggleStatus = async (userId, currentStatus) => {
     const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
-    updateUserStatus(userId, newStatus);
+    await updateUserStatus(userId, newStatus);
+    await refreshUsers();
   };
 
   // Generate 8-character random password helper
@@ -101,7 +108,7 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
     setShowUserModal(true);
   };
 
-  const handleModalSubmit = (e) => {
+  const handleModalSubmit = async (e) => {
     e.preventDefault();
 
     if (!modalForm.userId.trim() || !modalForm.name.trim() || !modalForm.mobile.trim() || !modalForm.password) {
@@ -130,10 +137,10 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
 
     if (pendingRegIdToApprove) {
       // Approve from self registration request
-      approveRegistration(pendingRegIdToApprove, modalForm.userId.trim(), modalForm.password);
+      await approveRegistration(pendingRegIdToApprove, modalForm.userId.trim(), modalForm.password);
     } else {
       // Manual create
-      createUser({
+      await createUser({
         userId: modalForm.userId.trim(),
         name: modalForm.name.trim(),
         mobile: modalForm.mobile.replace(/[\s-()]/g, ''),
@@ -141,6 +148,8 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
         status: 'active'
       });
     }
+
+    await refreshUsers();
 
     setShowUserModal(false);
     alert('Client account created successfully!');
@@ -155,7 +164,10 @@ Password: ${user.password}
 Login at: ${settings.websiteUrl}/#/login`;
 
     const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
-    window.open(url, '_blank');
+    const newWindow = window.open(url, '_blank');
+    if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+      window.location.href = url;
+    }
   };
 
   // Filter Active list
@@ -229,7 +241,7 @@ Login at: ${settings.websiteUrl}/#/login`;
               No registered users found.
             </div>
           ) : (
-            <table className="admin-table">
+            <table className="admin-table registered-users-table">
               <thead>
                 <tr>
                   <th>User ID</th>
@@ -237,8 +249,8 @@ Login at: ${settings.websiteUrl}/#/login`;
                   <th>Mobile Number</th>
                   <th>Password</th>
                   <th>Created Date</th>
-                  <th>Account Status</th>
-                  <th>Actions</th>
+                  <th>Status</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -275,7 +287,7 @@ Login at: ${settings.websiteUrl}/#/login`;
                           </span>
                         </button>
                       </td>
-                      <td>
+                      <td style={{ textAlign: 'right' }}>
                         <div className="table-actions-row">
                           <button 
                             onClick={() => handleShareCredentials(u)}
@@ -285,9 +297,10 @@ Login at: ${settings.websiteUrl}/#/login`;
                             Share via WA 📱
                           </button>
                           <button 
-                            onClick={() => {
+                            onClick={async () => {
                               if (confirm(`Delete account for ${u.name}? This will remove their cart history.`)) {
-                                deleteUser(u.userId);
+                                await deleteUser(u.userId);
+                                await refreshUsers();
                               }
                             }}
                             className="action-icon-btn delete-btn"
@@ -314,14 +327,14 @@ Login at: ${settings.websiteUrl}/#/login`;
               No pending registration requests.
             </div>
           ) : (
-            <table className="admin-table">
+            <table className="admin-table pending-regs-table">
               <thead>
                 <tr>
                   <th>Request Date</th>
                   <th>Full Name</th>
                   <th>Mobile Number</th>
                   <th>Status</th>
-                  <th>Actions</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -333,7 +346,7 @@ Login at: ${settings.websiteUrl}/#/login`;
                     <td>
                       <span className="pending-badge font-body">PENDING CREDENTIALS</span>
                     </td>
-                    <td>
+                    <td style={{ textAlign: 'right' }}>
                       <div className="table-actions-row">
                         <button 
                           onClick={() => handleApprovePendingClick(reg)}
@@ -343,9 +356,10 @@ Login at: ${settings.websiteUrl}/#/login`;
                           Create Credentials
                         </button>
                         <button 
-                          onClick={() => {
+                          onClick={async () => {
                             if (confirm(`Delete registration request from ${reg.name}?`)) {
-                              deleteRegistrationRequest(reg.id);
+                              await deleteRegistrationRequest(reg.id);
+                              await refreshUsers();
                             }
                           }}
                           className="btn-secondary"
@@ -530,30 +544,163 @@ Login at: ${settings.websiteUrl}/#/login`;
           width: 240px;
         }
 
-        /* Table password cell reveal styling */
+        /* --- Updated Professional Table Styles --- */
+        .table-container-card {
+          background-color: #ffffff;
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          box-shadow: var(--card-shadow);
+          overflow-x: auto;
+          margin-top: 8px;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        .admin-table {
+          width: 100%;
+          border-collapse: collapse;
+          text-align: left;
+        }
+
+        .registered-users-table {
+          min-width: 1000px;
+        }
+
+        .pending-regs-table {
+          min-width: 800px;
+        }
+
+        .admin-table th {
+          background-color: #f8fafc;
+          color: #475569;
+          font-size: 11px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          padding: 16px 20px;
+          border-bottom: 2px solid var(--border-color);
+          vertical-align: middle;
+        }
+
+        .admin-table td {
+          padding: 14px 20px;
+          border-bottom: 1px solid var(--border-color);
+          color: var(--text-primary);
+          font-size: 13px;
+          vertical-align: middle;
+          height: 60px;
+          box-sizing: border-box;
+        }
+
+        /* Alternating row backgrounds and subtle hover effect */
+        .admin-table tbody tr {
+          transition: background-color 0.2s ease;
+        }
+
+        .admin-table tbody tr:nth-child(even) {
+          background-color: #f8fafc;
+        }
+
+        .admin-table tbody tr:hover {
+          background-color: #f1f5f9 !important;
+        }
+
+        /* Password cell consistent width */
         .password-cell-wrapper {
           display: flex;
           align-items: center;
           gap: 8px;
+          width: 140px;
+          min-width: 140px;
+          max-width: 140px;
+          justify-content: space-between;
+        }
+
+        .password-cell-wrapper span {
+          font-family: monospace;
+          font-size: 13px;
+          letter-spacing: 0.05em;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
         .reveal-pass-btn {
           font-size: 14px;
           color: var(--text-muted);
+          background: transparent;
+          border: none;
+          cursor: pointer;
         }
 
         .reveal-pass-btn:hover {
           color: var(--text-primary);
         }
 
-        /* Pending status cell tags */
+        /* Status switches and badges styled cleanly */
+        .status-toggle-switch {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          cursor: pointer;
+          border: none;
+          border-radius: 20px;
+          padding: 6px 12px;
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 0.05em;
+          transition: all 0.2s ease;
+        }
+
+        .live-switch {
+          background-color: #d1fae5;
+          color: #065f46;
+        }
+
+        .hidden-switch {
+          background-color: #fee2e2;
+          color: #991b1b;
+        }
+
+        .toggle-slider {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background-color: currentColor;
+        }
+
+        .toggle-label-text {
+          font-size: 9px;
+          font-weight: 800;
+          letter-spacing: 0.05em;
+        }
+
         .pending-badge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
           font-size: 9px;
           font-weight: 700;
-          color: #B45309;
-          background-color: #FEF3C7;
-          padding: 4px 8px;
+          color: #92400e;
+          background-color: #fef3c7;
+          padding: 6px 12px;
+          border-radius: 20px;
           letter-spacing: 0.05em;
+          text-transform: uppercase;
+        }
+
+         /* Actions layout alignment */
+        .table-actions-row {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+          justify-content: flex-end;
+          white-space: nowrap;
+          flex-wrap: nowrap;
+        }
+
+        .table-actions-row button {
+          touch-action: manipulation;
+          cursor: pointer;
         }
 
         @media (max-width: 768px) {
@@ -588,6 +735,36 @@ Login at: ${settings.websiteUrl}/#/login`;
           .admin-table th, .admin-table td {
             padding: 12px 16px;
           }
+          
+          /* Enforce 44px touch targets on mobile actions column */
+          .table-actions-row {
+            gap: 12px !important;
+          }
+          
+          .table-actions-row button,
+          .table-actions-row .btn-secondary,
+          .table-actions-row .action-icon-btn.delete-btn {
+            height: 44px !important;
+            min-height: 44px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            touch-action: manipulation !important;
+            cursor: pointer !important;
+            box-sizing: border-box !important;
+          }
+          
+          .table-actions-row .btn-secondary {
+            padding: 0 16px !important;
+            font-size: 11px !important;
+          }
+          
+          .table-actions-row .action-icon-btn.delete-btn {
+            width: 44px !important;
+            min-width: 44px !important;
+            font-size: 16px !important;
+          }
+
           .modal-card {
             width: 95vw !important;
             padding: 20px;

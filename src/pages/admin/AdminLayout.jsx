@@ -65,11 +65,7 @@ const AdminLayout = () => {
         
         {/* Sidebar Logo */}
         <div className="sidebar-logo-block">
-          <svg className="admin-svg-logo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="50" cy="50" r="44" fill="none" stroke="#FFFFFF" strokeWidth="6" />
-            <line x1="50" y1="50" x2="50" y2="26" stroke="#FFFFFF" strokeWidth="6" strokeLinecap="round" />
-            <line x1="50" y1="50" x2="70" y2="50" stroke="#FFFFFF" strokeWidth="5" strokeLinecap="round" />
-          </svg>
+          <img src="/logo.png" alt="DEVI TIMES Logo" className="admin-logo-img" />
           <div>
             <h2 className="sidebar-logo-text font-logo">DEVI TIMES</h2>
             <span className="sidebar-badge-admin font-body">ADMIN</span>
@@ -119,13 +115,6 @@ const AdminLayout = () => {
             className={`nav-sidebar-item ${isTabActive('/admin/users') ? 'active-sidebar-item' : ''}`}
           >
             <span className="nav-icon">👥</span> Users
-          </Link>
-          
-          <Link 
-            to="/admin/registrations" 
-            className={`nav-sidebar-item ${isTabActive('/admin/registrations') ? 'active-sidebar-item' : ''}`}
-          >
-            <span className="nav-icon">📋</span> Registrations
           </Link>
           
           <Link 
@@ -202,9 +191,10 @@ const AdminLayout = () => {
           border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         }
 
-        .admin-svg-logo {
-          width: 32px;
-          height: 32px;
+        .admin-logo-img {
+          width: 36px;
+          height: 36px;
+          object-fit: contain;
         }
 
         .sidebar-logo-text {
