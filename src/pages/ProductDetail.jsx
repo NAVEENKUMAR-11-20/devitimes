@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import ClockSvg from '../components/ClockSvg';
+import { getProductImageUrl } from '../lib/productsService';
 
 const ProductDetail = () => {
   const { id } = useParams();
@@ -54,7 +55,13 @@ const ProductDetail = () => {
     }
   };
 
-  const imagesList = product.images || [];
+  let imagesList = (product && product.images) || [];
+  if (imagesList.length === 0 && product) {
+    const imageUrl = getProductImageUrl(product);
+    if (imageUrl && !imageUrl.toLowerCase().split('?')[0].endsWith('.json')) {
+      imagesList = [imageUrl];
+    }
+  }
 
   return (
     <div className="detail-root">

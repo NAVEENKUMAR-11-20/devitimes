@@ -5,8 +5,11 @@ import {
   fetchAllProducts,
   updateProduct as pbUpdateProduct,
   deleteProduct as pbDeleteProduct,
+  fetchProductById,
+  getProductImageUrl,
 } from '../../lib/productsService';
 import pb from '../../lib/pocketbase';
+import { useApp } from '../../context/AppContext';
 
 // Helper to read file as base64 without losing quality (formerly compressImage)
 function compressImage(file) {
@@ -36,6 +39,7 @@ const base64ToFile = (base64Str, filename) => {
 const adminGalleriesCache = {};
 
 const AdminProducts = () => {
+  const { refreshProducts } = useApp();
   // ── PocketBase state ──────────────────────────────────────────────────────
   const [products, setProducts]   = useState([]);
   const [pbLoading, setPbLoading] = useState(true);
@@ -416,6 +420,7 @@ const AdminProducts = () => {
       } else {
         triggerToast(`${successCountTracker + successCount} products deleted successfully!`);
         await loadProducts();
+        await refreshProducts();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     } catch (err) {
@@ -461,6 +466,7 @@ const AdminProducts = () => {
     triggerToast(`Completed with ${failedIds.length} errors.`);
     setFailedIds([]);
     await loadProducts();
+    await refreshProducts();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -492,6 +498,7 @@ const AdminProducts = () => {
     
     try {
       await pbUpdateProduct(product.pbId || id, { is_live: !currentStatus });
+      await refreshProducts();
     } catch (err) {
       // Revert on error
       setProducts(prev => prev.map(p => p.id === id ? { ...p, isLive: currentStatus } : p));
@@ -519,6 +526,7 @@ const AdminProducts = () => {
       await ensurePbAuth();
       await pb.collection('products').delete(product?.pbId || idToDelete, { requestKey: null });
       triggerToast('Product deleted successfully');
+      await refreshProducts();
     } catch (err) {
       // Revert on error at exact position if possible
       if (product) setProducts(prev => [product, ...prev]);
@@ -528,10 +536,32 @@ const AdminProducts = () => {
   };
 
   // Trigger Edit Form
-  const triggerEdit = (product) => {
+  const triggerEdit = async (product) => {
     console.log('[DEBUG] Selected product before opening edit modal:', product);
-    setEditingProduct(product);
-    setEditForm({ ...product, _newImageFile: null });
+    triggerToast('Fetching latest product details...');
+    try {
+      const latestProduct = await fetchProductById(product.pbId || product.id);
+      console.log('[DEBUG] Fetched latest product details:', latestProduct);
+      
+      // Ensure gallery images are resolved properly
+      let productImages = latestProduct.images || [];
+      if (productImages.length === 0) {
+        const imageUrl = getProductImageUrl(latestProduct);
+        if (imageUrl && !imageUrl.toLowerCase().split('?')[0].endsWith('.json')) {
+          productImages = [imageUrl];
+        }
+      }
+      
+      setEditingProduct(latestProduct);
+      setEditForm({
+        ...latestProduct,
+        images: productImages,
+        _newImageFile: null
+      });
+    } catch (err) {
+      triggerToast('Error loading product details.');
+      console.error('[ERROR] Failed to fetch latest product details:', err);
+    }
   };
 
   const handleEditSubmit = async (e) => {
@@ -596,6 +626,7 @@ const AdminProducts = () => {
       setEditingProduct(null);
       triggerToast('Product updated successfully');
       await loadProducts();
+      await refreshProducts();
     } catch (err) {
       triggerToast('Error saving product');
       console.error('[ERROR] Error updating product:', err);
@@ -817,7 +848,12 @@ const AdminProducts = () => {
                   <td>
                     <div className="table-thumb-wrapper">
                       {p.images && p.images.length > 0 ? (
-                        <img src={p.images[0]} alt={p.name} className="table-thumbnail-img" />
+                        <img 
+                          src={p.images[0]} 
+                          alt={p.name} 
+                          className="table-thumbnail-img" 
+                          onError={(e) => { e.target.onerror = null; e.target.src = "/placeholder.svg"; }}
+                        />
                       ) : (
                         <ClockSvg model={p.modelNumber} category={p.category} color={p.color} size={40} />
                       )}

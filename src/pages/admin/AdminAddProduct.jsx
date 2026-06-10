@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createProduct } from '../../lib/productsService';
+import { useApp } from '../../context/AppContext';
 
 // Helper to read file as base64 without losing quality (formerly compressImage)
 function compressImage(file) {
@@ -16,6 +17,7 @@ function compressImage(file) {
 
 const AdminAddProduct = () => {
   const navigate = useNavigate();
+  const { refreshProducts } = useApp();
   // PocketBase: no context needed — save directly
   const [isSaving, setIsSaving] = useState(false);
 
@@ -46,6 +48,8 @@ const AdminAddProduct = () => {
   const [sizeType, setSizeType] = useState('300 × 300 MM');
   const [customSize, setCustomSize] = useState('');
   const [productPrice, setProductPrice] = useState('');
+  const [packageNo, setPackageNo] = useState('');
+  const [isLive, setIsLive] = useState(true);
   const [images, setImages] = useState([]); // array of { url: string, file: File }
 
   // Common sizes helper list
@@ -106,6 +110,8 @@ const AdminAddProduct = () => {
     setSizeType('300 × 300 MM');
     setCustomSize('');
     setProductPrice('');
+    setPackageNo('');
+    setIsLive(true);
     setImages([]);
     setErrors({});
     setIsSuccess(false);
@@ -119,6 +125,7 @@ const AdminAddProduct = () => {
     const finalSize = sizeType === 'Custom' ? customSize.trim() : sizeType;
     if (!finalSize) newErrors.size = 'Product size is required.';
     if (!productPrice) newErrors.productPrice = 'Product price is required.';
+    if (!packageNo.trim()) newErrors.packageNo = 'Stock count is required.';
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -145,16 +152,30 @@ const AdminAddProduct = () => {
   // Actual save to PocketBase
   const doSave = async (forceDraft = false) => {
     const finalSize = sizeType === 'Custom' ? customSize.trim() : sizeType;
+    const finalIsLive = forceDraft ? false : isLive;
     setIsSaving(true);
     try {
+      let imageFilePayload = null;
+      if (images.length === 1) {
+        imageFilePayload = images[0].file;
+      } else if (images.length > 1) {
+        const base64List = await Promise.all(images.map(img => compressImage(img.file)));
+        const jsonString = JSON.stringify(base64List);
+        imageFilePayload = new File([jsonString], 'gallery.json', { type: 'application/json' });
+      }
+
       await createProduct({
         MODEL_NUMBER:    modelNumber.trim(),
         SIZE_DIMENSIONS: finalSize,
-        package_no:      '',
+        package_no:      packageNo.trim(),
         price:           Number(productPrice),
-        is_live:         forceDraft ? false : true,
-        imageFile:       images.length > 0 ? images[0].file : null,
+        is_live:         finalIsLive,
+        imageFile:       imageFilePayload,
       });
+
+      // Refresh global products state immediately
+      await refreshProducts();
+
       setSuccessProductName(modelNumber.trim());
       setShowConfirmModal(false);
       showToast('✅ Product added successfully.');
@@ -370,6 +391,31 @@ const AdminAddProduct = () => {
                   onChange={(e) => setProductPrice(e.target.value)}
                 />
                 {errors.productPrice && <span className="inline-error-msg font-body">{errors.productPrice}</span>}
+              </div>
+
+              {/* Stock count */}
+              <div className="form-group">
+                <label className="form-label">STOCK COUNT *</label>
+                <input 
+                  type="text" 
+                  className={`form-input ${errors.packageNo ? 'input-error-state' : ''}`}
+                  placeholder="e.g. 52"
+                  value={packageNo}
+                  onChange={(e) => setPackageNo(e.target.value)}
+                />
+                {errors.packageNo && <span className="inline-error-msg font-body">{errors.packageNo}</span>}
+              </div>
+
+              {/* Live Status Checkbox */}
+              <div className="form-checkboxes-row font-body" style={{ marginTop: '16px' }}>
+                <label className="checkbox-container">
+                  <input 
+                    type="checkbox" 
+                    checked={isLive}
+                    onChange={(e) => setIsLive(e.target.checked)}
+                  />
+                  <span>Make Product Live</span>
+                </label>
               </div>
 
             </div>

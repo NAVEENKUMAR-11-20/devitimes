@@ -7,8 +7,15 @@ import pb from './pocketbase';
  * Returns null if the record has no image.
  */
 export function getProductImageUrl(record) {
-  if (!record || !record.prodimage) return null;
-  return pb.files.getURL(record, record.prodimage);
+  if (!record) return null;
+  const prodimage = record.prodimage || record._rawImageName;
+  if (!prodimage) return null;
+  const pbRecord = {
+    id: record.id || record.pbId,
+    collectionId: record.collectionId,
+    collectionName: record.collectionName,
+  };
+  return pb.files.getURL(pbRecord, prodimage);
 }
 
 /**
@@ -21,13 +28,16 @@ export function mapRecord(record) {
     id: record.id,
     status: record.status || (record.is_live ? 'LIVE' : 'HIDDEN'),
     pbId: record.id,                          // keep PB id separate
+    collectionId: record.collectionId || '',  // add for compatibility
+    collectionName: record.collectionName || '', // add for compatibility
+    prodimage: record.prodimage || '',        // add for compatibility
     modelNumber: record.MODEL_NUMBER || '',
     size: (record.SIZE_DIMENSIONS && record.SIZE_DIMENSIONS !== 0) ? `${record.SIZE_DIMENSIONS} × ${record.SIZE_DIMENSIONS} MM` : '300 × 300 MM',
     packageNo: record.package_no || '',
     salePrice: Number(record.price) || 0,
     originalPrice: record.original_price !== undefined && record.original_price !== null ? Number(record.original_price) : null,
     isOnSale: record.is_on_sale !== undefined ? (String(record.is_on_sale) === 'true') : false,
-    isLive: record.is_live !== undefined ? record.is_live : true,
+    isLive: record.is_live !== undefined ? (String(record.is_live) === 'true') : true,
     images: imageUrl ? (isJson ? [] : [imageUrl]) : [],
     _jsonUrl: isJson ? imageUrl : null,
     _rawImageName: record.prodimage || '',    // original filename for updates
@@ -40,6 +50,38 @@ export function mapRecord(record) {
     updatedAt: record.updated || '',
   };
 }
+
+/**
+ * Fetch a single product by ID.
+ */
+export async function fetchProductById(pbId) {
+  console.log('[PB] Fetching product by ID:', pbId);
+  try {
+    const record = await pb.collection('products').getOne(pbId, {
+      requestKey: null,
+    });
+    const mapped = mapRecord(record);
+    if (mapped._jsonUrl) {
+      try {
+        const fetchUrl = mapped._jsonUrl + (mapped._jsonUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
+        const res = await fetch(fetchUrl, { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            mapped.images = data;
+          }
+        }
+      } catch (e) {
+        console.error('Failed to fetch JSON gallery for mapped product:', pbId, e);
+      }
+    }
+    return mapped;
+  } catch (err) {
+    console.error('[PB] fetchProductById error:', err);
+    throw err;
+  }
+}
+
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 

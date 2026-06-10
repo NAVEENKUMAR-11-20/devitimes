@@ -2,11 +2,23 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import ClockSvg from '../components/ClockSvg';
+import { getProductImageUrl } from '../lib/productsService';
 
 const Collection = () => {
   const { products: contextProducts, currentUser, loginUser, logoutUser, addToCart } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const getProductDisplayImage = (product) => {
+    if (product?.images && product.images.length > 0) {
+      return product.images[0];
+    }
+    const imageUrl = getProductImageUrl(product);
+    if (imageUrl && !imageUrl.toLowerCase().split('?')[0].endsWith('.json')) {
+      return imageUrl;
+    }
+    return "/placeholder.svg";
+  };
 
   // Local state for auto-refreshing products
   const [liveProducts, setLiveProducts] = useState(Array.isArray(contextProducts) ? contextProducts : []);
@@ -230,9 +242,9 @@ const Collection = () => {
                     <div className="card-image-area">
                       {isSale && <span className="badge-sale absolute-badge">SALE</span>}
                       <img 
-                        src={product?.images?.[0] || "/placeholder.png"} 
+                        src={getProductDisplayImage(product)} 
                         alt={product?.name || 'Wall Clock'} 
-                        onError={(e) => { e.target.onerror = null; e.target.src = "/placeholder.png"; }}
+                        onError={(e) => { e.target.onerror = null; e.target.src = "/placeholder.svg"; }}
                       />
                     </div>
 
