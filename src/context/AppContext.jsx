@@ -427,6 +427,7 @@ export const AppProvider = ({ children }) => {
   // --- User Authentication Actions ---
   const loginUser = async (userId, password) => {
     try {
+      await ensurePbAuth();
       // 1. Search in PocketBase User collection
       const records = await pb.collection('User').getFullList({
         filter: `User_ID = "${userId.trim()}"`
@@ -480,6 +481,7 @@ export const AppProvider = ({ children }) => {
   const checkCurrentUserStatus = async () => {
     if (!currentUser) return true;
     try {
+      await ensurePbAuth();
       const records = await pb.collection('User').getFullList({
         filter: `User_ID = "${currentUser.userId}"`
       });
