@@ -20,6 +20,7 @@ import Home from './pages/Home';
 import Collection from './pages/Collection';
 import ProductDetail from './pages/ProductDetail';
 import Login from './pages/Login';
+import Register from './pages/Register';
 import Cart from './pages/Cart';
 import CheckoutSuccess from './pages/CheckoutSuccess';
 
@@ -57,6 +58,7 @@ function App() {
           <Route path="/collection" element={<ClientLayout><Collection /></ClientLayout>} />
           <Route path="/product/:id" element={<ClientLayout><ProductDetail /></ClientLayout>} />
           <Route path="/login" element={<ClientLayout><Login /></ClientLayout>} />
+          <Route path="/register" element={<ClientLayout><Register /></ClientLayout>} />
           
           {/* PROTECTED CLIENT ROUTES */}
           <Route path="/cart" element={<ClientLayout><Cart /></ClientLayout>} />
