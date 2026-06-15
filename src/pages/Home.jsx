@@ -347,15 +347,15 @@ const Home = () => {
             <h2 className="section-heading font-heading">Shop by Collection</h2>
             <div className="section-heading-line"></div>
           </div>
+        </div>
 
-          {/* Desktop Grid & Mobile Carousel */}
-          <div className="collections-grid-carousel">
-            {collections.map((col, idx) => (
+        <div className="collections-marquee-container">
+          <div className="marquee-track">
+            {[...collections, ...collections].map((col, idx) => (
               <div 
-                key={col.id || idx} 
+                key={`${col.id || idx}-marquee-${idx}`} 
                 className="collection-card-item animate-fade-in"
                 onClick={() => handleCollectionClick(col.name)}
-                style={{ animationDelay: `${idx * 0.05}s` }}
               >
                 <div className="collection-card-img-wrapper">
                   <img
@@ -367,7 +367,7 @@ const Home = () => {
                 </div>
                 <div className="collection-card-content">
                   <h3 className="collection-card-title font-heading">{col.name}</h3>
-                  <span className="collection-card-cta">EXPLORE COLLECTION &nbsp; →</span>
+                  <span className="collection-card-cta">Explore Collection &nbsp; →</span>
                 </div>
               </div>
             ))}
@@ -733,6 +733,7 @@ const Home = () => {
         .collections-showcase-section {
           padding: 80px 0;
           background-color: var(--page-bg);
+          overflow: hidden;
         }
 
         .section-header-center {
@@ -764,32 +765,58 @@ const Home = () => {
           border-radius: 2px;
         }
 
-        .collections-grid-carousel {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
+        /* Marquee styles */
+        .collections-marquee-container {
+          width: 100%;
+          overflow: hidden;
+          position: relative;
+          padding: 10px 0 30px 0;
+          mask-image: linear-gradient(to right, transparent 0%, #000 8%, #000 92%, transparent 100%);
+          -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 8%, #000 92%, transparent 100%);
+        }
+
+        .marquee-track {
+          display: flex;
           gap: 28px;
+          width: max-content;
+          animation: marquee-scroll 35s linear infinite;
+        }
+
+        .collections-marquee-container:hover .marquee-track {
+          animation-play-state: paused;
+        }
+
+        @keyframes marquee-scroll {
+          0% {
+            transform: translateX(0);
+          }
+          100% {
+            transform: translateX(-50%);
+          }
         }
 
         .collection-card-item {
           position: relative;
-          border-radius: 12px;
+          border-radius: 20px;
           overflow: hidden;
-          aspect-ratio: 4 / 5;
+          width: 300px;
+          height: 400px;
+          flex: 0 0 300px;
           cursor: pointer;
-          box-shadow: 0 4px 20px rgba(26, 35, 50, 0.08);
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
           transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), 
                       box-shadow 0.4s cubic-bezier(0.25, 1, 0.5, 1);
-          -webkit-tap-highlight-color: transparent; /* Remove default tap highlight on mobile */
+          -webkit-tap-highlight-color: transparent;
         }
 
         .collection-card-item:hover {
-          transform: translateY(-8px);
-          box-shadow: 0 12px 32px rgba(26, 35, 50, 0.16);
+          transform: scale(1.03);
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
         }
 
         .collection-card-item:active {
-          transform: translateY(-2px) scale(0.97); /* Instant active feedback on touch */
-          box-shadow: 0 4px 12px rgba(26, 35, 50, 0.1);
+          transform: scale(0.98);
+          box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
           transition: transform 0.1s ease;
         }
 
@@ -808,18 +835,18 @@ const Home = () => {
         }
 
         .collection-card-item:hover .collection-card-img {
-          transform: scale(1.08);
+          transform: scale(1.06);
         }
 
         .collection-card-overlay {
           position: absolute;
           inset: 0;
-          background: linear-gradient(to bottom, rgba(26, 35, 50, 0.1) 0%, rgba(26, 35, 50, 0.85) 100%);
+          background: linear-gradient(to bottom, rgba(26, 35, 50, 0.05) 0%, rgba(26, 35, 50, 0.2) 40%, rgba(26, 35, 50, 0.85) 100%);
           transition: background 0.4s ease;
         }
 
         .collection-card-item:hover .collection-card-overlay {
-          background: linear-gradient(to bottom, rgba(26, 35, 50, 0.2) 0%, rgba(26, 35, 50, 0.9) 100%);
+          background: linear-gradient(to bottom, rgba(26, 35, 50, 0.1) 0%, rgba(26, 35, 50, 0.35) 40%, rgba(26, 35, 50, 0.92) 100%);
         }
 
         .collection-card-content {
@@ -827,7 +854,7 @@ const Home = () => {
           bottom: 0;
           left: 0;
           right: 0;
-          padding: 24px;
+          padding: 28px;
           z-index: 2;
           display: flex;
           flex-direction: column;
@@ -845,10 +872,9 @@ const Home = () => {
 
         .collection-card-cta {
           color: rgba(255, 255, 255, 0.85);
-          font-size: 10px;
-          font-weight: 700;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.08em;
           transition: color 0.3s ease, transform 0.3s ease;
           display: inline-flex;
           align-items: center;
@@ -921,29 +947,25 @@ const Home = () => {
             object-fit: contain;
           }
 
-          /* Collections mobile swipeable carousel overrides */
+          /* Collections mobile infinite marquee overrides */
           .collections-showcase-section {
             padding: 56px 0;
           }
-          .collections-grid-carousel {
-            display: flex;
-            overflow-x: auto;
-            scroll-snap-type: x mandatory;
+          .marquee-track {
             gap: 16px;
-            padding: 8px 4px 24px 4px;
-            scrollbar-width: none; /* Hide scrollbar for Firefox */
-            -webkit-overflow-scrolling: touch;
-          }
-          .collections-grid-carousel::-webkit-scrollbar {
-            display: none; /* Hide scrollbar for Chrome/Safari */
+            animation: marquee-scroll 25s linear infinite;
           }
           .collection-card-item {
-            flex: 0 0 75%; /* Viewport width on mobile */
-            scroll-snap-align: center;
-            aspect-ratio: 4 / 5;
+            width: 240px;
+            height: 320px;
+            flex: 0 0 240px;
+            border-radius: 16px;
           }
           .collection-card-title {
             font-size: 18px;
+          }
+          .collection-card-content {
+            padding: 20px;
           }
 
           .wholesale-banner-section {
