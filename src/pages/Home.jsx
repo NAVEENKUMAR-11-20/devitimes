@@ -271,6 +271,8 @@ const Home = () => {
     ? (posterImgMap[activePoster.id] || activePoster.defaultImage || null)
     : null;
 
+  const marqueeText = Array(25).fill("WHOLESALE ONLY • ").join("");
+
   return (
     <div className="home-root">
 
@@ -341,11 +343,20 @@ const Home = () => {
 
       {/* ── Shop by Collection Section ── */}
       <section className="collections-showcase-section">
+
         <div className="container">
           <div className="section-header-center">
             <span className="section-tag uppercase-label">CURATED TIMEPIECES</span>
             <h2 className="section-heading font-heading">Shop by Collection</h2>
             <div className="section-heading-line"></div>
+          </div>
+        </div>
+
+        {/* ── Wholesale Top Marquee Strip ── */}
+        <div className="wholesale-marquee-strip top-strip">
+          <div className="marquee-content">
+            <span>{marqueeText}</span>
+            <span>{marqueeText}</span>
           </div>
         </div>
 
@@ -371,6 +382,14 @@ const Home = () => {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* ── Wholesale Bottom Marquee Strip ── */}
+        <div className="wholesale-marquee-strip bottom-strip">
+          <div className="marquee-content">
+            <span>{marqueeText}</span>
+            <span>{marqueeText}</span>
           </div>
         </div>
       </section>
@@ -423,6 +442,76 @@ const Home = () => {
       </section>
 
       <style>{`
+        /* ── Background Clock Decorations ── */
+        .collections-showcase-section::before,
+        .wholesale-banner-section::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background-image: url('/luxury_clock_pattern.png');
+          background-repeat: repeat;
+          background-size: 240px 240px;
+          opacity: 0.38; /* Faint gold background watermark texture */
+          mix-blend-mode: multiply;
+          pointer-events: none;
+          z-index: 0;
+          transition: opacity 0.3s ease;
+        }
+        
+        .collections-showcase-section:hover::before,
+        .wholesale-banner-section:hover::before {
+          opacity: 0.48;
+        }
+
+        .collections-showcase-section .container,
+        .collections-showcase-section .collections-marquee-container,
+        .collections-showcase-section .wholesale-marquee-strip,
+        .wholesale-banner-section .wholesale-card {
+          position: relative;
+          z-index: 2;
+        }
+
+        /* ── Wholesale Marquee Strips ── */
+        .wholesale-marquee-strip {
+          width: 100%;
+          overflow: hidden;
+          background-color: var(--primary-dark-bg);
+          border-top: 1.5px solid rgba(238, 213, 155, 0.25);
+          border-bottom: 1.5px solid rgba(238, 213, 155, 0.25);
+          padding: 8px 0;
+          display: flex;
+          white-space: nowrap;
+          box-sizing: border-box;
+          z-index: 10;
+          position: relative;
+        }
+        .wholesale-marquee-strip.top-strip {
+          border-top: none;
+        }
+        .wholesale-marquee-strip.bottom-strip {
+          border-bottom: none;
+        }
+        .wholesale-marquee-strip .marquee-content {
+          display: inline-flex;
+          animation: ticker-scroll 25s linear infinite;
+        }
+        .wholesale-marquee-strip span {
+          color: #EED59B;
+          font-family: var(--body-font);
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+        }
+        @keyframes ticker-scroll {
+          0% {
+            transform: translateX(0);
+          }
+          100% {
+            transform: translateX(-50%);
+          }
+        }
+
         /* ── Hero ── */
         .hero-section {
           background: linear-gradient(135deg, var(--secondary-dark) 0%, var(--primary-dark-bg) 100%);
@@ -602,6 +691,7 @@ const Home = () => {
           align-items: center;
           width: 100%;
           background: transparent;
+          position: relative;
         }
 
         .wholesale-card {
@@ -734,6 +824,7 @@ const Home = () => {
           padding: 80px 0;
           background-color: var(--page-bg);
           overflow: hidden;
+          position: relative;
         }
 
         .section-header-center {
@@ -770,7 +861,7 @@ const Home = () => {
           width: 100%;
           overflow: hidden;
           position: relative;
-          padding: 10px 0 30px 0;
+          padding: 0;
           mask-image: linear-gradient(to right, transparent 0%, #000 8%, #000 92%, transparent 100%);
           -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 8%, #000 92%, transparent 100%);
         }
