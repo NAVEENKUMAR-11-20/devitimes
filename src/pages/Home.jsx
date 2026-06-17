@@ -352,44 +352,47 @@ const Home = () => {
           </div>
         </div>
 
-        {/* ── Wholesale Top Marquee Strip ── */}
-        <div className="wholesale-marquee-strip top-strip">
-          <div className="marquee-content">
-            <span>{marqueeText}</span>
-            <span>{marqueeText}</span>
+        {/* ── Dark Band combining strips and images background ── */}
+        <div className="collections-dark-band">
+          {/* ── Wholesale Top Marquee Strip ── */}
+          <div className="wholesale-marquee-strip top-strip">
+            <div className="marquee-content">
+              <span>{marqueeText}</span>
+              <span>{marqueeText}</span>
+            </div>
           </div>
-        </div>
 
-        <div className="collections-marquee-container">
-          <div className="marquee-track">
-            {[...collections, ...collections].map((col, idx) => (
-              <div 
-                key={`${col.id || idx}-marquee-${idx}`} 
-                className="collection-card-item animate-fade-in"
-                onClick={() => handleCollectionClick(col.name)}
-              >
-                <div className="collection-card-img-wrapper">
-                  <img
-                    src={collImgMap[col.id] || col.defaultImage || col.image || ''}
-                    alt={col.name}
-                    className="collection-card-img"
-                  />
-                  <div className="collection-card-overlay"></div>
+          <div className="collections-marquee-container">
+            <div className="marquee-track">
+              {[...collections, ...collections].map((col, idx) => (
+                <div 
+                  key={`${col.id || idx}-marquee-${idx}`} 
+                  className="collection-card-item animate-fade-in"
+                  onClick={() => handleCollectionClick(col.name)}
+                >
+                  <div className="collection-card-img-wrapper">
+                    <img
+                      src={collImgMap[col.id] || col.defaultImage || col.image || ''}
+                      alt={col.name}
+                      className="collection-card-img"
+                    />
+                    <div className="collection-card-overlay"></div>
+                  </div>
+                  <div className="collection-card-content">
+                    <h3 className="collection-card-title font-heading">{col.name}</h3>
+                    <span className="collection-card-cta">Explore Collection &nbsp; →</span>
+                  </div>
                 </div>
-                <div className="collection-card-content">
-                  <h3 className="collection-card-title font-heading">{col.name}</h3>
-                  <span className="collection-card-cta">Explore Collection &nbsp; →</span>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* ── Wholesale Bottom Marquee Strip ── */}
-        <div className="wholesale-marquee-strip bottom-strip">
-          <div className="marquee-content">
-            <span>{marqueeText}</span>
-            <span>{marqueeText}</span>
+          {/* ── Wholesale Bottom Marquee Strip ── */}
+          <div className="wholesale-marquee-strip bottom-strip">
+            <div className="marquee-content">
+              <span>{marqueeText}</span>
+              <span>{marqueeText}</span>
+            </div>
           </div>
         </div>
       </section>
@@ -856,12 +859,18 @@ const Home = () => {
           border-radius: 2px;
         }
 
+        .collections-dark-band {
+          background-color: var(--primary-dark-bg);
+          position: relative;
+          z-index: 2;
+        }
+
         /* Marquee styles */
         .collections-marquee-container {
           width: 100%;
           overflow: hidden;
           position: relative;
-          padding: 0;
+          padding: 32px 0; /* Breathing room padding */
           mask-image: linear-gradient(to right, transparent 0%, #000 8%, #000 92%, transparent 100%);
           -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 8%, #000 92%, transparent 100%);
         }
@@ -873,9 +882,7 @@ const Home = () => {
           animation: marquee-scroll 35s linear infinite;
         }
 
-        .collections-marquee-container:hover .marquee-track {
-          animation-play-state: paused;
-        }
+
 
         @keyframes marquee-scroll {
           0% {
@@ -1041,6 +1048,9 @@ const Home = () => {
           /* Collections mobile infinite marquee overrides */
           .collections-showcase-section {
             padding: 56px 0;
+          }
+          .collections-marquee-container {
+            padding: 20px 0; /* Tighter padding on mobile */
           }
           .marquee-track {
             gap: 16px;
