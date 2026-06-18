@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import pb from '../lib/pocketbase';
 
 const Register = () => {
   const { settings } = useApp();
+  const navigate = useNavigate();
 
   const [shopName, setShopName] = useState('');
   const [ownerName, setOwnerName] = useState('');
@@ -11,7 +13,7 @@ const Register = () => {
   const [mobileNumber, setMobileNumber] = useState('');
   const [error, setError] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -31,7 +33,16 @@ const Register = () => {
     const message = `New Retailer Registration\nShop Name: ${shopName.trim()}\nOwner Name: ${ownerName.trim()}\nShop Address: ${shopAddress.trim()}\nMobile Number: ${cleanedNumber}`;
     
     // Admin WhatsApp Number
-    const adminWhatsAppRaw = settings?.whatsappNumber || '7358349394';
+    let adminWhatsAppRaw = settings?.whatsappNumber || '7358349394';
+    try {
+      const records = await pb.collection('app_settings').getFullList();
+      if (records && records.length > 0) {
+        adminWhatsAppRaw = records[0].whatsapp_number;
+      }
+    } catch (err) {
+      console.error("Failed to fetch WhatsApp number from PB:", err);
+    }
+    
     let adminWhatsApp = adminWhatsAppRaw.replace(/\D/g, '');
     if (adminWhatsApp.length === 10) {
       adminWhatsApp = '91' + adminWhatsApp;

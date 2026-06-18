@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import pb from '../lib/pocketbase';
 import ClockSvg from '../components/ClockSvg';
 
 const Cart = () => {
@@ -28,7 +29,7 @@ const Cart = () => {
   const grandTotal = cart.reduce((total, item) => total + (item.unitPrice * item.quantity), 0);
   const itemCount = cart.reduce((total, item) => total + item.quantity, 0);
 
-  const handleProceedToCheckout = () => {
+  const handleProceedToCheckout = async () => {
     if (cart.length === 0) return;
 
     const timestamp = new Date().toLocaleString();
@@ -67,7 +68,17 @@ TOTAL: ₹${grandTotal}
       timestamp
     }));
 
-    const cleanPhone = settings.whatsappNumber.replace(/[^0-9+]/g, '').replace('+', '');
+    let finalPhone = settings.whatsappNumber;
+    try {
+      const records = await pb.collection('app_settings').getFullList();
+      if (records && records.length > 0) {
+        finalPhone = records[0].whatsapp_number;
+      }
+    } catch (err) {
+      console.error("Failed to fetch WhatsApp number from PB:", err);
+    }
+
+    const cleanPhone = finalPhone.replace(/[^0-9+]/g, '').replace('+', '');
     const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
 

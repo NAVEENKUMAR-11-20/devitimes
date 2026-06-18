@@ -217,8 +217,6 @@ const DEFAULT_POSTERS = [
 const Home = () => {
   const navigate = useNavigate();
   const { settings } = useApp();
-  const waNumber = (settings?.whatsappNumber || '7358349394').replace(/\D/g, '');
-  const waLink = `https://wa.me/${waNumber}?text=${encodeURIComponent('Hello, I am interested in placing a wholesale order for Devi Clocks. Please share the product catalogue and pricing.')}`;
 
   // ── Custom homepage images from IndexedDB (admin-managed) ──────────────────
   const [collections, setCollections] = useState(DEFAULT_COLLECTIONS);

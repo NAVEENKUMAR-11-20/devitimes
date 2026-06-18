@@ -1,6 +1,12 @@
 import React from 'react';
+import { useApp } from '../context/AppContext';
 
 const Footer = () => {
+  const { settings } = useApp();
+  const rawNumber = settings?.whatsappNumber || '7358349394';
+  const cleanNumber = rawNumber.replace(/\D/g, '');
+  const displayVal = rawNumber.includes('+') ? rawNumber : `+91 ${rawNumber.slice(0, 5)} ${rawNumber.slice(5)}`;
+
   return (
     <footer className="footer-root">
       <div className="footer-container">
@@ -41,7 +47,7 @@ const Footer = () => {
             <ul className="footer-links-list contact-links">
               <li>
                 <span className="contact-label">Mobile Number</span>
-                <a href="tel:+917358349394" className="contact-value">+91 73583 49394</a>
+                <a href={`tel:+${cleanNumber.length === 10 ? '91' + cleanNumber : cleanNumber}`} className="contact-value">{displayVal}</a>
               </li>
 
               <li>

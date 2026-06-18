@@ -142,12 +142,6 @@ export const AppProvider = ({ children }) => {
     const saved = localStorage.getItem('lumiere_settings');
     let parsedSettings = saved ? JSON.parse(saved) : defaultSettings;
     
-    // Auto-update the cached dummy number to the new requested number
-    if (parsedSettings.whatsappNumber === "+919999999999") {
-      parsedSettings.whatsappNumber = "7358349394";
-      localStorage.setItem('lumiere_settings', JSON.stringify(parsedSettings));
-    }
-    
     return parsedSettings;
   });
 
