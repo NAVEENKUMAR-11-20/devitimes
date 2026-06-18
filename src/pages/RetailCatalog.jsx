@@ -2,10 +2,10 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import ClockSvg from '../components/ClockSvg';
-import { getProductImageUrl } from '../lib/productsService';
+import { getProductImageUrl, fetchRetailProducts } from '../lib/productsService';
 
 const RetailCatalog = () => {
-  const { products: contextProducts, currentRetailUser, logoutRetailUser } = useApp();
+  const { currentRetailUser, logoutRetailUser } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -26,34 +26,22 @@ const RetailCatalog = () => {
     return "/placeholder.svg";
   };
 
-  // Local state for auto-refreshing products
-  const [liveProducts, setLiveProducts] = useState(Array.isArray(contextProducts) ? contextProducts : []);
+  const [liveProducts, setLiveProducts] = useState([]);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  // Sync with context on load
+  // Fetch directly from retail_products
   useEffect(() => {
-    setLiveProducts(Array.isArray(contextProducts) ? contextProducts : []);
-  }, [contextProducts]);
-
-  // Loading state timeout for first page load
-  useEffect(() => {
-    const timer = setTimeout(() => {
+    const loadRetailProducts = async () => {
+      const data = await fetchRetailProducts();
+      setLiveProducts(data);
       setIsInitialLoad(false);
-    }, 600);
-    return () => clearTimeout(timer);
+    };
+    loadRetailProducts();
   }, []);
 
-  // Filter products in real time (only keep live ones AND product_type === 'retail')
+  // Filter products (they are all retail natively)
   const filteredProducts = useMemo(() => {
-    return (liveProducts || []).filter((product) => {
-      if (!product) return false;
-      const pType = product.product_type;
-      const isRetail = Array.isArray(pType) 
-        ? pType.some(t => t.toLowerCase() === 'retail')
-        : (typeof pType === 'string' && pType.toLowerCase() === 'retail');
-
-      return !!product.isLive && isRetail;
-    });
+    return (liveProducts || []).filter((product) => !!product.isLive);
   }, [liveProducts]);
 
   const handleLogout = () => {

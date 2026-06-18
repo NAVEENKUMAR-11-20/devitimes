@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { createProduct } from '../../lib/productsService';
+import { createProduct, createRetailProduct } from '../../lib/productsService';
 
 const sizeOptions = [
   '200 × 200 MM',
@@ -405,16 +405,26 @@ const AdminPdfImport = () => {
         imageFile = base64ToFile(p.images[0], `product_${p.modelNumber || p.pageNum}.png`);
       }
 
-      await createProduct({
-        MODEL_NUMBER:    p.modelNumber || '',
-        SIZE_DIMENSIONS: p.size || '',
-        package_no:      p.packageNo || '',
-        price:           Number(p.salePrice) || 0,
-        status:          'LIVE',
-        is_live:         true,
-        category:        p.category || 'Clock',
-        imageFile,
-      });
+      if (importProductType === 'retail') {
+        await createRetailProduct({
+          model_no:         p.modelNumber || '',
+          size:             p.size || '',
+          package_no:       p.packageNo || '',
+          price_for_retail: Number(p.salePrice) || 0,
+          images:           imageFile,
+        });
+      } else {
+        await createProduct({
+          MODEL_NUMBER:    p.modelNumber || '',
+          SIZE_DIMENSIONS: p.size || '',
+          package_no:      p.packageNo || '',
+          price:           Number(p.salePrice) || 0,
+          status:          'LIVE',
+          is_live:         true,
+          category:        p.category || 'Clock',
+          imageFile,
+        });
+      }
 
       // Remove the saved product from the list
       setExtractedProducts(prev => prev.filter(card => card.tempId !== p.tempId));
@@ -466,17 +476,27 @@ const AdminPdfImport = () => {
           imageFile = base64ToFile(p.images[0], `product_${p.modelNumber || p.pageNum}.png`);
         }
 
-        await createProduct({
-          MODEL_NUMBER:    p.modelNumber || '',
-          SIZE_DIMENSIONS: p.size || '',
-          package_no:      p.packageNo || '',
-          price:           Number(p.salePrice) || 0,
-          status:          'LIVE',
-          is_live:         true,
-          category:        p.category || 'Clock',
-          product_type:    importProductType,
-          imageFile,
-        });
+        if (importProductType === 'retail') {
+          await createRetailProduct({
+            model_no:         p.modelNumber || '',
+            size:             p.size || '',
+            package_no:       p.packageNo || '',
+            price_for_retail: Number(p.salePrice) || 0,
+            images:           imageFile,
+          });
+        } else {
+          await createProduct({
+            MODEL_NUMBER:    p.modelNumber || '',
+            SIZE_DIMENSIONS: p.size || '',
+            package_no:      p.packageNo || '',
+            price:           Number(p.salePrice) || 0,
+            status:          'LIVE',
+            is_live:         true,
+            category:        p.category || 'Clock',
+            product_type:    importProductType,
+            imageFile,
+          });
+        }
         success++;
       } catch (err) {
         console.error('[PB] Failed to save product:', p.modelNumber, err);

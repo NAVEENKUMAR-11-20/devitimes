@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { createProduct } from '../../lib/productsService';
+import { createProduct, createRetailProduct } from '../../lib/productsService';
 import { useApp } from '../../context/AppContext';
 
 // Helper to read file as base64 without losing quality (formerly compressImage)
@@ -167,16 +167,26 @@ const AdminAddProduct = () => {
         imageFilePayload = new File([jsonString], 'gallery.json', { type: 'application/json' });
       }
 
-      await createProduct({
-        MODEL_NUMBER:    modelNumber.trim(),
-        SIZE_DIMENSIONS: finalSize,
-        package_no:      packageNo.trim(),
-        price:           Number(productPrice),
-        stock_Number:    stockNumber.trim(),
-        product_type:    productType,
-        is_live:         finalIsLive,
-        imageFile:       imageFilePayload,
-      });
+      if (productType === 'retail') {
+        await createRetailProduct({
+          model_no:         modelNumber.trim(),
+          size:             finalSize,
+          package_no:       packageNo.trim(),
+          price_for_retail: Number(productPrice),
+          images:           imageFilePayload,
+        });
+      } else {
+        await createProduct({
+          MODEL_NUMBER:    modelNumber.trim(),
+          SIZE_DIMENSIONS: finalSize,
+          package_no:      packageNo.trim(),
+          price:           Number(productPrice),
+          stock_Number:    stockNumber.trim(),
+          product_type:    productType,
+          is_live:         finalIsLive,
+          imageFile:       imageFilePayload,
+        });
+      }
 
       // Refresh global products state immediately
       await refreshProducts();

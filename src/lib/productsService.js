@@ -190,3 +190,48 @@ export async function deleteProduct(pbId) {
     requestKey: null,
   });
 }
+
+// ─── Retail Products Specific API ─────────────────────────────────────────────
+
+export async function createRetailProduct(data) {
+  const formData = new FormData();
+  if (data.model_no !== undefined) formData.append('model_no', data.model_no);
+  if (data.size !== undefined) formData.append('size', data.size);
+  if (data.package_no !== undefined) formData.append('package_no', data.package_no);
+  if (data.price_for_retail !== undefined) formData.append('price_for_retail', data.price_for_retail);
+  if (data.images !== undefined && data.images !== null) {
+    formData.append('images', data.images);
+  }
+
+  try {
+    return await pb.collection('retail_products').create(formData);
+  } catch (err) {
+    console.error('[PB] createRetailProduct error:', err);
+    throw err;
+  }
+}
+
+export async function fetchRetailProducts() {
+  try {
+    const records = await pb.collection('retail_products').getFullList({
+      sort: '-created',
+      requestKey: null,
+    });
+    return records.map(r => ({
+      id: r.id,
+      pbId: r.id,
+      collectionId: r.collectionId,
+      collectionName: r.collectionName,
+      modelNumber: r.model_no || '',
+      size: r.size || '300 × 300 MM',
+      packageNo: r.package_no || '',
+      salePrice: Number(r.price_for_retail) || 0,
+      isLive: true,
+      images: r.images ? [pb.files.getURL(r, r.images)] : [],
+      name: r.model_no || r.id,
+    }));
+  } catch (err) {
+    console.error('[PB] fetchRetailProducts error:', err);
+    return [];
+  }
+}
