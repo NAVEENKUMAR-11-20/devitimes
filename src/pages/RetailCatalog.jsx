@@ -47,7 +47,12 @@ const RetailCatalog = () => {
   const filteredProducts = useMemo(() => {
     return (liveProducts || []).filter((product) => {
       if (!product) return false;
-      return !!product.isLive && product.product_type === 'retail';
+      const pType = product.product_type;
+      const isRetail = Array.isArray(pType) 
+        ? pType.some(t => t.toLowerCase() === 'retail')
+        : (typeof pType === 'string' && pType.toLowerCase() === 'retail');
+
+      return !!product.isLive && isRetail;
     });
   }, [liveProducts]);
 
