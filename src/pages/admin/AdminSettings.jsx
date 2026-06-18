@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
+import pb from '../../lib/pocketbase';
 import * as XLSX from 'xlsx';
 import { fetchAllProducts } from '../../lib/productsService';
 import { fetchAllUsers } from '../../lib/usersService';
@@ -217,21 +218,66 @@ const AdminSettings = () => {
     setTimeout(() => setToastText(''), 1500);
   };
 
-  // Sync WhatsApp number local state when settings change
+  const [pbSettingsId, setPbSettingsId] = useState(null);
+
   useEffect(() => {
-    if (settings && settings.whatsappNumber) {
-      setWhatsappNumber(settings.whatsappNumber);
-    }
-  }, [settings?.whatsappNumber]);
+    const loadSettingsFromPB = async () => {
+      console.log('Loading WhatsApp settings...');
+      try {
+        const records = await pb.collection('app_settings').getFullList();
+        if (records.length > 0) {
+          const record = records[0];
+          console.log('Settings record found:', record);
+          setPbSettingsId(record.id);
+          setWhatsappNumber(record.whatsapp_number);
+          updateSettings({ whatsappNumber: record.whatsapp_number });
+        } else {
+          console.log('Creating settings record...');
+          // If no settings record exists, create one using current local whatsappNumber
+          const newRecord = await pb.collection('app_settings').create({
+            whatsapp_number: settings.whatsappNumber || "+919999999999"
+          });
+          setPbSettingsId(newRecord.id);
+          setWhatsappNumber(newRecord.whatsapp_number);
+        }
+      } catch (err) {
+        console.error("Failed to load app_settings from PocketBase:", err);
+      }
+    };
+    loadSettingsFromPB();
+  }, []); // Run only on mount to fetch PB data
 
   // Section 1 Save
-  const handleSaveWhatsapp = (e) => {
+  const handleSaveWhatsapp = async (e) => {
     e.preventDefault();
     if (!whatsappNumber || !whatsappNumber.trim()) {
       alert('WhatsApp number cannot be empty.');
       return;
     }
-    updateSettings({ whatsappNumber: whatsappNumber.trim() });
+    const finalNumber = whatsappNumber.trim();
+
+    try {
+      if (pbSettingsId) {
+        console.log('Updating settings record...');
+        await pb.collection('app_settings').update(pbSettingsId, {
+          whatsapp_number: finalNumber
+        });
+      } else {
+        console.log('Creating settings record...');
+        const newRecord = await pb.collection('app_settings').create({
+          whatsapp_number: finalNumber
+        });
+        setPbSettingsId(newRecord.id);
+      }
+      
+      console.log('WhatsApp number saved successfully.');
+    } catch (err) {
+      console.error("Failed to save to PocketBase:", err);
+      alert('Failed to save to PocketBase.');
+      return;
+    }
+
+    updateSettings({ whatsappNumber: finalNumber });
     alert('WhatsApp number saved successfully.');
     triggerToast('WhatsApp number saved');
   };
