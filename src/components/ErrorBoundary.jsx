@@ -24,6 +24,9 @@ class ErrorBoundary extends React.Component {
           color: 'var(--text-primary, #333)'
         }}>
           <h2>Something went wrong loading this page.</h2>
+          <p style={{ color: 'red', fontWeight: 'bold' }}>
+            ERROR: {this.state.error?.message}
+          </p>
           <p style={{ color: 'var(--text-muted, #666)' }}>
             We've encountered an unexpected error. Please try refreshing the page or navigating back.
           </p>
