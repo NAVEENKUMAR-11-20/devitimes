@@ -1040,17 +1040,7 @@ const AdminPdfImport = () => {
 
                       </div>
 
-                      {/* Card Level Save Button */}
-                      <div className="card-actions-split">
-                        <button
-                          type="button"
-                          className="btn-primary card-save-btn"
-                          disabled={!p.include || (!p.modelNumber && !p.size)}
-                          onClick={() => handleSaveSingle(p)}
-                        >
-                          SAVE TO CATALOGUE
-                        </button>
-                      </div>
+                      {/* Card Level Save Button Removed per user request */}
                     </div>
 
                     {/* Right Column: Image Preview & Cropping */}
@@ -1107,7 +1097,7 @@ const AdminPdfImport = () => {
           </h2>
           <p className="font-body" style={{ color: 'var(--text-secondary)', marginBottom: '24px', fontSize: '16px' }}>
             {failedCount === 0 
-              ? `${savedCount} of ${savedCount} products added to catalogue successfully.`
+              ? `Import ${importProductType === 'retail' ? 'Retail' : 'Wholesale'} product successfully.`
               : `${savedCount} of ${savedCount + failedCount} added successfully, ${failedCount} failed.`
             }
           </p>

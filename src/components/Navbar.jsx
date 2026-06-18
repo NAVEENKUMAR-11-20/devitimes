@@ -39,12 +39,21 @@ const Navbar = () => {
           >
             HOME
           </Link>
-          <Link 
-            to="/collection" 
-            className={`nav-link-item ${location.pathname === '/collection' ? 'active-link' : ''}`}
-          >
-            COLLECTION
-          </Link>
+          {currentRetailUser ? (
+            <Link 
+              to="/retail-catalog" 
+              className={`nav-link-item ${location.pathname === '/retail-catalog' ? 'active-link' : ''}`}
+            >
+              RETAIL CATALOG
+            </Link>
+          ) : (
+            <Link 
+              to="/collection" 
+              className={`nav-link-item ${location.pathname === '/collection' ? 'active-link' : ''}`}
+            >
+              COLLECTION
+            </Link>
+          )}
         </div>
 
         {/* Right Side: Actions (User Session, Search, Cart, Hamburger) */}
@@ -81,23 +90,25 @@ const Navbar = () => {
 
           {/* Search & Cart Icons */}
           <div className="nav-icons-group">
-            {/* Cart Icon & Count Badge */}
-            <Link 
-              to="/cart" 
-              className={`nav-icon-link cart-icon-btn ${location.pathname === '/cart' ? 'active-link' : ''}`}
-              aria-label="Shopping Cart"
-            >
-              <div className="cart-badge-wrapper">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
-                  <line x1="3" y1="6" x2="21" y2="6"></line>
-                  <path d="M16 10a4 4 0 0 1-8 0"></path>
-                </svg>
-                {cartCount > 0 && (
-                  <span className="cart-badge-count">{cartCount}</span>
-                )}
-              </div>
-            </Link>
+            {/* Cart Icon & Count Badge (Hidden for retail users) */}
+            {!currentRetailUser && (
+              <Link 
+                to="/cart" 
+                className={`nav-icon-link cart-icon-btn ${location.pathname === '/cart' ? 'active-link' : ''}`}
+                aria-label="Shopping Cart"
+              >
+                <div className="cart-badge-wrapper">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <path d="M16 10a4 4 0 0 1-8 0"></path>
+                  </svg>
+                  {cartCount > 0 && (
+                    <span className="cart-badge-count">{cartCount}</span>
+                  )}
+                </div>
+              </Link>
+            )}
           </div>
 
           {/* Hamburger Menu Toggle (Mobile) */}
@@ -133,13 +144,23 @@ const Navbar = () => {
           >
             HOME
           </Link>
-          <Link 
-            to="/collection" 
-            className={`mobile-nav-link-item ${location.pathname === '/collection' ? 'active-link' : ''}`}
-            onClick={() => setMobileMenuOpen(false)}
-          >
-            COLLECTION
-          </Link>
+          {currentRetailUser ? (
+            <Link 
+              to="/retail-catalog" 
+              className={`mobile-nav-link-item ${location.pathname === '/retail-catalog' ? 'active-link' : ''}`}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              RETAIL CATALOG
+            </Link>
+          ) : (
+            <Link 
+              to="/collection" 
+              className={`mobile-nav-link-item ${location.pathname === '/collection' ? 'active-link' : ''}`}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              COLLECTION
+            </Link>
+          )}
           
           {currentRetailUser ? (
             <div className="mobile-user-session">
