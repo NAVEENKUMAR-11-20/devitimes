@@ -48,7 +48,9 @@ const AdminAddProduct = () => {
   const [sizeType, setSizeType] = useState('300 × 300 MM');
   const [customSize, setCustomSize] = useState('');
   const [productPrice, setProductPrice] = useState('');
+  const [productType, setProductType] = useState('wholesale');
   const [packageNo, setPackageNo] = useState('');
+  const [stockNumber, setStockNumber] = useState('');
   const [isLive, setIsLive] = useState(true);
   const [images, setImages] = useState([]); // array of { url: string, file: File }
 
@@ -110,7 +112,9 @@ const AdminAddProduct = () => {
     setSizeType('300 × 300 MM');
     setCustomSize('');
     setProductPrice('');
+    setProductType('wholesale');
     setPackageNo('');
+    setStockNumber('');
     setIsLive(true);
     setImages([]);
     setErrors({});
@@ -168,6 +172,8 @@ const AdminAddProduct = () => {
         SIZE_DIMENSIONS: finalSize,
         package_no:      packageNo.trim(),
         price:           Number(productPrice),
+        stock_Number:    stockNumber.trim(),
+        product_type:    productType,
         is_live:         finalIsLive,
         imageFile:       imageFilePayload,
       });
@@ -390,6 +396,43 @@ const AdminAddProduct = () => {
                   onChange={(e) => setProductPrice(e.target.value)}
                 />
                 {errors.productPrice && <span className="inline-error-msg font-body">{errors.productPrice}</span>}
+              </div>
+
+              {/* Package No */}
+              <div className="form-group">
+                <label className="form-label">PACKAGE NO</label>
+                <input 
+                  type="text" 
+                  className="form-input"
+                  placeholder="e.g. PKG-01"
+                  value={packageNo}
+                  onChange={(e) => setPackageNo(e.target.value)}
+                />
+              </div>
+
+              {/* Stock Number */}
+              <div className="form-group">
+                <label className="form-label">STOCK NUMBER</label>
+                <input 
+                  type="text" 
+                  className="form-input"
+                  placeholder="e.g. 50"
+                  value={stockNumber}
+                  onChange={(e) => setStockNumber(e.target.value)}
+                />
+              </div>
+
+              {/* Product Type */}
+              <div className="form-group">
+                <label className="form-label">PRODUCT TYPE</label>
+                <select 
+                  className="form-input"
+                  value={productType}
+                  onChange={(e) => setProductType(e.target.value)}
+                >
+                  <option value="wholesale">Wholesale</option>
+                  <option value="retail">Retail</option>
+                </select>
               </div>
 
 

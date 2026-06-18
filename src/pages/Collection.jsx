@@ -71,7 +71,7 @@ const Collection = () => {
   const filteredProducts = useMemo(() => {
     return (liveProducts || []).filter((product) => {
       if (!product) return false;
-      return !!product.isLive;
+      return !!product.isLive && product.product_type !== 'retail';
     });
   }, [liveProducts]);
 

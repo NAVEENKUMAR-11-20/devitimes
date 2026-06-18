@@ -38,6 +38,7 @@ const AdminPdfImport = () => {
   // Confirm modal state
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [saveProcessing, setSaveProcessing] = useState(false);
+  const [importProductType, setImportProductType] = useState('wholesale');
 
   // ─── Modern Cropper state ─────────────────────────────────────────────────
   const [showCropModal, setShowCropModal] = useState(false);
@@ -473,6 +474,7 @@ const AdminPdfImport = () => {
           status:          'LIVE',
           is_live:         true,
           category:        p.category || 'Clock',
+          product_type:    importProductType,
           imageFile,
         });
         success++;
@@ -649,8 +651,9 @@ const AdminPdfImport = () => {
     const onMove = (me) => {
       const cx = me.touches ? me.touches[0].clientX : me.clientX;
       const cy = me.touches ? me.touches[0].clientY : me.clientY;
-      const dx = cx - cropDragRef.current.startX;
-      const dy = cy - cropDragRef.current.startY;
+      const scale = cropViewRef.current ? (460 / cropViewRef.current.getBoundingClientRect().width) : 1;
+      const dx = (cx - cropDragRef.current.startX) * scale;
+      const dy = (cy - cropDragRef.current.startY) * scale;
       const { startBox } = cropDragRef.current;
       setCropBox(prev => ({
         ...prev,
@@ -684,8 +687,9 @@ const AdminPdfImport = () => {
     const onMove = (me) => {
       const cx = me.touches ? me.touches[0].clientX : me.clientX;
       const cy = me.touches ? me.touches[0].clientY : me.clientY;
-      const dx = cx - cropDragRef.current.startX;
-      const dy = cy - cropDragRef.current.startY;
+      const scale = cropViewRef.current ? (460 / cropViewRef.current.getBoundingClientRect().width) : 1;
+      const dx = (cx - cropDragRef.current.startX) * scale;
+      const dy = (cy - cropDragRef.current.startY) * scale;
       const { startBox, handle: h } = cropDragRef.current;
       let { x, y, size } = startBox;
 
@@ -1007,6 +1011,32 @@ const AdminPdfImport = () => {
                           </div>
                         </div>
 
+                        {/* Package No */}
+                        <div className="form-group">
+                          <label className="form-label">PACKAGE NO</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. PKG-01"
+                            value={p.packageNo || ''}
+                            onChange={(e) => updateCardField(p.tempId, 'packageNo', e.target.value)}
+                            disabled={!p.include}
+                          />
+                        </div>
+
+                        {/* Price */}
+                        <div className="form-group">
+                          <label className="form-label">PRICE</label>
+                          <input
+                            type="number"
+                            className="form-input"
+                            placeholder="e.g. 1500"
+                            value={p.salePrice || ''}
+                            onChange={(e) => updateCardField(p.tempId, 'salePrice', e.target.value)}
+                            disabled={!p.include}
+                          />
+                        </div>
+
 
                       </div>
 
@@ -1104,6 +1134,20 @@ const AdminPdfImport = () => {
               Save <strong>{selectedCount}</strong> product{selectedCount !== 1 ? 's' : ''} to the live catalogue?
               They will be immediately visible on the collection page.
             </p>
+            
+            <div style={{ marginBottom: '20px', textAlign: 'left' }}>
+              <label className="form-label" style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)' }}>IMPORT AS</label>
+              <select 
+                className="form-input"
+                value={importProductType}
+                onChange={(e) => setImportProductType(e.target.value)}
+                style={{ width: '100%', marginTop: '8px', padding: '10px' }}
+              >
+                <option value="wholesale">Wholesale</option>
+                <option value="retail">Retail</option>
+              </select>
+            </div>
+
             <div className="modal-actions-row">
               <button onClick={handleConfirmSave} className="btn-primary modal-btn">
                 Yes, Save
@@ -1831,7 +1875,8 @@ const AdminPdfImport = () => {
 
         @media (max-width: 640px) {
           .crop-modal-body { flex-direction: column; align-items: center; }
-          .crop-viewport-wrap { width: 100%; }
+          .crop-viewport-wrap { width: 100%; display: flex; justify-content: center; }
+          .crop-viewport { transform: scale(0.68); transform-origin: top center; margin-bottom: -145px; }
           .crop-preview-frame { width: 160px; height: 160px; }
         }
 

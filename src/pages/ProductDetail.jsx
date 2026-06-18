@@ -610,6 +610,15 @@ const ProductDetail = () => {
           .detail-trust-grid {
             grid-template-columns: 1fr;
           }
+          .detail-content-wrapper {
+            padding: 24px 12px 40px;
+          }
+          .detail-title {
+            font-size: 24px;
+          }
+          .main-viewport-container {
+            border-radius: 8px;
+          }
         }
 
         .trust-item {

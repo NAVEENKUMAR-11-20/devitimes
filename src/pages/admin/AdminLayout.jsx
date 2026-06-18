@@ -81,51 +81,50 @@ const AdminLayout = () => {
 
         {/* Navigation Items */}
         <nav className="sidebar-nav-links font-body">
-          
           <Link 
             to="/admin/dashboard" 
             className={`nav-sidebar-item ${isTabActive('/admin/dashboard') ? 'active-sidebar-item' : ''}`}
           >
-            <span className="nav-icon">📊</span> Dashboard
+            Dashboard
           </Link>
           
           <Link 
             to="/admin/products" 
             className={`nav-sidebar-item ${isTabActive('/admin/products') ? 'active-sidebar-item' : ''}`}
           >
-            <span className="nav-icon">📦</span> Products
+            Products
           </Link>
           
           <Link 
             to="/admin/add-product" 
             className={`nav-sidebar-item ${isTabActive('/admin/add-product') ? 'active-sidebar-item' : ''}`}
           >
-            <span className="nav-icon">➕</span> Add Product
+            Add Product
           </Link>
           
           <Link 
             to="/admin/add-via-pdf" 
             className={`nav-sidebar-item ${isTabActive('/admin/add-via-pdf') ? 'active-sidebar-item' : ''}`}
           >
-            <span className="nav-icon">📄</span> Add via PDF
+            Add via PDF
           </Link>
           
           <Link 
             to="/admin/users" 
             className={`nav-sidebar-item ${isTabActive('/admin/users') ? 'active-sidebar-item' : ''}`}
           >
-            <span className="nav-icon">👥</span> Users
+            Users
           </Link>
           
           <Link 
             to="/admin/settings" 
             className={`nav-sidebar-item ${isTabActive('/admin/settings') ? 'active-sidebar-item' : ''}`}
           >
-            <span className="nav-icon">⚙️</span> Settings
+            Settings
           </Link>
 
           <button onClick={handleLogout} className="nav-sidebar-item sidebar-logout-btn">
-            <span className="nav-icon">🚪</span> Logout
+            Logout
           </button>
 
         </nav>

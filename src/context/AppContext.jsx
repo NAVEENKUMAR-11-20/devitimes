@@ -153,6 +153,14 @@ export const AppProvider = ({ children }) => {
     return saved ? JSON.parse(saved) : null;
   });
 
+  // Retail User Session (sessionStorage and localStorage)
+  const [currentRetailUser, setCurrentRetailUser] = useState(() => {
+    const savedSession = sessionStorage.getItem('lumiere_retail_user');
+    const savedLocal = localStorage.getItem('lumiere_retail_user');
+    const saved = savedSession || savedLocal;
+    return saved ? JSON.parse(saved) : null;
+  });
+
   // Admin Session (persisted in localStorage and validated against current settings)
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() => {
     const savedToken = localStorage.getItem('lumiere_admin_auth_token');
@@ -465,6 +473,44 @@ export const AppProvider = ({ children }) => {
     setCart([]);
   };
 
+  const loginRetailUser = async (username, password) => {
+    try {
+      const records = await pb.collection('retail_users').getFullList({
+        filter: `username = "${username.trim()}"`
+      });
+
+      if (records.length > 0) {
+        const matchedUser = records[0];
+        if (String(matchedUser.password).trim() === String(password).trim()) {
+          if (!matchedUser.active) {
+            return { success: false, message: "Your account is not active. Please contact admin." };
+          }
+          
+          const sessionObj = {
+            id: matchedUser.id,
+            username: matchedUser.username
+          };
+          sessionStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
+          localStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
+          setCurrentRetailUser(sessionObj);
+          return { success: true };
+        } else {
+          return { success: false, message: "Invalid username or password." };
+        }
+      }
+      return { success: false, message: "Invalid username or password." };
+    } catch (err) {
+      console.error('[AppContext] loginRetailUser error:', err);
+      return { success: false, message: "Authentication failed. Please check connection." };
+    }
+  };
+
+  const logoutRetailUser = () => {
+    sessionStorage.removeItem('lumiere_retail_user');
+    localStorage.removeItem('lumiere_retail_user');
+    setCurrentRetailUser(null);
+  };
+
   const checkCurrentUserStatus = async () => {
     if (!currentUser) return true;
     try {
@@ -585,6 +631,7 @@ export const AppProvider = ({ children }) => {
       pendingRegistrations,
       settings,
       currentUser,
+      currentRetailUser,
       isAdminAuthenticated,
       cart,
       refreshProducts: loadProducts,
@@ -601,7 +648,10 @@ export const AppProvider = ({ children }) => {
       deleteUser,
       loginUser,
       logoutUser,
+      loginRetailUser,
+      logoutRetailUser,
       checkCurrentUserStatus,
+      updateUserStatus,
       addToCart,
       removeFromCart,
       updateCartQuantity,

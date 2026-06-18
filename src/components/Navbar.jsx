@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 
 const Navbar = () => {
-  const { currentUser, logoutUser, cart } = useApp();
+  const { currentUser, logoutUser, cart, currentRetailUser, logoutRetailUser } = useApp();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -13,6 +13,11 @@ const Navbar = () => {
   const handleLogout = () => {
     logoutUser();
     navigate('/');
+  };
+
+  const handleRetailLogout = () => {
+    logoutRetailUser();
+    navigate('/retail-login');
   };
 
 
@@ -47,7 +52,14 @@ const Navbar = () => {
           
           {/* User Session status */}
           <div className="nav-user-section">
-            {currentUser ? (
+            {currentRetailUser ? (
+              <div className="user-session-pill">
+                <span className="user-session-name" style={{ color: '#FCD34D' }}>Retail</span>
+                <button onClick={handleRetailLogout} className="logout-nav-btn" style={{ borderLeftColor: 'rgba(252, 211, 77, 0.3)', color: '#FCA5A5' }}>
+                  RETAIL LOGOUT
+                </button>
+              </div>
+            ) : currentUser ? (
               <div className="user-session-pill">
                 <span className="user-session-name">Hi, {currentUser.name.split(' ')[0]}</span>
                 <button onClick={handleLogout} className="logout-nav-btn">
@@ -129,7 +141,18 @@ const Navbar = () => {
             COLLECTION
           </Link>
           
-          {currentUser ? (
+          {currentRetailUser ? (
+            <div className="mobile-user-session">
+              <span className="mobile-user-name" style={{ color: '#FCD34D' }}>Retail</span>
+              <button 
+                onClick={() => { handleRetailLogout(); setMobileMenuOpen(false); }} 
+                className="logout-nav-btn"
+                style={{ borderLeftColor: 'rgba(252, 211, 77, 0.3)', color: '#FCA5A5' }}
+              >
+                RETAIL LOGOUT
+              </button>
+            </div>
+          ) : currentUser ? (
             <div className="mobile-user-session">
               <span className="mobile-user-name">Hi, {currentUser.name.split(' ')[0]}</span>
               <button 
@@ -505,9 +528,14 @@ const Navbar = () => {
           .logo-text {
             font-size: 14px;
             letter-spacing: 0.08em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 120px;
           }
           .logo-img {
             height: 38px;
+            flex-shrink: 0;
           }
           .navbar-container {
             padding: 0 12px;
@@ -518,6 +546,9 @@ const Navbar = () => {
           .nav-icon-link {
             width: 34px;
             height: 34px;
+          }
+          .nav-right-actions {
+            flex-shrink: 0;
           }
         }
       `}</style>

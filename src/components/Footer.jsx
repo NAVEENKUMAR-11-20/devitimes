@@ -47,7 +47,7 @@ const Footer = () => {
             <ul className="footer-links-list contact-links">
               <li>
                 <span className="contact-label">Mobile Number</span>
-                <a href={`tel:+${cleanNumber.length === 10 ? '91' + cleanNumber : cleanNumber}`} className="contact-value">{displayVal}</a>
+                <span className="contact-value">7418 956 115</span>
               </li>
 
               <li>
@@ -145,12 +145,21 @@ const Footer = () => {
         @media (max-width: 768px) {
           .footer-root {
             text-align: center;
-            padding: 48px 0 24px;
+            padding: 40px 16px 24px;
+            overflow-x: hidden;
+            width: 100%;
+            box-sizing: border-box;
+          }
+          .footer-container {
+            padding: 0;
+            width: 100%;
+            box-sizing: border-box;
           }
           .footer-grid {
             grid-template-columns: 1fr;
             gap: 32px;
             justify-items: center;
+            width: 100%;
           }
           .brand-col {
             grid-column: span 1;
@@ -158,9 +167,23 @@ const Footer = () => {
             display: flex;
             flex-direction: column;
             align-items: center;
+            text-align: center;
+          }
+          .footer-col {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+          }
+          .footer-links-list {
+            align-items: center;
+            width: 100%;
           }
           .contact-links li {
             align-items: center;
+            justify-content: center;
+            text-align: center;
+            width: 100%;
           }
           .social-icon-link {
             justify-content: center;
