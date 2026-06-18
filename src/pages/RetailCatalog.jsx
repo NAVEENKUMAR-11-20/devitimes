@@ -84,7 +84,6 @@ const RetailCatalog = () => {
               {(Array.isArray(filteredProducts) ? filteredProducts : []).map((product) => {
                 if (!product) return null;
                 const isSale = product.isOnSale;
-                const isAdded = addedProductId === product.id;
 
 
                 return (
