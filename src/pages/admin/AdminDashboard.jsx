@@ -161,14 +161,7 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* Metric 4 */}
-        <div className="metric-card">
-          <div className="metric-icon" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#F59E0B' }}>📋</div>
-          <div className="metric-content">
-            <span className="metric-label uppercase-label">Pending Requests</span>
-            <span className="metric-value font-heading" style={{ color: '#F59E0B' }}>{pendingRegs}</span>
-          </div>
-        </div>
+
 
       </div>
 
@@ -270,7 +263,7 @@ const AdminDashboard = () => {
         /* Stats panel grid columns */
         .metrics-row-grid {
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
+          grid-template-columns: repeat(3, 1fr);
           gap: 20px;
         }
 

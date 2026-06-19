@@ -196,40 +196,25 @@ Login at: ${settings.websiteUrl}/#/login`;
         </button>
       </div>
 
-      {/* Tabs list (Registered users vs Self registrations requests) */}
+      {/* Tabs list (Registered users) */}
       <div className="users-tabs-bar">
         
         <div className="subtabs-group">
-          <button 
-            className={`subtab-btn uppercase-label ${activeSubtab === 'USERS' ? 'active-subtab' : ''}`}
-            onClick={() => setActiveSubtab('USERS')}
-          >
+          <span className="subtab-btn uppercase-label active-subtab" style={{ cursor: 'default' }}>
             Registered Users ({users.length})
-          </button>
-          <button 
-            className={`subtab-btn uppercase-label ${activeSubtab === 'PENDING' ? 'active-subtab' : ''}`}
-            onClick={() => setActiveSubtab('PENDING')}
-            style={{ position: 'relative' }}
-          >
-            Pending Registrations ({pendingRegistrations.length})
-            {pendingRegistrations.length > 0 && (
-              <span className="pending-badge-count">{pendingRegistrations.length}</span>
-            )}
-          </button>
+          </span>
         </div>
 
-        {/* Search bar - only shown for active user lists */}
-        {activeSubtab === 'USERS' && (
-          <div className="search-users-wrapper">
-            <input 
-              type="text" 
-              placeholder="Search by name, ID or mobile..." 
-              className="form-input search-users-input"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-        )}
+        {/* Search bar */}
+        <div className="search-users-wrapper">
+          <input 
+            type="text" 
+            placeholder="Search by name, ID or mobile..." 
+            className="form-input search-users-input"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
 
       </div>
 
@@ -319,63 +304,7 @@ Login at: ${settings.websiteUrl}/#/login`;
         </div>
       )}
 
-      {/* SUBTAB 2: PENDING SELF REGISTRATIONS */}
-      {activeSubtab === 'PENDING' && (
-        <div className="table-container-card">
-          {pendingRegistrations.length === 0 ? (
-            <div className="empty-table-state font-body">
-              No pending registration requests.
-            </div>
-          ) : (
-            <table className="admin-table pending-regs-table">
-              <thead>
-                <tr>
-                  <th>Request Date</th>
-                  <th>Full Name</th>
-                  <th>Mobile Number</th>
-                  <th>Status</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendingRegistrations.map(reg => (
-                  <tr key={reg.id}>
-                    <td>{new Date(reg.registeredAt).toLocaleString()}</td>
-                    <td><strong style={{ color: 'var(--text-primary)' }}>{reg.name}</strong></td>
-                    <td>{reg.mobile}</td>
-                    <td>
-                      <span className="pending-badge font-body">PENDING CREDENTIALS</span>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <div className="table-actions-row">
-                        <button 
-                          onClick={() => handleApprovePendingClick(reg)}
-                          className="btn-primary"
-                          style={{ padding: '6px 12px', fontSize: '11px', height: '32px' }}
-                        >
-                          Create Credentials
-                        </button>
-                        <button 
-                          onClick={async () => {
-                            if (confirm(`Delete registration request from ${reg.name}?`)) {
-                              await deleteRegistrationRequest(reg.id);
-                              await refreshUsers();
-                            }
-                          }}
-                          className="btn-secondary"
-                          style={{ padding: '6px 12px', fontSize: '11px', height: '32px', borderColor: '#EF4444', color: '#EF4444' }}
-                        >
-                          Delete Request
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
+
 
       {/* --- CREATE USER MODAL OVERLAY --- */}
       {showUserModal && (
