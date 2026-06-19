@@ -57,15 +57,36 @@ const AdminSettings = () => {
     }
   }, [settings?.retailUserId, settings?.retailPassword]);
 
-  const handleSaveRetailCredentials = (e) => {
+  const handleSaveRetailCredentials = async (e) => {
     e.preventDefault();
     if (!retailUserId.trim() || !retailPassword.trim()) {
       alert('Retail User ID and Password cannot be empty.');
       return;
     }
+    const finalId = retailUserId.trim();
+    const finalPass = retailPassword.trim();
+    const packed = `[${whatsappNumber},${finalId},${finalPass}]`;
+
+    try {
+      if (pbSettingsId) {
+        await pb.collection('app_settings').update(pbSettingsId, {
+          whatsapp_number: packed
+        });
+      } else {
+        const newRecord = await pb.collection('app_settings').create({
+          whatsapp_number: packed
+        });
+        setPbSettingsId(newRecord.id);
+      }
+    } catch (err) {
+      console.error("Failed to save retail credentials to PocketBase:", err);
+      alert('Failed to save to PocketBase.');
+      return;
+    }
+
     updateSettings({
-      retailUserId: retailUserId.trim(),
-      retailPassword: retailPassword.trim()
+      retailUserId: finalId,
+      retailPassword: finalPass
     });
     triggerToast('Retail credentials saved');
   };
@@ -247,23 +268,43 @@ const AdminSettings = () => {
 
   useEffect(() => {
     const loadSettingsFromPB = async () => {
-      console.log('Loading WhatsApp settings...');
+      console.log('Loading settings from PocketBase...');
       try {
         const records = await pb.collection('app_settings').getFullList();
         if (records.length > 0) {
           const record = records[0];
           console.log('Settings record found:', record);
           setPbSettingsId(record.id);
-          setWhatsappNumber(record.whatsapp_number);
-          updateSettings({ whatsappNumber: record.whatsapp_number });
+          
+          let phoneVal = record.whatsapp_number;
+          let idVal = 'work001';
+          let passVal = 'naveenwork001';
+          
+          if (phoneVal && phoneVal.startsWith('[') && phoneVal.endsWith(']')) {
+            const parts = phoneVal.slice(1, -1).split(',');
+            phoneVal = parts[0] || '';
+            idVal = parts[1] || 'work001';
+            passVal = parts[2] || 'naveenwork001';
+          }
+          
+          setWhatsappNumber(phoneVal);
+          setRetailUserId(idVal);
+          setRetailPassword(passVal);
+          updateSettings({
+            whatsappNumber: phoneVal,
+            retailUserId: idVal,
+            retailPassword: passVal
+          });
         } else {
           console.log('Creating settings record...');
-          // If no settings record exists, create one using current local whatsappNumber
+          const packed = `[${settings.whatsappNumber || "+919999999999"},work001,naveenwork001]`;
           const newRecord = await pb.collection('app_settings').create({
-            whatsapp_number: settings.whatsappNumber || "+919999999999"
+            whatsapp_number: packed
           });
           setPbSettingsId(newRecord.id);
-          setWhatsappNumber(newRecord.whatsapp_number);
+          setWhatsappNumber(settings.whatsappNumber || "+919999999999");
+          setRetailUserId('work001');
+          setRetailPassword('naveenwork001');
         }
       } catch (err) {
         console.error("Failed to load app_settings from PocketBase:", err);
@@ -280,17 +321,18 @@ const AdminSettings = () => {
       return;
     }
     const finalNumber = whatsappNumber.trim();
+    const packed = `[${finalNumber},${retailUserId},${retailPassword}]`;
 
     try {
       if (pbSettingsId) {
         console.log('Updating settings record...');
         await pb.collection('app_settings').update(pbSettingsId, {
-          whatsapp_number: finalNumber
+          whatsapp_number: packed
         });
       } else {
         console.log('Creating settings record...');
         const newRecord = await pb.collection('app_settings').create({
-          whatsapp_number: finalNumber
+          whatsapp_number: packed
         });
         setPbSettingsId(newRecord.id);
       }

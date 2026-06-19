@@ -72,7 +72,13 @@ TOTAL: ₹${grandTotal}
     try {
       const records = await pb.collection('app_settings').getFullList();
       if (records && records.length > 0) {
-        finalPhone = records[0].whatsapp_number;
+        const raw = records[0].whatsapp_number;
+        if (raw && raw.startsWith('[') && raw.endsWith(']')) {
+          const parts = raw.slice(1, -1).split(',');
+          finalPhone = parts[0] || '';
+        } else {
+          finalPhone = raw || '';
+        }
       }
     } catch (err) {
       console.error("Failed to fetch WhatsApp number from PB:", err);

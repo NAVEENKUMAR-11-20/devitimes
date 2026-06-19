@@ -92,8 +92,34 @@ export const AppProvider = ({ children }) => {
     let isMounted = true;
     let pollIntervalId = null;
 
+    const loadGlobalSettings = async () => {
+      try {
+        const records = await pb.collection('app_settings').getFullList();
+        if (records && records.length > 0) {
+          const raw = records[0].whatsapp_number;
+          if (raw && raw.startsWith('[') && raw.endsWith(']')) {
+            const parts = raw.slice(1, -1).split(',');
+            setSettings(prev => ({
+              ...prev,
+              whatsappNumber: parts[0] || prev.whatsappNumber,
+              retailUserId: parts[1] || prev.retailUserId,
+              retailPassword: parts[2] || prev.retailPassword
+            }));
+          } else if (raw) {
+            setSettings(prev => ({
+              ...prev,
+              whatsappNumber: raw
+            }));
+          }
+        }
+      } catch (err) {
+        console.warn('[AppContext] Failed to load settings from PB:', err);
+      }
+    };
+
     loadProducts();
     loadRetailProducts();
+    loadGlobalSettings();
 
     const subscribeToProducts = async () => {
       try {
@@ -139,6 +165,7 @@ export const AppProvider = ({ children }) => {
     pollIntervalId = setInterval(() => {
       loadProducts();
       loadRetailProducts();
+      loadGlobalSettings();
     }, 3000);
 
     return () => {
@@ -513,28 +540,33 @@ export const AppProvider = ({ children }) => {
 
   const loginRetailUser = async (username, password) => {
     try {
-      const records = await pb.collection('retail_users').getFullList({
-        filter: `username = "${username.trim()}"`
-      });
+      let latestId = settings.retailUserId || 'work001';
+      let latestPass = settings.retailPassword || 'naveenwork001';
 
-      if (records.length > 0) {
-        const matchedUser = records[0];
-        if (String(matchedUser.password).trim() === String(password).trim()) {
-          if (!matchedUser.active) {
-            return { success: false, message: "Your account is not active. Please contact admin." };
+      // Load latest settings from PocketBase to ensure real-time accuracy at login
+      try {
+        const records = await pb.collection('app_settings').getFullList();
+        if (records && records.length > 0) {
+          const raw = records[0].whatsapp_number;
+          if (raw && raw.startsWith('[') && raw.endsWith(']')) {
+            const parts = raw.slice(1, -1).split(',');
+            latestId = parts[1] || latestId;
+            latestPass = parts[2] || latestPass;
           }
-          
-          const sessionObj = {
-            id: matchedUser.id,
-            username: matchedUser.username
-          };
-          sessionStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
-          localStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
-          setCurrentRetailUser(sessionObj);
-          return { success: true };
-        } else {
-          return { success: false, message: "Invalid username or password." };
         }
+      } catch (err) {
+        console.warn('[AppContext] Failed to load latest settings for validation:', err);
+      }
+
+      if (username.trim() === latestId.trim() && password.trim() === latestPass.trim()) {
+        const sessionObj = {
+          id: 'retail_session',
+          username: latestId.trim()
+        };
+        sessionStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
+        localStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
+        setCurrentRetailUser(sessionObj);
+        return { success: true };
       }
       return { success: false, message: "Invalid username or password." };
     } catch (err) {
