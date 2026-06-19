@@ -101,7 +101,8 @@ export const AppProvider = ({ children }) => {
             const parts = raw.slice(1, -1).split(',');
             setSettings(prev => ({
               ...prev,
-              whatsappNumber: parts[0] || prev.whatsappNumber
+              whatsappNumber: parts[0] || prev.whatsappNumber,
+              adminPassword: parts[3] || prev.adminPassword
             }));
           } else if (raw) {
             setSettings(prev => ({

@@ -73,8 +73,21 @@ const AdminSettings = () => {
           active: true
         });
       }
+
+      // Also sync to app_settings packed format
+      const packed = `[${whatsappNumber},${finalId},${finalPass},${settings.adminPassword || "lumiere@admin2024"}]`;
+      if (pbSettingsId) {
+        await pb.collection('app_settings').update(pbSettingsId, {
+          whatsapp_number: packed
+        });
+      } else {
+        const newRecord = await pb.collection('app_settings').create({
+          whatsapp_number: packed
+        });
+        setPbSettingsId(newRecord.id);
+      }
     } catch (err) {
-      console.error("Failed to save retail credentials to PocketBase retail_users:", err);
+      console.error("Failed to save retail credentials to PocketBase:", err);
       alert('Failed to save to PocketBase.');
       return;
     }
@@ -272,14 +285,17 @@ const AdminSettings = () => {
           setPbSettingsId(record.id);
           
           let phoneVal = record.whatsapp_number;
+          let adminPassVal = settings.adminPassword;
           if (phoneVal && phoneVal.startsWith('[') && phoneVal.endsWith(']')) {
             const parts = phoneVal.slice(1, -1).split(',');
             phoneVal = parts[0] || '';
+            adminPassVal = parts[3] || adminPassVal;
           }
           
           setWhatsappNumber(phoneVal);
           updateSettings({
-            whatsappNumber: phoneVal
+            whatsappNumber: phoneVal,
+            adminPassword: adminPassVal
           });
         } else {
           console.log('Creating settings record...');
@@ -316,17 +332,18 @@ const AdminSettings = () => {
       return;
     }
     const finalNumber = whatsappNumber.trim();
+    const packed = `[${finalNumber},${retailUserId},${retailPassword},${settings.adminPassword || "lumiere@admin2024"}]`;
 
     try {
       if (pbSettingsId) {
         console.log('Updating settings record...');
         await pb.collection('app_settings').update(pbSettingsId, {
-          whatsapp_number: finalNumber
+          whatsapp_number: packed
         });
       } else {
         console.log('Creating settings record...');
         const newRecord = await pb.collection('app_settings').create({
-          whatsapp_number: finalNumber
+          whatsapp_number: packed
         });
         setPbSettingsId(newRecord.id);
       }
@@ -344,7 +361,7 @@ const AdminSettings = () => {
   };
 
   // Section 3 Save
-  const handleSavePassword = (e) => {
+  const handleSavePassword = async (e) => {
     e.preventDefault();
     if (!currentPassword || !newPassword || !confirmPassword) {
       alert('Please fill out all password fields.');
@@ -358,8 +375,29 @@ const AdminSettings = () => {
       alert('New passwords do not match.');
       return;
     }
+
+    const finalNumber = whatsappNumber.trim();
+    const packed = `[${finalNumber},${retailUserId},${retailPassword},${newPassword.trim()}]`;
+
+    try {
+      if (pbSettingsId) {
+        await pb.collection('app_settings').update(pbSettingsId, {
+          whatsapp_number: packed
+        });
+      } else {
+        const newRecord = await pb.collection('app_settings').create({
+          whatsapp_number: packed
+        });
+        setPbSettingsId(newRecord.id);
+      }
+    } catch (err) {
+      console.error("Failed to save admin password to PocketBase:", err);
+      alert('Failed to save password to backend.');
+      return;
+    }
+
     alert('Admin password updated successfully. Please log in again.');
-    updateSettings({ adminPassword: newPassword });
+    updateSettings({ adminPassword: newPassword.trim() });
     setCurrentPassword('');
     setNewPassword('');
     setConfirmPassword('');
