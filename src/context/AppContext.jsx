@@ -101,9 +101,7 @@ export const AppProvider = ({ children }) => {
             const parts = raw.slice(1, -1).split(',');
             setSettings(prev => ({
               ...prev,
-              whatsappNumber: parts[0] || prev.whatsappNumber,
-              retailUserId: parts[1] || prev.retailUserId,
-              retailPassword: parts[2] || prev.retailPassword
+              whatsappNumber: parts[0] || prev.whatsappNumber
             }));
           } else if (raw) {
             setSettings(prev => ({
@@ -111,6 +109,17 @@ export const AppProvider = ({ children }) => {
               whatsappNumber: raw
             }));
           }
+        }
+
+        // Fetch retail user credentials from retail_users collection in PocketBase
+        const retailRecords = await pb.collection('retail_users').getFullList();
+        if (retailRecords && retailRecords.length > 0) {
+          const rRecord = retailRecords[0];
+          setSettings(prev => ({
+            ...prev,
+            retailUserId: rRecord.username,
+            retailPassword: rRecord.password
+          }));
         }
       } catch (err) {
         console.warn('[AppContext] Failed to load settings from PB:', err);
@@ -540,33 +549,26 @@ export const AppProvider = ({ children }) => {
 
   const loginRetailUser = async (username, password) => {
     try {
-      let latestId = settings.retailUserId || 'work001';
-      let latestPass = settings.retailPassword || 'naveenwork001';
+      const records = await pb.collection('retail_users').getFullList({
+        filter: `username = "${username.trim()}"`
+      });
 
-      // Load latest settings from PocketBase to ensure real-time accuracy at login
-      try {
-        const records = await pb.collection('app_settings').getFullList();
-        if (records && records.length > 0) {
-          const raw = records[0].whatsapp_number;
-          if (raw && raw.startsWith('[') && raw.endsWith(']')) {
-            const parts = raw.slice(1, -1).split(',');
-            latestId = parts[1] || latestId;
-            latestPass = parts[2] || latestPass;
+      if (records.length > 0) {
+        const matchedUser = records[0];
+        if (String(matchedUser.password).trim() === String(password).trim()) {
+          if (!matchedUser.active) {
+            return { success: false, message: "Your account is not active. Please contact admin." };
           }
+          
+          const sessionObj = {
+            id: matchedUser.id,
+            username: matchedUser.username
+          };
+          sessionStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
+          localStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
+          setCurrentRetailUser(sessionObj);
+          return { success: true };
         }
-      } catch (err) {
-        console.warn('[AppContext] Failed to load latest settings for validation:', err);
-      }
-
-      if (username.trim() === latestId.trim() && password.trim() === latestPass.trim()) {
-        const sessionObj = {
-          id: 'retail_session',
-          username: latestId.trim()
-        };
-        sessionStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
-        localStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
-        setCurrentRetailUser(sessionObj);
-        return { success: true };
       }
       return { success: false, message: "Invalid username or password." };
     } catch (err) {

@@ -65,21 +65,24 @@ const AdminSettings = () => {
     }
     const finalId = retailUserId.trim();
     const finalPass = retailPassword.trim();
-    const packed = `[${whatsappNumber},${finalId},${finalPass}]`;
 
     try {
-      if (pbSettingsId) {
-        await pb.collection('app_settings').update(pbSettingsId, {
-          whatsapp_number: packed
+      const retailRecords = await pb.collection('retail_users').getFullList();
+      if (retailRecords.length > 0) {
+        await pb.collection('retail_users').update(retailRecords[0].id, {
+          username: finalId,
+          password: finalPass
         });
       } else {
-        const newRecord = await pb.collection('app_settings').create({
-          whatsapp_number: packed
+        await pb.collection('retail_users').create({
+          name: 'naveen',
+          username: finalId,
+          password: finalPass,
+          active: true
         });
-        setPbSettingsId(newRecord.id);
       }
     } catch (err) {
-      console.error("Failed to save retail credentials to PocketBase:", err);
+      console.error("Failed to save retail credentials to PocketBase retail_users:", err);
       alert('Failed to save to PocketBase.');
       return;
     }
@@ -277,34 +280,34 @@ const AdminSettings = () => {
           setPbSettingsId(record.id);
           
           let phoneVal = record.whatsapp_number;
-          let idVal = 'work001';
-          let passVal = 'naveenwork001';
-          
           if (phoneVal && phoneVal.startsWith('[') && phoneVal.endsWith(']')) {
             const parts = phoneVal.slice(1, -1).split(',');
             phoneVal = parts[0] || '';
-            idVal = parts[1] || 'work001';
-            passVal = parts[2] || 'naveenwork001';
           }
           
           setWhatsappNumber(phoneVal);
-          setRetailUserId(idVal);
-          setRetailPassword(passVal);
           updateSettings({
-            whatsappNumber: phoneVal,
-            retailUserId: idVal,
-            retailPassword: passVal
+            whatsappNumber: phoneVal
           });
         } else {
           console.log('Creating settings record...');
-          const packed = `[${settings.whatsappNumber || "+919999999999"},work001,naveenwork001]`;
           const newRecord = await pb.collection('app_settings').create({
-            whatsapp_number: packed
+            whatsapp_number: settings.whatsappNumber || "+919999999999"
           });
           setPbSettingsId(newRecord.id);
           setWhatsappNumber(settings.whatsappNumber || "+919999999999");
-          setRetailUserId('work001');
-          setRetailPassword('naveenwork001');
+        }
+
+        // Fetch retail user credentials from retail_users collection
+        const retailRecords = await pb.collection('retail_users').getFullList();
+        if (retailRecords.length > 0) {
+          const rRecord = retailRecords[0];
+          setRetailUserId(rRecord.username);
+          setRetailPassword(rRecord.password);
+          updateSettings({
+            retailUserId: rRecord.username,
+            retailPassword: rRecord.password
+          });
         }
       } catch (err) {
         console.error("Failed to load app_settings from PocketBase:", err);
@@ -321,18 +324,17 @@ const AdminSettings = () => {
       return;
     }
     const finalNumber = whatsappNumber.trim();
-    const packed = `[${finalNumber},${retailUserId},${retailPassword}]`;
 
     try {
       if (pbSettingsId) {
         console.log('Updating settings record...');
         await pb.collection('app_settings').update(pbSettingsId, {
-          whatsapp_number: packed
+          whatsapp_number: finalNumber
         });
       } else {
         console.log('Creating settings record...');
         const newRecord = await pb.collection('app_settings').create({
-          whatsapp_number: packed
+          whatsapp_number: finalNumber
         });
         setPbSettingsId(newRecord.id);
       }
