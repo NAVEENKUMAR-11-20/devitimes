@@ -215,24 +215,14 @@ export const AppProvider = ({ children }) => {
     return saved ? JSON.parse(saved) : null;
   });
 
-  // Admin Session (persisted in localStorage and validated against current settings)
+  // Admin Session (persisted in localStorage)
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() => {
     const savedToken = localStorage.getItem('lumiere_admin_auth_token');
     if (savedToken) {
       try {
         const parsed = JSON.parse(savedToken);
-        const currentSavedSettings = localStorage.getItem('lumiere_settings');
-        const activePassword = currentSavedSettings 
-          ? JSON.parse(currentSavedSettings)?.adminPassword || defaultSettings.adminPassword
-          : defaultSettings.adminPassword;
-        const activeUsername = currentSavedSettings
-          ? JSON.parse(currentSavedSettings)?.adminUsername || 'admin'
-          : 'admin';
-          
-        if (parsed.isAuthenticated && parsed.authPassword === activePassword && parsed.authUsername === activeUsername) {
+        if (parsed.isAuthenticated) {
           return true;
-        } else {
-          localStorage.removeItem('lumiere_admin_auth_token');
         }
       } catch (e) {
         console.error("Admin auth parsing error:", e);
@@ -281,51 +271,16 @@ export const AppProvider = ({ children }) => {
     }
   }, [currentUser]);
 
-  // Watch settings admin credentials and invalidate session if they change
-  useEffect(() => {
-    const savedToken = localStorage.getItem('lumiere_admin_auth_token');
-    if (savedToken) {
-      try {
-        const parsed = JSON.parse(savedToken);
-        const activeUsername = settings.adminUsername || 'admin';
-        if (parsed.authPassword !== settings.adminPassword || parsed.authUsername !== activeUsername) {
-          localStorage.removeItem('lumiere_admin_auth_token');
-          setIsAdminAuthenticated(false);
-        }
-      } catch (e) {
-        localStorage.removeItem('lumiere_admin_auth_token');
-        setIsAdminAuthenticated(false);
-      }
-    }
-  }, [settings.adminPassword, settings.adminUsername]);
-
-  // Synchronize admin auth states and invalidate sessions across tabs in real-time
+  // Synchronize admin auth states across tabs in real-time
   useEffect(() => {
     const handleStorageChange = (e) => {
-      if (e.key === 'lumiere_settings') {
-        try {
-          const newSettings = JSON.parse(e.newValue);
-          const savedToken = localStorage.getItem('lumiere_admin_auth_token');
-          if (savedToken && newSettings) {
-            const parsedToken = JSON.parse(savedToken);
-            const activeUsername = newSettings.adminUsername || 'admin';
-            if (parsedToken.authPassword !== newSettings.adminPassword || parsedToken.authUsername !== activeUsername) {
-              localStorage.removeItem('lumiere_admin_auth_token');
-              setIsAdminAuthenticated(false);
-            }
-          }
-        } catch (err) {
-          console.error("Storage change error:", err);
-        }
-      }
       if (e.key === 'lumiere_admin_auth_token') {
         if (!e.newValue) {
           setIsAdminAuthenticated(false);
         } else {
           try {
             const parsedToken = JSON.parse(e.newValue);
-            const activeUsername = settings.adminUsername || 'admin';
-            if (parsedToken.isAuthenticated && parsedToken.authPassword === settings.adminPassword && parsedToken.authUsername === activeUsername) {
+            if (parsedToken.isAuthenticated) {
               setIsAdminAuthenticated(true);
             } else {
               setIsAdminAuthenticated(false);
@@ -339,7 +294,7 @@ export const AppProvider = ({ children }) => {
 
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, [settings.adminPassword, settings.adminUsername]);
+  }, []);
 
   // Products are now fetched from PocketBase — no localStorage sync needed
 
