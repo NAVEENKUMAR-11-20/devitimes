@@ -160,37 +160,39 @@ const ProductDetail = () => {
             </div>
 
             {/* Actions Block */}
-            <div className="detail-actions-block">
-              <div className="qty-picker-container">
-                <span className="qty-label-text font-body">QUANTITY</span>
-                <div className="stepper-controls">
-                  <button onClick={decrementQty} className="stepper-btn" disabled={quantity <= 1}>−</button>
-                  <span className="stepper-value font-body">{quantity}</span>
-                  <button onClick={incrementQty} className="stepper-btn">+</button>
+            {!isRetailProduct && (
+              <div className="detail-actions-block">
+                <div className="qty-picker-container">
+                  <span className="qty-label-text font-body">QUANTITY</span>
+                  <div className="stepper-controls">
+                    <button onClick={decrementQty} className="stepper-btn" disabled={quantity <= 1}>−</button>
+                    <span className="stepper-value font-body">{quantity}</span>
+                    <button onClick={incrementQty} className="stepper-btn">+</button>
+                  </div>
                 </div>
-              </div>
 
-              <button 
-                onClick={handleAddToCart}
-                className="btn-primary full-width-btn premium-cart-btn"
-                style={{ 
-                  height: '52px', 
-                  fontSize: '12px', 
-                  letterSpacing: '0.14em',
-                  background: addedFeedback 
-                    ? '#059669' 
-                    : 'linear-gradient(135deg, #1A2332 0%, #2D5DA1 100%)',
-                  border: 'none'
-                }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:'10px', verticalAlign:'middle'}}>
-                  <circle cx="9" cy="21" r="1"></circle>
-                  <circle cx="20" cy="21" r="1"></circle>
-                  <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
-                </svg>
-                <span style={{verticalAlign:'middle'}}>{addedFeedback ? '✓ ADDED TO CART' : 'ADD TO CART'}</span>
-              </button>
-            </div>
+                <button 
+                  onClick={handleAddToCart}
+                  className="btn-primary full-width-btn premium-cart-btn"
+                  style={{ 
+                    height: '52px', 
+                    fontSize: '12px', 
+                    letterSpacing: '0.14em',
+                    background: addedFeedback 
+                      ? '#059669' 
+                      : 'linear-gradient(135deg, #1A2332 0%, #2D5DA1 100%)',
+                    border: 'none'
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:'10px', verticalAlign:'middle'}}>
+                    <circle cx="9" cy="21" r="1"></circle>
+                    <circle cx="20" cy="21" r="1"></circle>
+                    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                  </svg>
+                  <span style={{verticalAlign:'middle'}}>{addedFeedback ? '✓ ADDED TO CART' : 'ADD TO CART'}</span>
+                </button>
+              </div>
+            )}
 
             {/* Trust Section */}
             <div className="detail-trust-grid font-body">
