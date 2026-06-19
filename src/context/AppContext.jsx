@@ -122,18 +122,8 @@ export const AppProvider = ({ children }) => {
           }));
         }
 
-        // Fetch admin password from admin_password collection in PocketBase
-        try {
-          const adminPassRecords = await pb.collection('admin_password').getFullList();
-          if (adminPassRecords && adminPassRecords.length > 0) {
-            setSettings(prev => ({
-              ...prev,
-              adminPassword: adminPassRecords[0].password
-            }));
-          }
-        } catch (pbErr) {
-          console.warn('[AppContext] Failed to load admin_password (check API rules):', pbErr);
-        }
+        // Admin password is no longer stored in global settings for security.
+        // It is fetched directly during login and password update.
       } catch (err) {
         console.warn('[AppContext] Failed to load settings from PB:', err);
       }
@@ -627,27 +617,24 @@ export const AppProvider = ({ children }) => {
     saveCartForUser([]);
   };
 
-  // --- Admin Configuration Actions ---
   const loginAdmin = async (username, password) => {
-    const activeUsername = settings.adminUsername || 'admin';
-    if (username === activeUsername && password === settings.adminPassword) {
-      try {
-        // Securely authenticate with PocketBase using the User collection
-        // This avoids hardcoding Superuser credentials in the frontend
-        await pb.collection('User').authWithPassword(username, password);
-      } catch (err) {
-        console.warn("PocketBase Auth failed for Admin, falling back to local session:", err);
-        // We still allow local session to proceed so they aren't locked out of settings
+    try {
+      const adminPassRecords = await pb.collection('admin_password').getFullList();
+      if (adminPassRecords && adminPassRecords.length > 0) {
+        const record = adminPassRecords[0];
+        if (record.username === username && record.password === password) {
+          const token = {
+            isAuthenticated: true,
+            authUsername: username,
+            authPassword: password
+          };
+          localStorage.setItem('lumiere_admin_auth_token', JSON.stringify(token));
+          setIsAdminAuthenticated(true);
+          return true;
+        }
       }
-
-      const token = {
-        isAuthenticated: true,
-        authUsername: activeUsername,
-        authPassword: settings.adminPassword
-      };
-      localStorage.setItem('lumiere_admin_auth_token', JSON.stringify(token));
-      setIsAdminAuthenticated(true);
-      return true;
+    } catch (err) {
+      console.error("Failed to fetch admin password from PocketBase:", err);
     }
     return false;
   };

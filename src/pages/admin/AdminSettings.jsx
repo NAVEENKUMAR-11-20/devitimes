@@ -100,7 +100,10 @@ const AdminSettings = () => {
   const [newPosterName, setNewPosterName] = useState('');
   const newPosterImgRef                   = useRef(null);
 
+  const [actualAdminPassword, setActualAdminPassword] = useState('');
+
   // Load persisted lists + image previews from IndexedDB on mount
+  // and load actual admin password from PocketBase
   useEffect(() => {
     (async () => {
       try {
@@ -125,6 +128,16 @@ const AdminSettings = () => {
           if (img) pMap[p.id] = img;
         }
         setPosterImgMap(pMap);
+
+        // Load admin password
+        try {
+          const adminPassRecords = await pb.collection('admin_password').getFullList();
+          if (adminPassRecords && adminPassRecords.length > 0) {
+            setActualAdminPassword(adminPassRecords[0].password);
+          }
+        } catch (pbErr) {
+          console.warn('[Settings] Failed to load admin_password:', pbErr);
+        }
       } catch (err) {
         console.error('[Settings] Failed to load homepage images:', err);
       }
@@ -362,12 +375,12 @@ const AdminSettings = () => {
       alert('Please fill out all password fields.');
       return;
     }
-    if (currentPassword !== settings.adminPassword) {
-      alert('Current admin password does not match.');
+    if (currentPassword !== actualAdminPassword) {
+      alert('Current password is incorrect.');
       return;
     }
     if (newPassword !== confirmPassword) {
-      alert('New passwords do not match.');
+      alert('Passwords do not match.');
       return;
     }
 
@@ -379,21 +392,22 @@ const AdminSettings = () => {
         });
       } else {
         await pb.collection('admin_password').create({
+          username: 'admin', // default fallback username if missing
           password: newPassword.trim()
         });
       }
     } catch (err) {
       console.error("Failed to save admin password to PocketBase:", err);
-      alert('Failed to save password to PocketBase. Please make sure the admin_password API rules are unlocked in PocketBase.');
+      alert('Failed to update password.');
       return;
     }
 
-    alert('Admin password updated successfully. Please log in again.');
-    updateSettings({ adminPassword: newPassword.trim() });
+    alert('Password updated successfully.');
+    setActualAdminPassword(newPassword.trim());
     setCurrentPassword('');
     setNewPassword('');
     setConfirmPassword('');
-    triggerToast('Admin password updated successfully');
+    triggerToast('Password updated successfully');
   };
 
   // Section 4 actions — Excel export
