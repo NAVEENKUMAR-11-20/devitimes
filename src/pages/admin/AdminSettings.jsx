@@ -49,14 +49,6 @@ const AdminSettings = () => {
   const [retailUserId, setRetailUserId] = useState(settings.retailUserId || 'work001');
   const [retailPassword, setRetailPassword] = useState(settings.retailPassword || 'naveenwork001');
 
-  // Sync retail credentials local state when settings change
-  useEffect(() => {
-    if (settings) {
-      if (settings.retailUserId !== undefined) setRetailUserId(settings.retailUserId);
-      if (settings.retailPassword !== undefined) setRetailPassword(settings.retailPassword);
-    }
-  }, [settings?.retailUserId, settings?.retailPassword]);
-
   const handleSaveRetailCredentials = async (e) => {
     e.preventDefault();
     if (!retailUserId.trim() || !retailPassword.trim()) {
