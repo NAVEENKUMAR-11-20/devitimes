@@ -49,7 +49,7 @@ const Navbar = () => {
           ) : (
             <Link 
               to="/collection" 
-              className={`nav-link-item ${location.pathname === '/collection' ? 'active-link' : ''}`}
+              className={`nav-link-item ${(location.pathname === '/collection' || location.pathname === '/collection/retail') ? 'active-link' : ''}`}
             >
               COLLECTION
             </Link>
@@ -155,7 +155,7 @@ const Navbar = () => {
           ) : (
             <Link 
               to="/collection" 
-              className={`mobile-nav-link-item ${location.pathname === '/collection' ? 'active-link' : ''}`}
+              className={`mobile-nav-link-item ${(location.pathname === '/collection' || location.pathname === '/collection/retail') ? 'active-link' : ''}`}
               onClick={() => setMobileMenuOpen(false)}
             >
               COLLECTION

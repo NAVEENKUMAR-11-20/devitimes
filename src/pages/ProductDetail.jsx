@@ -7,14 +7,15 @@ import { getProductImageUrl } from '../lib/productsService';
 const ProductDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { products, currentUser, addToCart } = useApp();
+  const { products, retailProducts, currentUser, addToCart } = useApp();
 
   const [quantity, setQuantity] = useState(1);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [addedFeedback, setAddedFeedback] = useState(false);
 
-  const product = products.find(p => p.id === id);
+  const product = products.find(p => p.id === id) || (retailProducts && retailProducts.find(p => p.id === id));
+  const isRetailProduct = retailProducts && retailProducts.some(p => p.id === id);
 
   useEffect(() => {
     setQuantity(1);
@@ -71,7 +72,7 @@ const ProductDetail = () => {
         <div className="container">
           <Link to="/" className="breadcrumb-link font-body">Home</Link>
           <span className="breadcrumb-separator">&gt;</span>
-          <Link to="/collection" className="breadcrumb-link font-body">Collection</Link>
+          <Link to={isRetailProduct ? "/collection/retail" : "/collection"} className="breadcrumb-link font-body">Collection</Link>
           <span className="breadcrumb-separator">&gt;</span>
           <span className="breadcrumb-current font-body">{product.name}</span>
         </div>
@@ -142,7 +143,7 @@ const ProductDetail = () => {
 
             {/* Price Section */}
             <div className="detail-price-panel">
-              <span className="wholesale-label font-body">WHOLESALE PRICE</span>
+              <span className="wholesale-label font-body">{isRetailProduct ? 'RETAIL PRICE' : 'WHOLESALE PRICE'}</span>
               <div className="price-row">
                 <span className="price-bold" style={{ fontSize: '34px' }}>₹{product.salePrice}</span>
                 {product.originalPrice && (
@@ -195,7 +196,7 @@ const ProductDetail = () => {
             <div className="detail-trust-grid font-body">
               <div className="trust-item">
                 <span className="trust-icon">✓</span>
-                <span className="trust-text">Wholesale Orders Only</span>
+                <span className="trust-text">{isRetailProduct ? 'Retail Orders' : 'Wholesale Orders Only'}</span>
               </div>
               <div className="trust-item">
                 <span className="trust-icon">✓</span>
@@ -212,7 +213,7 @@ const ProductDetail = () => {
             </div>
 
             <div style={{ marginTop: '24px' }}>
-              <Link to="/collection" className="continue-link font-body">
+              <Link to={isRetailProduct ? "/collection/retail" : "/collection"} className="continue-link font-body">
                 ← CONTINUE SHOPPING
               </Link>
             </div>

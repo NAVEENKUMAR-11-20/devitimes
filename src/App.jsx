@@ -73,6 +73,7 @@ function App() {
           {/* PUBLIC & CLIENT PORTAL ROUTES (WITH NAVBAR/FOOTER) */}
           <Route path="/" element={<ClientLayout><Home /></ClientLayout>} />
           <Route path="/collection" element={<ClientLayout><Collection /></ClientLayout>} />
+          <Route path="/collection/retail" element={<ClientLayout><Collection /></ClientLayout>} />
           <Route path="/product/:id" element={<ClientLayout><ProductDetail /></ClientLayout>} />
           <Route path="/login" element={<ClientLayout><Login /></ClientLayout>} />
           <Route path="/register" element={<ClientLayout><Register /></ClientLayout>} />

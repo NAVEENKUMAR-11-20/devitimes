@@ -7,6 +7,7 @@ import {
   deleteProduct as pbDeleteProduct,
   fetchProductById,
   getProductImageUrl,
+  fetchAllRetailProducts,
 } from '../../lib/productsService';
 import pb from '../../lib/pocketbase';
 import { useApp } from '../../context/AppContext';
@@ -44,16 +45,22 @@ const AdminProducts = () => {
   const [products, setProducts]   = useState([]);
   const [pbLoading, setPbLoading] = useState(true);
   const [pbError,   setPbError]   = useState('');
+  const [productType, setProductType] = useState('wholesale'); // 'wholesale' or 'retail'
 
   const loadProducts = async () => {
     try {
       setPbLoading(true);
       setPbError('');
-      const data = await fetchAllProducts();
-      console.log('[PB] Fetched products for AdminProducts:', data);
+      let data;
+      if (productType === 'retail') {
+        data = await fetchAllRetailProducts();
+      } else {
+        data = await fetchAllProducts();
+      }
+      console.log(`[PB] Fetched ${productType} products for AdminProducts:`, data);
       setProducts(data || []);
     } catch (err) {
-      setPbError('Failed to load products from PocketBase.');
+      setPbError(`Failed to load ${productType} products from PocketBase.`);
       console.error(err);
       setProducts([]);
     } finally {
@@ -61,7 +68,7 @@ const AdminProducts = () => {
     }
   };
 
-  useEffect(() => { loadProducts(); }, []);
+  useEffect(() => { loadProducts(); }, [productType]);
 
   // Fetch JSON galleries in the background for products that have them
   useEffect(() => {
@@ -408,7 +415,7 @@ const AdminProducts = () => {
     try {
       const failed = await processInBatches(
         itemsToDelete, 
-        (p) => pb.collection('products').delete(p.pbId || p.id, { requestKey: null }), 
+        (p) => pb.collection(p.collectionName || (productType === 'retail' ? 'retail_products' : 'products')).delete(p.pbId || p.id, { requestKey: null }), 
         10
       );
       const successCount = itemsToDelete.length - failed.length;
@@ -497,7 +504,8 @@ const AdminProducts = () => {
     triggerToast(currentStatus ? 'Product set to HIDDEN' : 'Product set to LIVE');
     
     try {
-      await pbUpdateProduct(product.pbId || id, { is_live: !currentStatus });
+      const colName = product.collectionName || (productType === 'retail' ? 'retail_products' : 'products');
+      await pbUpdateProduct(product.pbId || id, { is_live: !currentStatus }, colName);
       await refreshProducts();
     } catch (err) {
       // Revert on error
@@ -524,7 +532,8 @@ const AdminProducts = () => {
     
     try {
       await ensurePbAuth();
-      await pb.collection('products').delete(product?.pbId || idToDelete, { requestKey: null });
+      const colName = product?.collectionName || (productType === 'retail' ? 'retail_products' : 'products');
+      await pb.collection(colName).delete(product?.pbId || idToDelete, { requestKey: null });
       triggerToast('Product deleted successfully');
       await refreshProducts();
     } catch (err) {
@@ -620,7 +629,8 @@ const AdminProducts = () => {
 
       console.log('[DEBUG] updated payload before saving:', payload);
 
-      const response = await pbUpdateProduct(pbId, payload);
+      const colName = editingProduct?.collectionName || (productType === 'retail' ? 'retail_products' : 'products');
+      const response = await pbUpdateProduct(pbId, payload, colName);
       console.log('[DEBUG] PocketBase update response:', response);
 
       setEditingProduct(null);
@@ -778,6 +788,26 @@ const AdminProducts = () => {
       {/* Search and Filters deck */}
       <div className="table-controls-card">
         
+        {/* Product Type Tabs */}
+        <div className="filters-tabs-row" style={{ borderBottom: '1px solid #E2E8F0', paddingBottom: '14px', marginBottom: '14px' }}>
+          <div className="status-tabs-group">
+            <button 
+              className={`tab-btn uppercase-label ${productType === 'wholesale' ? 'active-tab' : ''}`}
+              style={{ paddingBottom: '10px' }}
+              onClick={() => { setProductType('wholesale'); setCurrentPage(1); }}
+            >
+              Wholesale Clocks
+            </button>
+            <button 
+              className={`tab-btn uppercase-label ${productType === 'retail' ? 'active-tab' : ''}`}
+              style={{ paddingBottom: '10px' }}
+              onClick={() => { setProductType('retail'); setCurrentPage(1); }}
+            >
+              Retail Clocks
+            </button>
+          </div>
+        </div>
+
         {/* Real-time search bar */}
         <div className="search-control-wrapper">
           <input 

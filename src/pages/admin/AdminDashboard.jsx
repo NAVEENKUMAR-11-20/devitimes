@@ -6,6 +6,7 @@ import pb from '../../lib/pocketbase';
 const AdminDashboard = () => {
   const {
     products,
+    retailProducts,
     users,
     pendingRegistrations,
     refreshProducts,
@@ -66,13 +67,19 @@ const AdminDashboard = () => {
 
   // Metrics calculations
   console.log('Fetched products from PocketBase (Dashboard):', products);
-  const totalProducts = products.length;
-  const liveProducts = products.filter(p => p.isLive !== undefined ? p.isLive : true).length;
+  const totalProducts = products.length + (retailProducts?.length || 0);
+  const wholesaleLiveCount = products.filter(p => p.isLive !== false).length;
+  const retailLiveCount = (retailProducts || []).filter(p => p.isLive !== false).length;
+  const liveProducts = wholesaleLiveCount + retailLiveCount;
   const totalUsers = users.length;
   const pendingRegs = pendingRegistrations.length;
 
   // Retrieve last 5 products added
-  const recentProducts = [...products]
+  const allMergedProducts = [
+    ...products.map(p => ({ ...p, type: 'WHOLESALE' })),
+    ...(retailProducts || []).map(p => ({ ...p, type: 'RETAIL' }))
+  ];
+  const recentProducts = allMergedProducts
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     .slice(0, 5);
 
@@ -118,7 +125,12 @@ const AdminDashboard = () => {
           <div className="metric-icon">📦</div>
           <div className="metric-content">
             <span className="metric-label uppercase-label">Total Products</span>
-            <span className="metric-value font-heading">{totalProducts}</span>
+            <span className="metric-value font-heading">
+              {totalProducts}
+              <span style={{ fontSize: '11px', fontWeight: '500', color: 'var(--text-muted)', marginLeft: '6px' }}>
+                ({products.length} W / {(retailProducts || []).length} R)
+              </span>
+            </span>
           </div>
         </div>
 
@@ -127,7 +139,12 @@ const AdminDashboard = () => {
           <div className="metric-icon" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10B981' }}>🟢</div>
           <div className="metric-content">
             <span className="metric-label uppercase-label">Live Products</span>
-            <span className="metric-value font-heading" style={{ color: '#10B981' }}>{liveProducts}</span>
+            <span className="metric-value font-heading" style={{ color: '#10B981' }}>
+              {liveProducts}
+              <span style={{ fontSize: '11px', fontWeight: '500', color: '#10B981', opacity: 0.8, marginLeft: '6px' }}>
+                ({wholesaleLiveCount} W / {retailLiveCount} R)
+              </span>
+            </span>
           </div>
         </div>
 
@@ -181,7 +198,9 @@ const AdminDashboard = () => {
                 <div key={p.id} className="activity-item-row font-body">
                   <div className="activity-item-main">
                     <strong>{p.name}</strong> 
-                    <span className="activity-meta">Model: {p.modelNumber} | Category: {p.category}</span>
+                    <span className="activity-meta">
+                      Model: {p.modelNumber} | Category: {p.category} | Type: <span style={{ fontWeight: '700', fontSize: '10px', color: p.type === 'RETAIL' ? '#3B82F6' : '#6B7280', letterSpacing: '0.04em' }}>{p.type}</span>
+                    </span>
                   </div>
                   <div className="activity-item-badge">
                     {p.isLive !== undefined ? (p.isLive ? (

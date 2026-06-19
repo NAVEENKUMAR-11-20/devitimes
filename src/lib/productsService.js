@@ -8,7 +8,7 @@ import pb from './pocketbase';
  */
 export function getProductImageUrl(record) {
   if (!record) return null;
-  const prodimage = record.prodimage || record._rawImageName;
+  const prodimage = record.prodimage || record._rawImageName || record.images;
   if (!prodimage) return null;
   const pbRecord = {
     id: record.id || record.pbId,
@@ -30,18 +30,18 @@ export function mapRecord(record) {
     pbId: record.id,                          // keep PB id separate
     collectionId: record.collectionId || '',  // add for compatibility
     collectionName: record.collectionName || '', // add for compatibility
-    prodimage: record.prodimage || '',        // add for compatibility
-    modelNumber: record.MODEL_NUMBER || '',
-    size: (record.SIZE_DIMENSIONS && record.SIZE_DIMENSIONS !== 0) ? `${record.SIZE_DIMENSIONS} × ${record.SIZE_DIMENSIONS} MM` : '300 × 300 MM',
+    prodimage: record.prodimage || record.images || '',        // add for compatibility
+    modelNumber: record.MODEL_NUMBER || (record.model_no !== undefined ? String(record.model_no) : ''),
+    size: record.size || ((record.SIZE_DIMENSIONS && record.SIZE_DIMENSIONS !== 0) ? `${record.SIZE_DIMENSIONS} × ${record.SIZE_DIMENSIONS} MM` : '300 × 300 MM'),
     packageNo: record.package_no || '',
-    salePrice: Number(record.price) || 0,
+    salePrice: Number(record.price_for_retail !== undefined ? record.price_for_retail : record.price) || 0,
     originalPrice: record.original_price !== undefined && record.original_price !== null ? Number(record.original_price) : null,
     isOnSale: record.is_on_sale !== undefined ? (String(record.is_on_sale) === 'true') : false,
     isLive: record.is_live !== undefined ? (String(record.is_live) === 'true') : true,
     images: imageUrl ? (isJson ? [] : [imageUrl]) : [],
     _jsonUrl: isJson ? imageUrl : null,
-    _rawImageName: record.prodimage || '',    // original filename for updates
-    name: record.MODEL_NUMBER || record.id,   // fallback display name
+    _rawImageName: record.prodimage || record.images || '',    // original filename for updates
+    name: record.MODEL_NUMBER || (record.model_no !== undefined ? String(record.model_no) : '') || record.id,   // fallback display name
     category: record.category || 'Modern Minimalist',
     color: record.color || '',
     description: record.description || '',
@@ -143,35 +143,45 @@ export async function createProduct(data) {
 /**
  * Update an existing product.
  */
-export async function updateProduct(pbId, data) {
-  console.log('[PB] updateProduct called with pbId:', pbId, 'data:', data);
+export async function updateProduct(pbId, data, collectionName = 'products') {
+  console.log('[PB] updateProduct called with pbId:', pbId, 'data:', data, 'collection:', collectionName);
   const formData = new FormData();
-  if (data.MODEL_NUMBER    !== undefined) formData.append('MODEL_NUMBER',    data.MODEL_NUMBER);
-  if (data.SIZE_DIMENSIONS !== undefined) {
-    const sizeNum = parseInt(data.SIZE_DIMENSIONS || '', 10) || 0;
-    formData.append('SIZE_DIMENSIONS', String(sizeNum));
+  
+  if (collectionName === 'retail_products') {
+    if (data.MODEL_NUMBER !== undefined) formData.append('model_no', data.MODEL_NUMBER);
+    if (data.SIZE_DIMENSIONS !== undefined) formData.append('size', data.SIZE_DIMENSIONS);
+    if (data.price !== undefined) formData.append('price_for_retail', String(data.price));
+    if (data.imageFile !== undefined) {
+      formData.append('images', data.imageFile === null ? '' : data.imageFile);
+    }
+  } else {
+    if (data.MODEL_NUMBER !== undefined) formData.append('MODEL_NUMBER', data.MODEL_NUMBER);
+    if (data.SIZE_DIMENSIONS !== undefined) {
+      const sizeNum = parseInt(data.SIZE_DIMENSIONS || '', 10) || 0;
+      formData.append('SIZE_DIMENSIONS', String(sizeNum));
+    }
+    if (data.price !== undefined) formData.append('price', String(data.price));
+    if (data.imageFile !== undefined) {
+      formData.append('prodimage', data.imageFile === null ? '' : data.imageFile);
+    }
   }
-  if (data.package_no      !== undefined) formData.append('package_no',      String(data.package_no));
-  if (data.price           !== undefined) formData.append('price',           String(data.price));
-  if (data.is_live         !== undefined) formData.append('is_live',         String(data.is_live));
+
+  if (data.package_no !== undefined) formData.append('package_no', String(data.package_no));
+  if (data.is_live !== undefined) formData.append('is_live', String(data.is_live));
   
   // Support other fields if they exist in schema
-  if (data.original_price  !== undefined) {
+  if (data.original_price !== undefined) {
     formData.append('original_price', data.original_price !== null ? String(data.original_price) : '');
   }
-  if (data.is_on_sale      !== undefined) {
+  if (data.is_on_sale !== undefined) {
     formData.append('is_on_sale', String(data.is_on_sale));
   }
-  if (data.description     !== undefined) formData.append('description', data.description);
-  if (data.category        !== undefined) formData.append('category', data.category);
-  if (data.color           !== undefined) formData.append('color', data.color);
-
-  if (data.imageFile !== undefined) {
-    formData.append('prodimage', data.imageFile === null ? '' : data.imageFile);
-  }
+  if (data.description !== undefined) formData.append('description', data.description);
+  if (data.category !== undefined) formData.append('category', data.category);
+  if (data.color !== undefined) formData.append('color', data.color);
 
   try {
-    const record = await pb.collection('products').update(pbId, formData, {
+    const record = await pb.collection(collectionName).update(pbId, formData, {
       requestKey: null,
     });
     console.log('[PB] PocketBase update response raw record:', record);
@@ -185,8 +195,8 @@ export async function updateProduct(pbId, data) {
 /**
  * Delete a product by PocketBase record id.
  */
-export async function deleteProduct(pbId) {
-  await pb.collection('products').delete(pbId, {
+export async function deleteProduct(pbId, collectionName = 'products') {
+  await pb.collection(collectionName).delete(pbId, {
     requestKey: null,
   });
 }
@@ -233,5 +243,22 @@ export async function fetchRetailProducts() {
   } catch (err) {
     console.error('[PB] fetchRetailProducts error:', err);
     return [];
+  }
+}
+
+/**
+ * Fetch all retail products from PocketBase (mapped to app shape).
+ */
+export async function fetchAllRetailProducts() {
+  console.log('[PB] Fetching all retail products');
+  try {
+    const records = await pb.collection('retail_products').getFullList({
+      sort: '-created',
+      requestKey: null,
+    });
+    return records.map(mapRecord);
+  } catch (err) {
+    console.error('[PB] fetchAllRetailProducts error:', err);
+    throw err;
   }
 }

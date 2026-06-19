@@ -5,9 +5,25 @@ import ClockSvg from '../components/ClockSvg';
 import { getProductImageUrl } from '../lib/productsService';
 
 const Collection = () => {
-  const { products: contextProducts, currentUser, loginUser, logoutUser, addToCart } = useApp();
+  const { products: contextProducts, retailProducts: contextRetailProducts, currentUser, loginUser, logoutUser, addToCart } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
+  const isRetail = location.pathname === '/collection/retail';
+
+  // Handle role-based redirects
+  useEffect(() => {
+    if (currentUser) {
+      if (currentUser.isRetail && !isRetail) {
+        navigate('/collection/retail', { replace: true });
+      } else if (!currentUser.isRetail && isRetail) {
+        navigate('/collection', { replace: true });
+      }
+    } else {
+      if (isRetail) {
+        navigate('/collection', { replace: true });
+      }
+    }
+  }, [currentUser, isRetail, navigate]);
 
   const getProductDisplayImage = (product) => {
     if (product?.images && product.images.length > 0) {
@@ -20,14 +36,16 @@ const Collection = () => {
     return "/placeholder.svg";
   };
 
+  const productsSource = isRetail ? contextRetailProducts : contextProducts;
+
   // Local state for auto-refreshing products
-  const [liveProducts, setLiveProducts] = useState(Array.isArray(contextProducts) ? contextProducts : []);
+  const [liveProducts, setLiveProducts] = useState(Array.isArray(productsSource) ? productsSource : []);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Sync with context on load
   useEffect(() => {
-    setLiveProducts(Array.isArray(contextProducts) ? contextProducts : []);
-  }, [contextProducts]);
+    setLiveProducts(Array.isArray(productsSource) ? productsSource : []);
+  }, [productsSource]);
 
   // Loading state timeout for first page load
   useEffect(() => {
@@ -100,7 +118,7 @@ const Collection = () => {
       <header className="collection-header animate-fade-in">
         <div className="container" style={{ position: 'relative' }}>
           <span className="uppercase-label" style={{color:'rgba(126,179,232,0.85)',display:'block',marginBottom:'10px'}}>DEVI TIMES</span>
-          <h1 className="collection-title font-heading">Our Collection</h1>
+          <h1 className="collection-title font-heading">{isRetail ? 'Retail Collection' : 'Our Collection'}</h1>
           <p className="collection-subtitle font-body">Discover our curated selection of premium handcrafted wall clocks</p>
         </div>
       </header>

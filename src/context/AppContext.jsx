@@ -13,7 +13,9 @@ const defaultSettings = {
   storeName: "DEVI TIMES",
   currency: "₹",
   websiteUrl: "http://localhost:5173", // default local dev url
-  adminPassword: "lumiere@admin2024"
+  adminPassword: "lumiere@admin2024",
+  retailUserId: "work001",
+  retailPassword: "naveenwork001"
 };
 
 // Global cache for fetched JSON galleries to avoid duplicate network requests
@@ -22,6 +24,7 @@ const fetchedGalleriesCache = {};
 export const AppProvider = ({ children }) => {
   // Products — fetched from PocketBase on mount (no more localStorage/seedProducts)
   const [products, setProducts] = useState([]);
+  const [retailProducts, setRetailProducts] = useState([]);
 
   const fetchJsonGalleryIfNeeded = async (product, callback) => {
     if (!product._jsonUrl) return;
@@ -73,11 +76,24 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  const loadRetailProducts = async () => {
+    try {
+      const records = await pb.collection('retail_products').getFullList({
+        sort: '-created',
+        requestKey: null
+      });
+      setRetailProducts(records.map(mapRecord));
+    } catch (err) {
+      console.error('[AppContext] Failed to fetch retail products from PocketBase:', err);
+    }
+  };
+
   useEffect(() => {
     let isMounted = true;
     let pollIntervalId = null;
 
     loadProducts();
+    loadRetailProducts();
 
     const subscribeToProducts = async () => {
       try {
@@ -122,6 +138,7 @@ export const AppProvider = ({ children }) => {
     // Setup polling fallback every 3 seconds
     pollIntervalId = setInterval(() => {
       loadProducts();
+      loadRetailProducts();
     }, 3000);
 
     return () => {
@@ -423,9 +440,29 @@ export const AppProvider = ({ children }) => {
   // --- User Authentication Actions ---
   const loginUser = async (userId, password) => {
     try {
+      const trimmedId = userId.trim();
+      const trimmedPass = password.trim();
+
+      // Check if it is a retail user
+      const targetUserId = (settings.retailUserId || 'work001').trim();
+      const targetPassword = (settings.retailPassword || 'naveenwork001').trim();
+
+      if (trimmedId === targetUserId && trimmedPass === targetPassword) {
+        const sessionObj = {
+          userId: trimmedId,
+          name: 'Retailer',
+          mobile: '',
+          isRetail: true
+        };
+        sessionStorage.setItem('lumiere_current_user', JSON.stringify(sessionObj));
+        localStorage.setItem('lumiere_current_user', JSON.stringify(sessionObj));
+        setCurrentUser(sessionObj);
+        return { success: true, isRetail: true };
+      }
+
       // 1. Search in PocketBase User collection
       const records = await pb.collection('User').getFullList({
-        filter: `User_ID = "${userId.trim()}"`
+        filter: `User_ID = "${trimmedId}"`
       });
 
       if (records.length > 0) {
@@ -439,12 +476,13 @@ export const AppProvider = ({ children }) => {
           const sessionObj = {
             userId: matchedUser.User_ID || matchedUser.id,
             name: matchedUser.Full_Name || 'Valued Customer',
-            mobile: matchedUser.moblieno || matchedUser.mobileno || ''
+            mobile: matchedUser.moblieno || matchedUser.mobileno || '',
+            isRetail: false
           };
           sessionStorage.setItem('lumiere_current_user', JSON.stringify(sessionObj));
           localStorage.setItem('lumiere_current_user', JSON.stringify(sessionObj));
           setCurrentUser(sessionObj);
-          return { success: true };
+          return { success: true, isRetail: false };
         } else {
           return { success: false, message: "Invalid username or password. Please contact admin." };
         }
@@ -513,6 +551,7 @@ export const AppProvider = ({ children }) => {
 
   const checkCurrentUserStatus = async () => {
     if (!currentUser) return true;
+    if (currentUser.isRetail) return true;
     try {
       const records = await pb.collection('User').getFullList({
         filter: `User_ID = "${currentUser.userId}"`
@@ -627,6 +666,7 @@ export const AppProvider = ({ children }) => {
   return (
     <AppContext.Provider value={{
       products,
+      retailProducts,
       users,
       pendingRegistrations,
       settings,
@@ -634,7 +674,7 @@ export const AppProvider = ({ children }) => {
       currentRetailUser,
       isAdminAuthenticated,
       cart,
-      refreshProducts: loadProducts,
+      refreshProducts: () => Promise.all([loadProducts(), loadRetailProducts()]),
       refreshUsers: loadUserData,
       addProduct,
       updateProduct,

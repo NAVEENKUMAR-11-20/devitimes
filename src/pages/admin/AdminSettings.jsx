@@ -45,6 +45,31 @@ const AdminSettings = () => {
   // Loading state for users export
   const [isExportingUsers, setIsExportingUsers] = useState(false);
 
+  // Retail Credentials State
+  const [retailUserId, setRetailUserId] = useState(settings.retailUserId || 'work001');
+  const [retailPassword, setRetailPassword] = useState(settings.retailPassword || 'naveenwork001');
+
+  // Sync retail credentials local state when settings change
+  useEffect(() => {
+    if (settings) {
+      if (settings.retailUserId !== undefined) setRetailUserId(settings.retailUserId);
+      if (settings.retailPassword !== undefined) setRetailPassword(settings.retailPassword);
+    }
+  }, [settings?.retailUserId, settings?.retailPassword]);
+
+  const handleSaveRetailCredentials = (e) => {
+    e.preventDefault();
+    if (!retailUserId.trim() || !retailPassword.trim()) {
+      alert('Retail User ID and Password cannot be empty.');
+      return;
+    }
+    updateSettings({
+      retailUserId: retailUserId.trim(),
+      retailPassword: retailPassword.trim()
+    });
+    triggerToast('Retail credentials saved');
+  };
+
   // ── Homepage Image Management ──────────────────────────────────────────────
   const [collections, setCollections]   = useState(DEFAULT_COLLECTIONS);
   const [collImgMap, setCollImgMap]     = useState({});   // id → base64 or null
@@ -502,6 +527,42 @@ const AdminSettings = () => {
               🗑️ &nbsp; Clear All Cart Sessions
             </button>
           </div>
+        </div>
+
+        {/* Card 4: Retail Portal Credentials */}
+        <div className="form-card-panel settings-card">
+          <div className="settings-card-header">
+            <span className="settings-card-icon">🔑</span>
+            <div>
+              <h3 className="panel-heading font-heading">Retail Credentials</h3>
+              <p className="panel-subtext">Manage User ID and password for retail users.</p>
+            </div>
+          </div>
+          <form onSubmit={handleSaveRetailCredentials} className="admin-form settings-compact-form">
+            <div className="form-group settings-form-group">
+              <label className="form-label">RETAIL USER ID</label>
+              <input
+                type="text"
+                className="form-input settings-input"
+                placeholder="work001"
+                value={retailUserId}
+                onChange={(e) => setRetailUserId(e.target.value)}
+              />
+            </div>
+            <div className="form-group settings-form-group">
+              <label className="form-label">RETAIL PASSWORD</label>
+              <input
+                type="text"
+                className="form-input settings-input"
+                placeholder="naveenwork001"
+                value={retailPassword}
+                onChange={(e) => setRetailPassword(e.target.value)}
+              />
+            </div>
+            <button type="submit" className="btn-primary settings-save-btn">
+              Save Credentials
+            </button>
+          </form>
         </div>
 
       </div>
