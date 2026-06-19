@@ -13,13 +13,17 @@ const AdminDashboard = () => {
     refreshUsers
   } = useApp();
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    return products.length === 0 && users.length === 0;
+  });
   const [errorDetails, setErrorDetails] = useState(null);
 
   // Load data from PocketBase
   const loadData = async () => {
     try {
-      setLoading(true);
+      if (products.length === 0 && users.length === 0) {
+        setLoading(true);
+      }
       setErrorDetails(null);
       await Promise.all([
         refreshProducts(),
