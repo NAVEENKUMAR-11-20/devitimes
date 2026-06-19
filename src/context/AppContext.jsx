@@ -101,8 +101,7 @@ export const AppProvider = ({ children }) => {
             const parts = raw.slice(1, -1).split(',');
             setSettings(prev => ({
               ...prev,
-              whatsappNumber: parts[0] || prev.whatsappNumber,
-              adminPassword: parts[3] || prev.adminPassword
+              whatsappNumber: parts[0] || prev.whatsappNumber
             }));
           } else if (raw) {
             setSettings(prev => ({
@@ -121,6 +120,19 @@ export const AppProvider = ({ children }) => {
             retailUserId: rRecord.username,
             retailPassword: rRecord.password
           }));
+        }
+
+        // Fetch admin password from admin_password collection in PocketBase
+        try {
+          const adminPassRecords = await pb.collection('admin_password').getFullList();
+          if (adminPassRecords && adminPassRecords.length > 0) {
+            setSettings(prev => ({
+              ...prev,
+              adminPassword: adminPassRecords[0].password
+            }));
+          }
+        } catch (pbErr) {
+          console.warn('[AppContext] Failed to load admin_password (check API rules):', pbErr);
         }
       } catch (err) {
         console.warn('[AppContext] Failed to load settings from PB:', err);

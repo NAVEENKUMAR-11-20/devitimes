@@ -73,19 +73,6 @@ const AdminSettings = () => {
           active: true
         });
       }
-
-      // Also sync to app_settings packed format
-      const packed = `[${whatsappNumber},${finalId},${finalPass},${settings.adminPassword || "lumiere@admin2024"}]`;
-      if (pbSettingsId) {
-        await pb.collection('app_settings').update(pbSettingsId, {
-          whatsapp_number: packed
-        });
-      } else {
-        const newRecord = await pb.collection('app_settings').create({
-          whatsapp_number: packed
-        });
-        setPbSettingsId(newRecord.id);
-      }
     } catch (err) {
       console.error("Failed to save retail credentials to PocketBase:", err);
       alert('Failed to save to PocketBase.');
@@ -285,17 +272,14 @@ const AdminSettings = () => {
           setPbSettingsId(record.id);
           
           let phoneVal = record.whatsapp_number;
-          let adminPassVal = settings.adminPassword;
           if (phoneVal && phoneVal.startsWith('[') && phoneVal.endsWith(']')) {
             const parts = phoneVal.slice(1, -1).split(',');
             phoneVal = parts[0] || '';
-            adminPassVal = parts[3] || adminPassVal;
           }
           
           setWhatsappNumber(phoneVal);
           updateSettings({
-            whatsappNumber: phoneVal,
-            adminPassword: adminPassVal
+            whatsappNumber: phoneVal
           });
         } else {
           console.log('Creating settings record...');
@@ -317,6 +301,18 @@ const AdminSettings = () => {
             retailPassword: rRecord.password
           });
         }
+
+        // Fetch admin password from admin_password collection
+        try {
+          const adminPassRecords = await pb.collection('admin_password').getFullList();
+          if (adminPassRecords.length > 0) {
+            updateSettings({
+              adminPassword: adminPassRecords[0].password
+            });
+          }
+        } catch (pbErr) {
+          console.warn('[Settings] Failed to load admin_password (check API rules):', pbErr);
+        }
       } catch (err) {
         console.error("Failed to load app_settings from PocketBase:", err);
       }
@@ -332,18 +328,17 @@ const AdminSettings = () => {
       return;
     }
     const finalNumber = whatsappNumber.trim();
-    const packed = `[${finalNumber},${retailUserId},${retailPassword},${settings.adminPassword || "lumiere@admin2024"}]`;
 
     try {
       if (pbSettingsId) {
         console.log('Updating settings record...');
         await pb.collection('app_settings').update(pbSettingsId, {
-          whatsapp_number: packed
+          whatsapp_number: finalNumber
         });
       } else {
         console.log('Creating settings record...');
         const newRecord = await pb.collection('app_settings').create({
-          whatsapp_number: packed
+          whatsapp_number: finalNumber
         });
         setPbSettingsId(newRecord.id);
       }
@@ -376,23 +371,20 @@ const AdminSettings = () => {
       return;
     }
 
-    const finalNumber = whatsappNumber.trim();
-    const packed = `[${finalNumber},${retailUserId},${retailPassword},${newPassword.trim()}]`;
-
     try {
-      if (pbSettingsId) {
-        await pb.collection('app_settings').update(pbSettingsId, {
-          whatsapp_number: packed
+      const adminPassRecords = await pb.collection('admin_password').getFullList();
+      if (adminPassRecords.length > 0) {
+        await pb.collection('admin_password').update(adminPassRecords[0].id, {
+          password: newPassword.trim()
         });
       } else {
-        const newRecord = await pb.collection('app_settings').create({
-          whatsapp_number: packed
+        await pb.collection('admin_password').create({
+          password: newPassword.trim()
         });
-        setPbSettingsId(newRecord.id);
       }
     } catch (err) {
       console.error("Failed to save admin password to PocketBase:", err);
-      alert('Failed to save password to backend.');
+      alert('Failed to save password to PocketBase. Please make sure the admin_password API rules are unlocked in PocketBase.');
       return;
     }
 
