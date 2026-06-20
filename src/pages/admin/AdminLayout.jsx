@@ -5,6 +5,13 @@ import pb from '../../lib/pocketbase';
 
 const AdminLayout = () => {
   const { isAdminAuthenticated, logoutAdmin } = useApp();
+
+  // Clear any regular wholesale user session synchronously to prevent API rules policy mismatch in child routes
+  if (pb.authStore.isValid && !pb.authStore.isAdmin) {
+    console.log('[AdminLayout] Synchronously clearing regular user session');
+    pb.authStore.clear();
+  }
+
   const navigate = useNavigate();
   const location = useLocation();
   const [time, setTime] = useState(new Date());
@@ -36,14 +43,6 @@ const AdminLayout = () => {
       navigate('/admin/login');
     }
   }, [isAdminAuthenticated, navigate]);
-
-  // Clear any regular wholesale user session to prevent API rules policy mismatch on public collections
-  useEffect(() => {
-    if (pb.authStore.isValid && !pb.authStore.isAdmin) {
-      console.log('[AdminLayout] Clearing regular user session from PocketBase authStore');
-      pb.authStore.clear();
-    }
-  }, []);
 
   if (!isAdminAuthenticated) {
     return null; // Return empty while redirecting

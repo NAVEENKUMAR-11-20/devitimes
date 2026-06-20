@@ -123,6 +123,14 @@ const adminGalleriesCache = {};
 
 const AdminProducts = () => {
   const { refreshProducts } = useApp();
+
+  const ensurePbAuth = async () => {
+    // Clear regular user session to prevent API rules policy mismatch on public collections
+    if (pb.authStore.isValid && !pb.authStore.isAdmin) {
+      console.log('[PB] Clearing regular user session from authStore for admin operations');
+      pb.authStore.clear();
+    }
+  };
   // ── PocketBase state ──────────────────────────────────────────────────────
   const [products, setProducts]   = useState([]);
   const [pbLoading, setPbLoading] = useState(true);
@@ -133,6 +141,7 @@ const AdminProducts = () => {
     try {
       setPbLoading(true);
       setPbError('');
+      await ensurePbAuth();
       let data;
       if (productType === 'retail') {
         data = await fetchAllRetailProducts();
@@ -459,13 +468,7 @@ const AdminProducts = () => {
   const [failedIds, setFailedIds] = useState([]); 
   const [successCountTracker, setSuccessCountTracker] = useState(0);
 
-  const ensurePbAuth = async () => {
-    // Clear regular user session to prevent API rules policy mismatch on public collections
-    if (pb.authStore.isValid && !pb.authStore.isAdmin) {
-      console.log('[PB] Clearing regular user session from authStore for admin operations');
-      pb.authStore.clear();
-    }
-  };
+
 
   const processInBatches = async (items, processItem, batchSize = 10) => {
     let completed = 0;
