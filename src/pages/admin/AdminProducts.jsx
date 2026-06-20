@@ -882,6 +882,8 @@ const AdminProducts = () => {
                           alt={p.name} 
                           className="table-thumbnail-img" 
                           onError={(e) => { e.target.onerror = null; e.target.src = "/placeholder.svg"; }}
+                          loading="lazy"
+                          decoding="async"
                         />
                       ) : (
                         <ClockSvg model={p.modelNumber} category={p.category} color={p.color} size={40} />
@@ -1056,6 +1058,8 @@ const AdminProducts = () => {
                         onClick={() => handleOpenCropper(img, index)}
                         style={{ cursor: 'pointer' }}
                         title="Click to Crop/Resize"
+                        loading="lazy"
+                        decoding="async"
                       />
                       <button 
                         type="button" 

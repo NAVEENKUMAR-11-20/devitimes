@@ -88,7 +88,7 @@ const ProductDetail = () => {
               {product.isOnSale && <span className="badge-sale absolute-badge">SALE</span>}
               <div className="zoom-image-wrapper">
                 {imagesList.length > 0 ? (
-                  <img src={imagesList[activeImageIndex]} alt={product.name} className="viewport-img"/>
+                  <img src={imagesList[activeImageIndex]} alt={product.name} className="viewport-img" loading="lazy" decoding="async" />
                 ) : (
                   <ClockSvg model={product.modelNumber} category={product.category} color={product.color} size={300} />
                 )}
@@ -103,7 +103,7 @@ const ProductDetail = () => {
                     className={`thumb-btn ${idx === activeImageIndex ? 'active-thumb' : ''}`}
                     onClick={() => setActiveImageIndex(idx)}
                   >
-                    <img src={img} alt={`${product.name} View ${idx + 1}`} />
+                    <img src={img} alt={`${product.name} View ${idx + 1}`} loading="lazy" decoding="async" />
                   </button>
                 ))}
               </div>

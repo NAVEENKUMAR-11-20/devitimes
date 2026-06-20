@@ -96,6 +96,8 @@ const RetailCatalog = () => {
                         src={getProductDisplayImage(product)} 
                         alt={product?.name || 'Wall Clock'} 
                         onError={(e) => { e.target.onerror = null; e.target.src = "/placeholder.svg"; }}
+                        loading="lazy"
+                        decoding="async"
                       />
                     </div>
 

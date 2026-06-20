@@ -10,6 +10,81 @@ const sizeOptions = [
   '400 × 400 MM',
 ];
 
+const sharpenCanvas = (canvas) => {
+  const ctx = canvas.getContext('2d');
+  const width = canvas.width;
+  const height = canvas.height;
+  const imgData = ctx.getImageData(0, 0, width, height);
+  const data = imgData.data;
+
+  const weights = [
+     0,   -0.4,    0,
+    -0.4,  2.6,  -0.4,
+     0,   -0.4,    0
+  ];
+  const side = 3;
+  const halfSide = 1;
+
+  const output = ctx.createImageData(width, height);
+  const dst = output.data;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const sy = y;
+      const sx = x;
+      const dstOff = (y * width + x) * 4;
+
+      let r = 0, g = 0, b = 0, a = 0;
+      for (let cy = 0; cy < side; cy++) {
+        for (let cx = 0; cx < side; cx++) {
+          const scy = Math.min(height - 1, Math.max(0, sy + cy - halfSide));
+          const scx = Math.min(width - 1, Math.max(0, sx + cx - halfSide));
+          const srcOff = (scy * width + scx) * 4;
+          const wt = weights[cy * side + cx];
+          r += data[srcOff] * wt;
+          g += data[srcOff + 1] * wt;
+          b += data[srcOff + 2] * wt;
+          a += data[srcOff + 3] * wt;
+        }
+      }
+
+      dst[dstOff] = Math.min(255, Math.max(0, r));
+      dst[dstOff + 1] = Math.min(255, Math.max(0, g));
+      dst[dstOff + 2] = Math.min(255, Math.max(0, b));
+      dst[dstOff + 3] = data[dstOff + 3];
+    }
+  }
+  ctx.putImageData(output, 0, 0);
+};
+
+const enhanceAndUpscaleImage = (canvas, targetMinSize = 1200) => {
+  const width = canvas.width;
+  const height = canvas.height;
+  const currentMin = Math.min(width, height);
+
+  let workingCanvas = canvas;
+
+  if (currentMin < targetMinSize) {
+    const scaleFactor = targetMinSize / currentMin;
+    const newWidth = Math.round(width * scaleFactor);
+    const newHeight = Math.round(height * scaleFactor);
+
+    const upscaleCanvas = document.createElement('canvas');
+    upscaleCanvas.width = newWidth;
+    upscaleCanvas.height = newHeight;
+    const uCtx = upscaleCanvas.getContext('2d');
+
+    uCtx.imageSmoothingEnabled = true;
+    uCtx.imageSmoothingQuality = 'high';
+    uCtx.drawImage(canvas, 0, 0, newWidth, newHeight);
+
+    workingCanvas = upscaleCanvas;
+  }
+
+  sharpenCanvas(workingCanvas);
+  return workingCanvas;
+};
+
 const AdminPdfImport = () => {
   const navigate = useNavigate();
 
@@ -185,8 +260,8 @@ const AdminPdfImport = () => {
     let minX = scanW, maxX = 0, minY = scanH, maxY = 0;
     let contentFound = false;
 
-    // Sample every 2nd pixel for speed on large canvases
-    const step = 2;
+    // Sample every 4th pixel for speed on large canvases
+    const step = 4;
     for (let y = 0; y < scanH; y += step) {
       for (let x = 0; x < scanW; x += step) {
         const idx = (y * scanW + x) * 4;
@@ -242,8 +317,8 @@ const AdminPdfImport = () => {
       if (cropX + cropW > w) cropX = Math.max(0, w - cropW);
     }
 
-    // Step 8: Render the cropped product to a clean 480×480 output canvas
-    const outputSize = 480;
+    // Step 8: Render the cropped product to a clean, high-resolution output canvas
+    const outputSize = Math.max(cropW, cropH);
     const outCanvas = document.createElement('canvas');
     outCanvas.width = outputSize;
     outCanvas.height = outputSize;
@@ -253,16 +328,21 @@ const AdminPdfImport = () => {
     outCtx.fillStyle = '#FFFFFF';
     outCtx.fillRect(0, 0, outputSize, outputSize);
 
-    // Draw the cropped clock centered with a small inner margin
-    const margin = 16;
+    // Draw the cropped clock centered with a relative inner margin
+    const margin = Math.round(outputSize * 0.03); // 3% margin
     const drawSize = outputSize - margin * 2;
+    outCtx.imageSmoothingEnabled = true;
+    outCtx.imageSmoothingQuality = 'high';
     outCtx.drawImage(
       sourceCanvas,
       cropX, cropY, cropW, cropH,
       margin, margin, drawSize, drawSize
     );
 
-    return outCanvas.toDataURL('image/png', 1.0);
+    // Enhance and upscale if the resulting crop is low resolution
+    const enhancedCanvas = enhanceAndUpscaleImage(outCanvas, 1200);
+
+    return enhancedCanvas.toDataURL('image/png', 1.0);
   };
 
   // ─── Main PDF processing engine ───────────────────────────────────────────
@@ -307,7 +387,7 @@ const AdminPdfImport = () => {
           const page = await pdf.getPage(pageNum);
 
           // ── Render full page to canvas at high quality ──────────────────
-          const viewport = page.getViewport({ scale: 2.0 });
+          const viewport = page.getViewport({ scale: 4.0 });
           const fullCanvas = document.createElement('canvas');
           fullCanvas.width = viewport.width;
           fullCanvas.height = viewport.height;
@@ -560,19 +640,26 @@ const AdminPdfImport = () => {
     const srcW = Math.min(cropBox.size * scaleX, natW - srcX);
     const srcH = Math.min(cropBox.size * scaleY, natH - srcY);
 
-    const outputSize = 600;
+    const outputWidth = Math.round(srcW);
+    const outputHeight = Math.round(srcH);
     const canvas = hiddenCanvasRef.current || document.createElement('canvas');
-    canvas.width  = outputSize;
-    canvas.height = outputSize;
+    canvas.width  = outputWidth;
+    canvas.height = outputHeight;
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, outputSize, outputSize);
+    ctx.fillRect(0, 0, outputWidth, outputHeight);
 
     const nativeImg = new window.Image();
     nativeImg.src = cropImageSrc;
     nativeImg.onload = () => {
-      ctx.drawImage(nativeImg, srcX, srcY, srcW, srcH, 0, 0, outputSize, outputSize);
-      const croppedBase64 = canvas.toDataURL('image/png', 1.0);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(nativeImg, srcX, srcY, srcW, srcH, 0, 0, outputWidth, outputHeight);
+      
+      // Enhance and upscale if the resulting crop is low resolution
+      const enhancedCanvas = enhanceAndUpscaleImage(canvas, 1200);
+      
+      const croppedBase64 = enhancedCanvas.toDataURL('image/png', 1.0);
       setExtractedProducts(prev =>
         prev.map(p => p.tempId === cropTargetId ? { ...p, images: [croppedBase64] } : p)
       );

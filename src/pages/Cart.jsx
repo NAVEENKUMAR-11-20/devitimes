@@ -152,7 +152,7 @@ TOTAL: ₹${grandTotal}
                       {/* Thumbnail Image */}
                       <div className="cart-thumbnail-wrapper">
                         {item.image ? (
-                          <img src={item.image} alt={item.productName} className="cart-item-thumbnail" />
+                          <img src={item.image} alt={item.productName} className="cart-item-thumbnail" loading="lazy" decoding="async" />
                         ) : (
                           <ClockSvg model={item.modelNumber} category={item.category} color={item.color} size={60} />
                         )}
