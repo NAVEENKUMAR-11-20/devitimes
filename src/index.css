@@ -78,7 +78,10 @@ a {
               opacity var(--transition-speed) ease;
 }
 
-img { display: block; max-width: 100%; }
+img {
+  display: block;
+  max-width: 100%;
+}
 
 input, select, textarea, button {
   font-family: var(--body-font);

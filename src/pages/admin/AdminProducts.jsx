@@ -1,16 +1,17 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import ClockSvg from '../../components/ClockSvg';
 import {
   fetchAllProducts,
   updateProduct as pbUpdateProduct,
-  deleteProduct as pbDeleteProduct,
   fetchProductById,
   getProductImageUrl,
   fetchAllRetailProducts,
 } from '../../lib/productsService';
 import pb from '../../lib/pocketbase';
 import { useApp } from '../../context/AppContext';
+
+const getCacheBuster = () => Date.now();
 
 // Helper to read file as base64 without losing quality (formerly compressImage)
 function compressImage(file) {
@@ -34,7 +35,88 @@ const base64ToFile = (base64Str, filename) => {
   while (n--) {
     u8arr[n] = bstr.charCodeAt(n);
   }
-  return new File([u8arr], filename, { type: mime });
+
+  // Ensure filename matches the actual mime type extension
+  const extension = mime.split('/')[1] || 'png';
+  const dotIndex = filename.lastIndexOf('.');
+  const finalFilename = dotIndex !== -1
+    ? filename.substring(0, dotIndex) + '.' + extension
+    : filename + '.' + extension;
+
+  return new File([u8arr], finalFilename, { type: mime });
+};
+
+const sharpenCanvas = (canvas) => {
+  const ctx = canvas.getContext('2d');
+  const width = canvas.width;
+  const height = canvas.height;
+  const imgData = ctx.getImageData(0, 0, width, height);
+  const data = imgData.data;
+
+  const weights = [
+     0,   -0.4,    0,
+    -0.4,  2.6,  -0.4,
+     0,   -0.4,    0
+  ];
+  const side = 3;
+  const halfSide = 1;
+
+  const output = ctx.createImageData(width, height);
+  const dst = output.data;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const sy = y;
+      const sx = x;
+      const dstOff = (y * width + x) * 4;
+      let r = 0, g = 0, b = 0;
+      for (let cy = 0; cy < side; cy++) {
+        for (let cx = 0; cx < side; cx++) {
+          const scy = Math.min(height - 1, Math.max(0, sy + cy - halfSide));
+          const scx = Math.min(width - 1, Math.max(0, sx + cx - halfSide));
+          const srcOff = (scy * width + scx) * 4;
+          const wt = weights[cy * side + cx];
+          r += data[srcOff] * wt;
+          g += data[srcOff + 1] * wt;
+          b += data[srcOff + 2] * wt;
+        }
+      }
+
+      dst[dstOff] = Math.min(255, Math.max(0, r));
+      dst[dstOff + 1] = Math.min(255, Math.max(0, g));
+      dst[dstOff + 2] = Math.min(255, Math.max(0, b));
+      dst[dstOff + 3] = data[dstOff + 3];
+    }
+  }
+  ctx.putImageData(output, 0, 0);
+};
+
+const enhanceAndUpscaleImage = (canvas, targetMinSize = 1200) => {
+  const width = canvas.width;
+  const height = canvas.height;
+  const currentMin = Math.min(width, height);
+
+  let workingCanvas = canvas;
+
+  if (currentMin < targetMinSize) {
+    const scaleFactor = targetMinSize / currentMin;
+    const newWidth = Math.round(width * scaleFactor);
+    const newHeight = Math.round(height * scaleFactor);
+
+    const upscaleCanvas = document.createElement('canvas');
+    upscaleCanvas.width = newWidth;
+    upscaleCanvas.height = newHeight;
+    const uCtx = upscaleCanvas.getContext('2d');
+
+    uCtx.imageSmoothingEnabled = true;
+    uCtx.imageSmoothingQuality = 'high';
+    uCtx.drawImage(canvas, 0, 0, newWidth, newHeight);
+
+    workingCanvas = upscaleCanvas;
+    sharpenCanvas(workingCanvas); // Only sharpen if actually upscaled
+  }
+
+  return workingCanvas;
 };
 
 const adminGalleriesCache = {};
@@ -68,6 +150,7 @@ const AdminProducts = () => {
     }
   };
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadProducts(); }, [productType]);
 
   // Fetch JSON galleries in the background for products that have them
@@ -98,7 +181,7 @@ const AdminProducts = () => {
 
       // Case 4: Not started yet
       adminGalleriesCache[cacheKey] = 'fetching';
-      const fetchUrl = prod._jsonUrl + (prod._jsonUrl.includes('?') ? '&' : '?') + 't=' + (prod.updatedAt ? encodeURIComponent(prod.updatedAt) : Date.now());
+      const fetchUrl = prod._jsonUrl + (prod._jsonUrl.includes('?') ? '&' : '?') + 't=' + (prod.updatedAt ? encodeURIComponent(prod.updatedAt) : getCacheBuster());
       fetch(fetchUrl, { cache: 'no-store' })
         .then(res => res.ok ? res.json() : null)
         .then(data => {
@@ -301,7 +384,7 @@ const AdminProducts = () => {
     setCropTargetIndex(index);
     let finalUrl = imgUrl;
     if (imgUrl && (imgUrl.startsWith('http://') || imgUrl.startsWith('https://'))) {
-      finalUrl = imgUrl + (imgUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
+      finalUrl = imgUrl + (imgUrl.includes('?') ? '&' : '?') + 't=' + getCacheBuster();
     }
     setCropImageSrc(finalUrl);
     setImgDimensions({ width: 0, height: 0, naturalWidth: 0, naturalHeight: 0 });
@@ -338,8 +421,11 @@ const AdminProducts = () => {
       0, 0, exportCanvas.width, exportCanvas.height
     );
 
-    // Export in JPEG format at high quality (0.95)
-    const croppedBase64 = exportCanvas.toDataURL('image/jpeg', 0.95);
+    // Enhance and upscale if the resulting crop is low resolution
+    const enhancedCanvas = enhanceAndUpscaleImage(exportCanvas, 1200);
+
+    // Export in lossless PNG format to prevent repeated compression
+    const croppedBase64 = enhancedCanvas.toDataURL('image/png', 1.0);
 
     setEditForm(prev => {
       const updatedImages = [...prev.images];
@@ -374,14 +460,10 @@ const AdminProducts = () => {
   const [successCountTracker, setSuccessCountTracker] = useState(0);
 
   const ensurePbAuth = async () => {
-    if (!pb.authStore.isValid) {
-      const email = import.meta.env.VITE_PB_ADMIN_EMAIL || 'admin@devitimes.com';
-      const password = import.meta.env.VITE_PB_ADMIN_PASSWORD || 'admin12345';
-      try {
-        await pb.admins.authWithPassword(email, password);
-      } catch (e) {
-        console.error('PB Auth Error:', e);
-      }
+    // Clear regular user session to prevent API rules policy mismatch on public collections
+    if (pb.authStore.isValid && !pb.authStore.isAdmin) {
+      console.log('[PB] Clearing regular user session from authStore for admin operations');
+      pb.authStore.clear();
     }
   };
 
@@ -482,8 +564,6 @@ const AdminProducts = () => {
   const liveCount = products.filter(p => p.isLive).length;
   const hiddenCount = totalCount - liveCount;
 
-  const categories = ['Modern Minimalist', 'Contemporary', 'Luxury Vintage', 'Classic', 'Special Edition'];
-
   // Handle Sort Header clicks
   const requestSort = (field) => {
     if (sortField === field) {
@@ -504,6 +584,7 @@ const AdminProducts = () => {
     triggerToast(currentStatus ? 'Product set to HIDDEN' : 'Product set to LIVE');
     
     try {
+      await ensurePbAuth();
       const colName = product.collectionName || (productType === 'retail' ? 'retail_products' : 'products');
       await pbUpdateProduct(product.pbId || id, { is_live: !currentStatus }, colName);
       await refreshProducts();
@@ -549,7 +630,9 @@ const AdminProducts = () => {
     console.log('[DEBUG] Selected product before opening edit modal:', product);
     triggerToast('Fetching latest product details...');
     try {
-      const latestProduct = await fetchProductById(product.pbId || product.id);
+      await ensurePbAuth();
+      const colName = product?.collectionName || (productType === 'retail' ? 'retail_products' : 'products');
+      const latestProduct = await fetchProductById(product.pbId || product.id, colName);
       console.log('[DEBUG] Fetched latest product details:', latestProduct);
       
       // Ensure gallery images are resolved properly
@@ -593,6 +676,7 @@ const AdminProducts = () => {
     }
 
     try {
+      await ensurePbAuth();
       const pbId = editForm.pbId || editForm.id;
       
       const payload = {

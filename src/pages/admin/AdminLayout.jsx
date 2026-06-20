@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
+import pb from '../../lib/pocketbase';
 
 const AdminLayout = () => {
   const { isAdminAuthenticated, logoutAdmin } = useApp();
@@ -11,6 +12,7 @@ const AdminLayout = () => {
 
   // Close sidebar on route change for mobile
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMobileMenuOpen(false);
   }, [location.pathname]);
 
@@ -34,6 +36,14 @@ const AdminLayout = () => {
       navigate('/admin/login');
     }
   }, [isAdminAuthenticated, navigate]);
+
+  // Clear any regular wholesale user session to prevent API rules policy mismatch on public collections
+  useEffect(() => {
+    if (pb.authStore.isValid && !pb.authStore.isAdmin) {
+      console.log('[AdminLayout] Clearing regular user session from PocketBase authStore');
+      pb.authStore.clear();
+    }
+  }, []);
 
   if (!isAdminAuthenticated) {
     return null; // Return empty while redirecting

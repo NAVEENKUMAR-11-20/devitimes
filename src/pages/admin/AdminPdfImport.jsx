@@ -34,7 +34,7 @@ const sharpenCanvas = (canvas) => {
       const sx = x;
       const dstOff = (y * width + x) * 4;
 
-      let r = 0, g = 0, b = 0, a = 0;
+      let r = 0, g = 0, b = 0;
       for (let cy = 0; cy < side; cy++) {
         for (let cx = 0; cx < side; cx++) {
           const scy = Math.min(height - 1, Math.max(0, sy + cy - halfSide));
@@ -44,7 +44,6 @@ const sharpenCanvas = (canvas) => {
           r += data[srcOff] * wt;
           g += data[srcOff + 1] * wt;
           b += data[srcOff + 2] * wt;
-          a += data[srcOff + 3] * wt;
         }
       }
 
@@ -79,9 +78,9 @@ const enhanceAndUpscaleImage = (canvas, targetMinSize = 1200) => {
     uCtx.drawImage(canvas, 0, 0, newWidth, newHeight);
 
     workingCanvas = upscaleCanvas;
+    sharpenCanvas(workingCanvas); // Only sharpen if actually upscaled
   }
 
-  sharpenCanvas(workingCanvas);
   return workingCanvas;
 };
 
@@ -95,7 +94,18 @@ const AdminPdfImport = () => {
     const binary = atob(data);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return new File([bytes], filename, { type: mime });
+    
+    // Ensure filename matches the actual mime type extension
+    let finalFilename = filename;
+    const extension = mime.split('/')[1] || 'png';
+    const dotIndex = filename.lastIndexOf('.');
+    if (dotIndex !== -1) {
+      finalFilename = filename.substring(0, dotIndex) + '.' + extension;
+    } else {
+      finalFilename = filename + '.' + extension;
+    }
+    
+    return new File([bytes], finalFilename, { type: mime });
   };
 
   // Step: 1=Upload, 2=Preview, 3=Success

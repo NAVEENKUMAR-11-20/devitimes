@@ -54,10 +54,10 @@ export function mapRecord(record) {
 /**
  * Fetch a single product by ID.
  */
-export async function fetchProductById(pbId) {
-  console.log('[PB] Fetching product by ID:', pbId);
+export async function fetchProductById(pbId, collectionName = 'products') {
+  console.log('[PB] Fetching product by ID:', pbId, 'from collection:', collectionName);
   try {
-    const record = await pb.collection('products').getOne(pbId, {
+    const record = await pb.collection(collectionName).getOne(pbId, {
       requestKey: null,
     });
     const mapped = mapRecord(record);
