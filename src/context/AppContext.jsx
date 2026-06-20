@@ -82,7 +82,17 @@ export const AppProvider = ({ children }) => {
         sort: '-created',
         requestKey: null
       });
-      setRetailProducts(records.map(mapRecord));
+      const mapped = records.map(mapRecord);
+      setRetailProducts(mapped);
+
+      // Fetch JSON galleries in the background for retail products
+      mapped.forEach(prod => {
+        if (prod._jsonUrl) {
+          fetchJsonGalleryIfNeeded(prod, (id, images) => {
+            setRetailProducts(prev => prev.map(p => p.id === id ? { ...p, images } : p));
+          });
+        }
+      });
     } catch (err) {
       console.error('[AppContext] Failed to fetch retail products from PocketBase:', err);
     }
