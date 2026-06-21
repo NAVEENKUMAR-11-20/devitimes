@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import pb from '../lib/pocketbase';
@@ -9,6 +9,55 @@ const History = () => {
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [timeFilter, setTimeFilter] = useState('3months');
+
+  const availableYears = useMemo(() => {
+    const years = new Set();
+    orders.forEach(o => {
+      const orderDate = new Date(o.timestamp);
+      if (!isNaN(orderDate.getTime())) {
+        years.add(orderDate.getFullYear().toString());
+      }
+    });
+    years.add(new Date().getFullYear().toString());
+    return Array.from(years).sort((a, b) => b - a);
+  }, [orders]);
+
+  const filteredOrders = useMemo(() => {
+    const now = new Date();
+    return orders.filter(o => {
+      const orderDate = new Date(o.timestamp);
+      if (isNaN(orderDate.getTime())) return true;
+      
+      const diffMs = now - orderDate;
+      const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+      if (timeFilter === '30days') {
+        return diffDays <= 30;
+      }
+      if (timeFilter === '3months') {
+        return diffDays <= 90;
+      }
+      if (timeFilter === '6months') {
+        return diffDays <= 180;
+      }
+      if (timeFilter === 'all') {
+        return true;
+      }
+      const orderYear = orderDate.getFullYear().toString();
+      return orderYear === timeFilter;
+    });
+  }, [orders, timeFilter]);
+
+  useEffect(() => {
+    if (filteredOrders.length > 0) {
+      if (!selectedOrder || !filteredOrders.some(o => o.id === selectedOrder.id)) {
+        setSelectedOrder(filteredOrders[0]);
+      }
+    } else {
+      setSelectedOrder(null);
+    }
+  }, [filteredOrders, selectedOrder]);
 
   useEffect(() => {
     const isRetail = !!currentRetailUser || !!currentUser?.isRetail;
@@ -139,10 +188,34 @@ const History = () => {
 
       <div className="container history-main-container animate-fade-in">
         <header className="history-header">
-          <h1 className="history-title font-heading">Order History</h1>
-          <p className="history-subtitle font-body">
-            Purchase history and orders placed for {currentUser?.name}
-          </p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '16px' }}>
+            <div>
+              <h1 className="history-title font-heading">Order History</h1>
+              <p className="history-subtitle font-body">
+                Purchase history and orders placed for {currentUser?.name}
+              </p>
+            </div>
+            {orders.length > 0 && (
+              <div className="history-filter-container font-body">
+                <span className="history-filter-label">
+                  <strong>{filteredOrders.length} order{filteredOrders.length !== 1 ? 's' : ''}</strong> placed in
+                </span>
+                <select 
+                  value={timeFilter} 
+                  onChange={(e) => setTimeFilter(e.target.value)} 
+                  className="history-filter-select"
+                >
+                  <option value="30days">last 30 days</option>
+                  <option value="3months">past 3 months</option>
+                  <option value="6months">past 6 months</option>
+                  {availableYears.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                  <option value="all">all orders</option>
+                </select>
+              </div>
+            )}
+          </div>
         </header>
 
         {orders.length === 0 ? (
@@ -163,22 +236,28 @@ const History = () => {
             <div className="orders-sidebar">
               <h3 className="sidebar-section-title font-heading">YOUR ORDERS</h3>
               <div className="orders-list">
-                {orders.map((o) => (
-                  <div 
-                    key={o.id} 
-                    className={`order-card-item ${selectedOrder && selectedOrder.id === o.id ? 'active' : ''}`}
-                    onClick={() => setSelectedOrder(o)}
-                  >
-                    <div className="order-card-header">
-                      <span className="order-card-id font-heading">{o.id}</span>
-                      <span className={`order-status-tag ${o.status.toLowerCase()}`}>{o.status}</span>
-                    </div>
-                    <div className="order-card-meta font-body">
-                      <span>{o.timestamp.split(',')[0]}</span>
-                      <strong className="order-card-price">₹{o.grandTotal}</strong>
-                    </div>
+                {filteredOrders.length === 0 ? (
+                  <div style={{ color: 'var(--text-muted)', fontSize: '13px', padding: '24px 0', textAlign: 'center', width: '100%' }}>
+                    No orders matching this period.
                   </div>
-                ))}
+                ) : (
+                  filteredOrders.map((o) => (
+                    <div 
+                      key={o.id} 
+                      className={`order-card-item ${selectedOrder && selectedOrder.id === o.id ? 'active' : ''}`}
+                      onClick={() => setSelectedOrder(o)}
+                    >
+                      <div className="order-card-header">
+                        <span className="order-card-id font-heading">{o.id}</span>
+                        <span className={`order-status-tag ${o.status.toLowerCase()}`}>{o.status}</span>
+                      </div>
+                      <div className="order-card-meta font-body">
+                        <span>{o.timestamp.split(',')[0]}</span>
+                        <strong className="order-card-price">₹{o.grandTotal}</strong>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
@@ -540,6 +619,38 @@ const History = () => {
           font-size: 11px;
           color: var(--text-muted);
           line-height: 1.6;
+        }
+
+        .history-filter-container {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          font-size: 13px;
+          color: var(--text-secondary);
+        }
+
+        .history-filter-select {
+          background-color: #ffffff;
+          border: 1px solid #cbd5e1;
+          border-radius: 6px;
+          padding: 6px 32px 6px 12px;
+          font-size: 13px;
+          font-family: inherit;
+          color: var(--text-primary);
+          cursor: pointer;
+          outline: none;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+          transition: border-color 0.2s ease, box-shadow 0.2s ease;
+          appearance: none;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23475569' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5'/%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-position: right 10px center;
+          background-size: 12px;
+        }
+
+        .history-filter-select:focus {
+          border-color: var(--accent-blue);
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
         }
 
         .history-actions-row {
