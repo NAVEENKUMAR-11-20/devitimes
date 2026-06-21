@@ -190,6 +190,283 @@ const History = () => {
     loadOrders();
   }, [currentUser, currentRetailUser, navigate]);
 
+  const handlePrintInvoice = (order) => {
+    const printWindow = window.open('', '_blank', 'width=800,height=900');
+    if (!printWindow) {
+      alert("Please allow popups to print/view the invoice.");
+      return;
+    }
+
+    const customerName = currentUser?.name || 'Valued Customer';
+    const customerMobile = currentUser?.mobile || '';
+    const customerId = currentUser?.userId || '';
+
+    // Calculate subtotal
+    const subtotal = order.items.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
+
+    const invoiceHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Invoice - ${order.id}</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+          body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: #1A2332;
+            padding: 40px;
+            background-color: #ffffff;
+            margin: 0;
+          }
+          .invoice-container {
+            max-width: 800px;
+            margin: 0 auto;
+          }
+          .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid #1A2332;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+          }
+          .brand-name {
+            font-family: 'Playfair Display', Georgia, serif;
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            color: #1A2332;
+          }
+          .brand-subtitle {
+            font-size: 11px;
+            color: #8A9BB0;
+            letter-spacing: 0.15em;
+            margin-top: 4px;
+            text-transform: uppercase;
+          }
+          .invoice-title-block {
+            text-align: right;
+          }
+          .invoice-title {
+            font-size: 32px;
+            font-weight: 800;
+            color: #1A2332;
+            margin: 0 0 5px 0;
+            letter-spacing: 0.05em;
+          }
+          .invoice-meta {
+            font-size: 13px;
+            color: #4A5568;
+            margin: 3px 0;
+          }
+          .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-bottom: 40px;
+          }
+          .section-title {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            color: #8A9BB0;
+            border-bottom: 1px solid #E2E8F0;
+            padding-bottom: 6px;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+          }
+          .detail-text {
+            font-size: 14px;
+            line-height: 1.6;
+            margin: 4px 0;
+            color: #2D3748;
+          }
+          table.invoice-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+          }
+          table.invoice-table th {
+            background-color: #f8fafc;
+            color: #1A2332;
+            font-weight: 700;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 12px 10px;
+            text-align: left;
+            border-bottom: 1px solid #E2E8F0;
+          }
+          table.invoice-table td {
+            padding: 12px 10px;
+            font-size: 13px;
+            border-bottom: 1px solid #F1F5F9;
+            color: #2D3748;
+          }
+          .item-desc {
+            font-weight: 600;
+            color: #1A2332;
+          }
+          .item-meta {
+            font-size: 11px;
+            color: #8A9BB0;
+            margin-top: 2px;
+          }
+          .summary-container {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 40px;
+          }
+          .summary-table {
+            width: 300px;
+            border-collapse: collapse;
+          }
+          .summary-table td {
+            padding: 8px 10px;
+            font-size: 13px;
+            color: #4A5568;
+          }
+          .summary-table tr.total-row td {
+            font-weight: 800;
+            font-size: 16px;
+            color: #2D5DA1;
+            border-top: 1px solid #E2E8F0;
+            padding-top: 12px;
+          }
+          .footer {
+            margin-top: 60px;
+            border-top: 1px solid #E2E8F0;
+            padding-top: 20px;
+            text-align: center;
+            font-size: 11px;
+            color: #8A9BB0;
+            line-height: 1.6;
+          }
+          .no-print-btn {
+            background-color: #2D5DA1;
+            color: #ffffff;
+            border: none;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-bottom: 30px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+          }
+          .no-print-btn:hover {
+            background-color: #1E4A8A;
+          }
+          @media print {
+            body {
+              padding: 0;
+            }
+            .no-print {
+              display: none !important;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="invoice-container">
+          <div class="no-print" style="text-align: right;">
+            <button class="no-print-btn" onclick="window.print()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+              Print Invoice / Save as PDF
+            </button>
+          </div>
+
+          <div class="header-row">
+            <div>
+              <div class="brand-name">DEVI TIMES</div>
+              <div class="brand-subtitle">Wholesale Clock Distributors</div>
+            </div>
+            <div class="invoice-title-block">
+              <div class="invoice-title">INVOICE</div>
+              <div class="invoice-meta"><strong>Invoice No:</strong> ${order.id}</div>
+              <div class="invoice-meta"><strong>Date:</strong> ${order.timestamp.split(',')[0]}</div>
+              <div class="invoice-meta"><strong>Status:</strong> ${order.status}</div>
+            </div>
+          </div>
+
+          <div class="details-grid">
+            <div>
+              <div class="section-title">Billing To</div>
+              <div class="detail-text"><strong>${customerName}</strong></div>
+              <div class="detail-text">Wholesale Partner ID: ${customerId}</div>
+              \${customerMobile ? \`<div class="detail-text">Mobile: \${customerMobile}</div>\` : ''}
+            </div>
+            <div>
+              <div class="section-title">Supplier Details</div>
+              <div class="detail-text"><strong>DEVI TIMES</strong></div>
+              <div class="detail-text">Chennai, Tamil Nadu, India</div>
+              <div class="detail-text">Support Email: devitimes@gmail.com</div>
+            </div>
+          </div>
+
+          <table class="invoice-table">
+            <thead>
+              <tr>
+                <th style="width: 5%">#</th>
+                <th style="width: 50%">Item Details</th>
+                <th style="width: 15%; text-align: right;">Price</th>
+                <th style="width: 10%; text-align: center;">Qty</th>
+                <th style="width: 20%; text-align: right;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              \${order.items.map((item, idx) => \`
+                <tr>
+                  <td>\${idx + 1}</td>
+                  <td>
+                    <div class="item-desc">\${item.productName}</div>
+                    <div class="item-meta">Model: \${item.modelNumber} | Category: \${item.category} \${item.size ? \`| Size: \${item.size}\` : ''} \${item.color ? \`| Color: \${item.color}\` : ''}</div>
+                  </td>
+                  <td style="text-align: right;">₹\${item.unitPrice}</td>
+                  <td style="text-align: center;">\${item.quantity}</td>
+                  <td style="text-align: right; font-weight: 500;">₹\${item.unitPrice * item.quantity}</td>
+                </tr>
+              \`).join('')}
+            </tbody>
+          </table>
+
+          <div class="summary-container">
+            <table class="summary-table">
+              <tr>
+                <td>Subtotal:</td>
+                <td style="text-align: right;">₹\${subtotal}</td>
+              </tr>
+              <tr class="total-row">
+                <td>Grand Total:</td>
+                <td style="text-align: right;">₹\${order.grandTotal}</td>
+              </tr>
+            </table>
+          </div>
+
+          <div class="footer">
+            <p>This is a computer-generated invoice for your wholesale purchase record.</p>
+            <p>For any queries regarding this order, please quote invoice number ${order.id}.</p>
+            <p style="font-weight: 600; color: #1A2332; margin-top: 15px;">Thank you for your business!</p>
+          </div>
+        </div>
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 300);
+          }
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(invoiceHtml);
+    printWindow.document.close();
+  };
+
   return (
     <div className="history-page-root">
       
@@ -350,7 +627,23 @@ const History = () => {
                 <div className="detail-header">
                   <div>
                     <span className="detail-meta-label">ORDER ID</span>
-                    <h2 className="detail-order-id font-heading">{selectedOrder.id}</h2>
+                    <h2 className="detail-order-id font-heading" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      {selectedOrder.id}
+                      <button 
+                        onClick={() => handlePrintInvoice(selectedOrder)}
+                        className="btn-invoice font-body"
+                        title="Print / Download Invoice"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '5px' }}>
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                          <polyline points="14 2 14 8 20 8"></polyline>
+                          <line x1="16" y1="13" x2="8" y2="13"></line>
+                          <line x1="16" y1="17" x2="8" y2="17"></line>
+                          <polyline points="10 9 9 9 8 9"></polyline>
+                        </svg>
+                        Invoice
+                      </button>
+                    </h2>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <span className="detail-meta-label">PLACED ON</span>
@@ -849,6 +1142,30 @@ const History = () => {
 
         .search-clear-link:hover {
           color: var(--button-primary-hover);
+        }
+
+        .btn-invoice {
+          background-color: #f1f5f9;
+          border: 1px solid #cbd5e1;
+          color: #334155;
+          padding: 4px 10px;
+          border-radius: 4px;
+          font-size: 11px;
+          font-weight: 600;
+          display: inline-flex;
+          align-items: center;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .btn-invoice:hover {
+          background-color: #e2e8f0;
+          color: #1e293b;
+          border-color: #94a3b8;
+        }
+
+        .btn-invoice svg {
+          stroke-width: 2.5;
         }
 
         .history-actions-row {
