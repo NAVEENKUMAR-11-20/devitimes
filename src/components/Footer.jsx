@@ -47,12 +47,12 @@ const Footer = () => {
             <ul className="footer-links-list contact-links">
               <li>
                 <span className="contact-label">Mobile Number</span>
-                <span className="contact-value">7418 956 115</span>
+                <a href="tel:+917418956115" className="contact-value">+917418956115</a>
               </li>
 
               <li>
                 <span className="contact-label">Location</span>
-                <span className="contact-value" style={{ color: '#9CA3AF' }}>Chennai, India</span>
+                <span className="contact-value" style={{ color: '#9CA3AF' }}>Bus Stand, Kanchipuram - 631502</span>
               </li>
             </ul>
           </div>
