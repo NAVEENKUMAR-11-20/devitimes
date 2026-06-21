@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { fetchAllProducts, mapRecord } from '../lib/productsService';
+import { fetchAllProducts, fetchAllRetailProducts, mapRecord } from '../lib/productsService';
 import { fetchAllUsers, fetchPendingRegistrations, createRegistration as pbCreateRegistration, deleteRegistration as pbDeleteRegistration, updateRegistrationStatus as pbUpdateRegistrationStatus, createUser as pbCreateUser, deleteUser as pbDeleteUser } from '../lib/usersService';
 import pb from '../lib/pocketbase';
 
@@ -78,11 +78,7 @@ export const AppProvider = ({ children }) => {
 
   const loadRetailProducts = async () => {
     try {
-      const records = await pb.collection('retail_products').getFullList({
-        sort: '-created',
-        requestKey: null
-      });
-      const mapped = records.map(mapRecord);
+      const mapped = await fetchAllRetailProducts();
       setRetailProducts(mapped);
 
       // Fetch JSON galleries in the background for retail products

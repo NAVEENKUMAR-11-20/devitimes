@@ -425,7 +425,8 @@ const AdminPdfImport = () => {
             name: parsed.modelNumber ? `Clock Model ${parsed.modelNumber}` : `Page ${pageNum} Product`,
             category: 'Modern Minimalist',
             color: '',
-            salePrice: 0,
+            wholesalePrice: 0,
+            retailPrice: 0,
             originalPrice: null,
             description: `Extracted from catalog page ${pageNum}.`,
             include: true,
@@ -495,26 +496,17 @@ const AdminPdfImport = () => {
         imageFile = base64ToFile(p.images[0], `product_${p.modelNumber || p.pageNum}.png`);
       }
 
-      if (importProductType === 'retail') {
-        await createRetailProduct({
-          model_no:         p.modelNumber || '',
-          size:             p.size || '',
-          package_no:       p.packageNo || '',
-          price_for_retail: Number(p.salePrice) || 0,
-          images:           imageFile,
-        });
-      } else {
-        await createProduct({
-          MODEL_NUMBER:    p.modelNumber || '',
-          SIZE_DIMENSIONS: p.size || '',
-          package_no:      p.packageNo || '',
-          price:           Number(p.salePrice) || 0,
-          status:          'LIVE',
-          is_live:         true,
-          category:        p.category || 'Clock',
-          imageFile,
-        });
-      }
+      await createProduct({
+        MODEL_NUMBER:    p.modelNumber || '',
+        SIZE_DIMENSIONS: p.size || '',
+        package_no:      p.packageNo || '',
+        price:           Number(p.wholesalePrice) || 0,
+        stock_Number:    Number(p.retailPrice) || 0,
+        status:          'LIVE',
+        is_live:         true,
+        category:        p.category || 'Clock',
+        imageFile,
+      });
 
       // Remove the saved product from the list
       setExtractedProducts(prev => prev.filter(card => card.tempId !== p.tempId));
@@ -566,27 +558,18 @@ const AdminPdfImport = () => {
           imageFile = base64ToFile(p.images[0], `product_${p.modelNumber || p.pageNum}.png`);
         }
 
-        if (importProductType === 'retail') {
-          await createRetailProduct({
-            model_no:         p.modelNumber || '',
-            size:             p.size || '',
-            package_no:       p.packageNo || '',
-            price_for_retail: Number(p.salePrice) || 0,
-            images:           imageFile,
-          });
-        } else {
-          await createProduct({
-            MODEL_NUMBER:    p.modelNumber || '',
-            SIZE_DIMENSIONS: p.size || '',
-            package_no:      p.packageNo || '',
-            price:           Number(p.salePrice) || 0,
-            status:          'LIVE',
-            is_live:         true,
-            category:        p.category || 'Clock',
-            product_type:    importProductType,
-            imageFile,
-          });
-        }
+        await createProduct({
+          MODEL_NUMBER:    p.modelNumber || '',
+          SIZE_DIMENSIONS: p.size || '',
+          package_no:      p.packageNo || '',
+          price:           Number(p.wholesalePrice) || 0,
+          stock_Number:    Number(p.retailPrice) || 0,
+          status:          'LIVE',
+          is_live:         true,
+          category:        p.category || 'Clock',
+          product_type:    'wholesale',
+          imageFile,
+        });
         success++;
       } catch (err) {
         console.error('[PB] Failed to save product:', p.modelNumber, err);
@@ -734,10 +717,12 @@ const AdminPdfImport = () => {
     imgDragRef.current = { startX: clientX, startY: clientY, startOffset: { ...imgOffset } };
 
     const onMove = (me) => {
+      if (me.cancelable) me.preventDefault();
       const cx = me.touches ? me.touches[0].clientX : me.clientX;
       const cy = me.touches ? me.touches[0].clientY : me.clientY;
-      const dx = cx - imgDragRef.current.startX;
-      const dy = cy - imgDragRef.current.startY;
+      const scale = cropViewRef.current ? (460 / cropViewRef.current.getBoundingClientRect().width) : 1;
+      const dx = (cx - imgDragRef.current.startX) * scale;
+      const dy = (cy - imgDragRef.current.startY) * scale;
       setImgOffset({
         x: imgDragRef.current.startOffset.x + dx,
         y: imgDragRef.current.startOffset.y + dy,
@@ -766,6 +751,7 @@ const AdminPdfImport = () => {
 
     const vpSize = 460;
     const onMove = (me) => {
+      if (me.cancelable) me.preventDefault();
       const cx = me.touches ? me.touches[0].clientX : me.clientX;
       const cy = me.touches ? me.touches[0].clientY : me.clientY;
       const scale = cropViewRef.current ? (460 / cropViewRef.current.getBoundingClientRect().width) : 1;
@@ -802,6 +788,7 @@ const AdminPdfImport = () => {
     const MIN_SIZE = 80;
     const vpSize = 460;
     const onMove = (me) => {
+      if (me.cancelable) me.preventDefault();
       const cx = me.touches ? me.touches[0].clientX : me.clientX;
       const cy = me.touches ? me.touches[0].clientY : me.clientY;
       const scale = cropViewRef.current ? (460 / cropViewRef.current.getBoundingClientRect().width) : 1;
@@ -1141,15 +1128,28 @@ const AdminPdfImport = () => {
                           />
                         </div>
 
-                        {/* Price */}
+                        {/* Wholesale Price */}
                         <div className="form-group">
-                          <label className="form-label">PRICE</label>
+                          <label className="form-label">WHOLESALE PRICE</label>
                           <input
                             type="number"
                             className="form-input"
                             placeholder="e.g. 1500"
-                            value={p.salePrice || ''}
-                            onChange={(e) => updateCardField(p.tempId, 'salePrice', e.target.value)}
+                            value={p.wholesalePrice || ''}
+                            onChange={(e) => updateCardField(p.tempId, 'wholesalePrice', e.target.value)}
+                            disabled={!p.include}
+                          />
+                        </div>
+
+                        {/* Retail Price */}
+                        <div className="form-group">
+                          <label className="form-label">RETAIL PRICE</label>
+                          <input
+                            type="number"
+                            className="form-input"
+                            placeholder="e.g. 2000"
+                            value={p.retailPrice || ''}
+                            onChange={(e) => updateCardField(p.tempId, 'retailPrice', e.target.value)}
                             disabled={!p.include}
                           />
                         </div>
@@ -1214,7 +1214,7 @@ const AdminPdfImport = () => {
           </h2>
           <p className="font-body" style={{ color: 'var(--text-secondary)', marginBottom: '24px', fontSize: '16px' }}>
             {failedCount === 0 
-              ? `Import ${importProductType === 'retail' ? 'Retail' : 'Wholesale'} product successfully.`
+              ? `Imported products successfully.`
               : `${savedCount} of ${savedCount + failedCount} added successfully, ${failedCount} failed.`
             }
           </p>
@@ -1242,18 +1242,7 @@ const AdminPdfImport = () => {
               They will be immediately visible on the collection page.
             </p>
             
-            <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-              <label className="form-label" style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)' }}>IMPORT AS</label>
-              <select 
-                className="form-input"
-                value={importProductType}
-                onChange={(e) => setImportProductType(e.target.value)}
-                style={{ width: '100%', marginTop: '8px', padding: '10px' }}
-              >
-                <option value="wholesale">Wholesale</option>
-                <option value="retail">Retail</option>
-              </select>
-            </div>
+            {/* Unified Catalogue Import */}
 
             <div className="modal-actions-row">
               <button onClick={handleConfirmSave} className="btn-primary modal-btn">

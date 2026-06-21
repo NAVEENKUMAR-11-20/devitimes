@@ -303,6 +303,7 @@ const AdminProducts = () => {
   useEffect(() => {
     const handleMove = (e) => {
       if (!dragStartRef.current) return;
+      if (e.cancelable) e.preventDefault();
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
       const clientY = e.touches ? e.touches[0].clientY : e.clientY;
       const start = dragStartRef.current;
@@ -500,7 +501,7 @@ const AdminProducts = () => {
     try {
       const failed = await processInBatches(
         itemsToDelete, 
-        (p) => pb.collection(p.collectionName || (productType === 'retail' ? 'retail_products' : 'products')).delete(p.pbId || p.id, { requestKey: null }), 
+        (p) => pb.collection('products').delete(p.pbId || p.id, { requestKey: null }), 
         10
       );
       const successCount = itemsToDelete.length - failed.length;
@@ -588,8 +589,7 @@ const AdminProducts = () => {
     
     try {
       await ensurePbAuth();
-      const colName = product.collectionName || (productType === 'retail' ? 'retail_products' : 'products');
-      await pbUpdateProduct(product.pbId || id, { is_live: !currentStatus }, colName);
+      await pbUpdateProduct(product.pbId || id, { is_live: !currentStatus }, 'products');
       await refreshProducts();
     } catch (err) {
       // Revert on error
@@ -616,8 +616,7 @@ const AdminProducts = () => {
     
     try {
       await ensurePbAuth();
-      const colName = product?.collectionName || (productType === 'retail' ? 'retail_products' : 'products');
-      await pb.collection(colName).delete(product?.pbId || idToDelete, { requestKey: null });
+      await pb.collection('products').delete(product?.pbId || idToDelete, { requestKey: null });
       triggerToast('Product deleted successfully');
       await refreshProducts();
     } catch (err) {
@@ -634,7 +633,7 @@ const AdminProducts = () => {
     triggerToast('Fetching latest product details...');
     try {
       await ensurePbAuth();
-      const colName = product?.collectionName || (productType === 'retail' ? 'retail_products' : 'products');
+      const colName = productType === 'retail' ? 'retail_products' : 'products';
       const latestProduct = await fetchProductById(product.pbId || product.id, colName);
       console.log('[DEBUG] Fetched latest product details:', latestProduct);
       
@@ -673,10 +672,8 @@ const AdminProducts = () => {
       alert('Size is required.');
       return;
     }
-    if (editForm.salePrice === undefined || editForm.salePrice === '') {
-      alert('Sale price is required.');
-      return;
-    }
+    const wholesaleP = editForm.wholesalePrice !== undefined ? editForm.wholesalePrice : editForm.salePrice;
+    const retailP = editForm.retailPrice;
 
     try {
       await ensurePbAuth();
@@ -686,7 +683,8 @@ const AdminProducts = () => {
         MODEL_NUMBER:    modelNumStr,
         SIZE_DIMENSIONS: sizeStr,
         package_no:      editForm.packageNo ? (isNaN(Number(editForm.packageNo)) ? editForm.packageNo : Number(editForm.packageNo)) : '',
-        price:           Number(editForm.salePrice),
+        price:           Number(wholesaleP),
+        stock_Number:    Number(retailP),
         is_live:         editForm.isLive,
         original_price:  editForm.originalPrice !== undefined && editForm.originalPrice !== null && editForm.originalPrice !== '' ? Number(editForm.originalPrice) : null,
         is_on_sale:      editForm.isOnSale,
@@ -716,8 +714,7 @@ const AdminProducts = () => {
 
       console.log('[DEBUG] updated payload before saving:', payload);
 
-      const colName = editingProduct?.collectionName || (productType === 'retail' ? 'retail_products' : 'products');
-      const response = await pbUpdateProduct(pbId, payload, colName);
+      const response = await pbUpdateProduct(pbId, payload, 'products');
       console.log('[DEBUG] PocketBase update response:', response);
 
       setEditingProduct(null);
@@ -948,9 +945,8 @@ const AdminProducts = () => {
                 <th onClick={() => requestSort('modelNumber')} className="sortable-header">
                   Model No{renderSortIndicator('modelNumber')}
                 </th>
-                <th onClick={() => requestSort('salePrice')} className="sortable-header">
-                  Price{renderSortIndicator('salePrice')}
-                </th>
+                <th>Wholesale Price</th>
+                <th>Retail Price</th>
                 <th>Dimensions</th>
                 <th>Status</th>
                 <th>Actions</th>
@@ -982,8 +978,12 @@ const AdminProducts = () => {
                   <td><code>{p.modelNumber}</code></td>
                   <td>
                     <div className="table-price-stack">
-                      <strong>₹{p.salePrice}</strong>
-                      {p.originalPrice && <span className="strikethrough-cell">₹{p.originalPrice}</span>}
+                      <strong>₹{p.wholesalePrice}</strong>
+                    </div>
+                  </td>
+                  <td>
+                    <div className="table-price-stack">
+                      <strong>₹{p.retailPrice}</strong>
                     </div>
                   </td>
                   <td>{p.size}</td>
@@ -1092,14 +1092,25 @@ const AdminProducts = () => {
 
               </div>
 
-              <div className="form-group">
-                <label className="form-label">PRICE (₹) *</label>
-                <input 
-                  type="number" 
-                  className="form-input"
-                  value={editForm.salePrice}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, salePrice: Number(e.target.value) }))}
-                />
+              <div className="form-grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div className="form-group">
+                  <label className="form-label">WHOLESALE PRICE (₹)</label>
+                  <input 
+                    type="number" 
+                    className="form-input"
+                    value={editForm.wholesalePrice !== undefined ? editForm.wholesalePrice : editForm.salePrice}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, wholesalePrice: Number(e.target.value) }))}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">RETAIL PRICE (₹)</label>
+                  <input 
+                    type="number" 
+                    className="form-input"
+                    value={editForm.retailPrice}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, retailPrice: Number(e.target.value) }))}
+                  />
+                </div>
               </div>
 
               {/* Checkboxes */}
@@ -1940,6 +1951,7 @@ const AdminProducts = () => {
           position: relative;
           display: inline-block;
           max-width: 100%;
+          touch-action: none;
         }
 
         .crop-box {
@@ -1947,6 +1959,7 @@ const AdminProducts = () => {
           border: 2px dashed #3B82F6;
           cursor: move;
           box-sizing: border-box;
+          touch-action: none;
         }
 
         .crop-handle {
@@ -1959,6 +1972,7 @@ const AdminProducts = () => {
           z-index: 10;
           box-sizing: border-box;
           transition: transform 0.1s ease;
+          touch-action: none;
         }
 
         .crop-handle:hover {

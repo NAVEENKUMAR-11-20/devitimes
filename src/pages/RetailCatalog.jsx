@@ -39,9 +39,9 @@ const RetailCatalog = () => {
     loadRetailProducts();
   }, []);
 
-  // Filter products (they are all retail natively)
+  // Filter products (only display if live and has retail price or product_type is retail)
   const filteredProducts = useMemo(() => {
-    return (liveProducts || []).filter((product) => !!product.isLive);
+    return (liveProducts || []).filter((product) => !!product.isLive && ((product.product_type === 'retail' || product.product_type === 'RETAIL') || product.salePrice > 0));
   }, [liveProducts]);
 
   const handleLogout = () => {

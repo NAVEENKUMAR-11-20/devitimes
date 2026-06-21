@@ -71,21 +71,43 @@ const AdminDashboard = () => {
 
   // Metrics calculations
   console.log('Fetched products from PocketBase (Dashboard):', products);
-  const totalProducts = products.length + (retailProducts?.length || 0);
-  const wholesaleLiveCount = products.filter(p => p.isLive !== false).length;
-  const retailLiveCount = (retailProducts || []).filter(p => p.isLive !== false).length;
-  const liveProducts = wholesaleLiveCount + retailLiveCount;
+  const uniqueProductIds = new Set([
+    ...products.map(p => p.id),
+    ...(retailProducts || []).map(p => p.id)
+  ]);
+  const totalProducts = uniqueProductIds.size;
+  const wholesaleCount = products.length;
+  const retailCount = (retailProducts || []).length;
+
+  const liveWholesale = products.filter(p => p.isLive !== false);
+  const liveRetail = (retailProducts || []).filter(p => p.isLive !== false);
+  const uniqueLiveIds = new Set([
+    ...liveWholesale.map(p => p.id),
+    ...liveRetail.map(p => p.id)
+  ]);
+  const liveProducts = uniqueLiveIds.size;
+  const wholesaleLiveCount = liveWholesale.length;
+  const retailLiveCount = liveRetail.length;
+
   const totalUsers = users.length;
   const pendingRegs = pendingRegistrations.length;
 
   // Retrieve last 5 products added
-  const allMergedProducts = [
+  const allProductsCombined = [
     ...products.map(p => ({ ...p, type: 'WHOLESALE' })),
     ...(retailProducts || []).map(p => ({ ...p, type: 'RETAIL' }))
   ];
-  const recentProducts = allMergedProducts
+  const uniqueRecentMap = new Map();
+  allProductsCombined
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-    .slice(0, 5);
+    .forEach(p => {
+      if (!uniqueRecentMap.has(p.id)) {
+        uniqueRecentMap.set(p.id, p);
+      } else {
+        uniqueRecentMap.set(p.id, { ...p, type: 'WHOLESALE & RETAIL' });
+      }
+    });
+  const recentProducts = Array.from(uniqueRecentMap.values()).slice(0, 5);
 
   // Retrieve last 5 users created
   const recentUsers = [...users]
@@ -132,7 +154,7 @@ const AdminDashboard = () => {
             <span className="metric-value font-heading">
               {totalProducts}
               <span style={{ fontSize: '11px', fontWeight: '500', color: 'var(--text-muted)', marginLeft: '6px' }}>
-                ({products.length} W / {(retailProducts || []).length} R)
+                ({wholesaleCount} W / {retailCount} R)
               </span>
             </span>
           </div>

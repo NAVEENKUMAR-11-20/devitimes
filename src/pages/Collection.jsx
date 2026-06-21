@@ -85,18 +85,16 @@ const Collection = () => {
       setIsLoggingIn(false);
     }
   };
-  // Filter products in real time (only keep live ones and exclude retail)
+  // Filter products in real time (only keep live ones and filter by correct price field or product_type)
   const filteredProducts = useMemo(() => {
     return (liveProducts || []).filter((product) => {
       if (!product) return false;
-      const pType = product.product_type;
-      const isRetail = Array.isArray(pType) 
-        ? pType.some(t => t.toLowerCase() === 'retail')
-        : (typeof pType === 'string' && pType.toLowerCase() === 'retail');
-
-      return !!product.isLive && !isRetail;
+      if (isRetail) {
+        return !!product.isLive && ((product.product_type === 'retail' || product.product_type === 'RETAIL') || product.retailPrice > 0);
+      }
+      return !!product.isLive && ((product.product_type !== 'retail' && product.product_type !== 'RETAIL') || product.wholesalePrice > 0);
     });
-  }, [liveProducts]);
+  }, [liveProducts, isRetail]);
 
   // Handle click on "ORDER" button
   const handleOrder = (product) => {

@@ -47,10 +47,9 @@ const AdminAddProduct = () => {
   const [modelNumber, setModelNumber] = useState('');
   const [sizeType, setSizeType] = useState('300 × 300 MM');
   const [customSize, setCustomSize] = useState('');
-  const [productPrice, setProductPrice] = useState('');
-  const [productType, setProductType] = useState('wholesale');
+  const [wholesalePrice, setWholesalePrice] = useState('');
+  const [retailPrice, setRetailPrice] = useState('');
   const [packageNo, setPackageNo] = useState('');
-  const [stockNumber, setStockNumber] = useState('');
   const [isLive, setIsLive] = useState(true);
   const [images, setImages] = useState([]); // array of { url: string, file: File }
 
@@ -111,10 +110,9 @@ const AdminAddProduct = () => {
     setModelNumber('');
     setSizeType('300 × 300 MM');
     setCustomSize('');
-    setProductPrice('');
-    setProductType('wholesale');
+    setWholesalePrice('');
+    setRetailPrice('');
     setPackageNo('');
-    setStockNumber('');
     setIsLive(true);
     setImages([]);
     setErrors({});
@@ -128,7 +126,6 @@ const AdminAddProduct = () => {
     if (!modelNumber.trim()) newErrors.modelNumber = 'Model number is required.';
     const finalSize = sizeType === 'Custom' ? customSize.trim() : sizeType;
     if (!finalSize) newErrors.size = 'Product size is required.';
-    if (!productPrice) newErrors.productPrice = 'Product price is required.';
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -167,26 +164,16 @@ const AdminAddProduct = () => {
         imageFilePayload = new File([jsonString], 'gallery.json', { type: 'application/json' });
       }
 
-      if (productType === 'retail') {
-        await createRetailProduct({
-          model_no:         modelNumber.trim(),
-          size:             finalSize,
-          package_no:       packageNo.trim(),
-          price_for_retail: Number(productPrice),
-          images:           imageFilePayload,
-        });
-      } else {
-        await createProduct({
-          MODEL_NUMBER:    modelNumber.trim(),
-          SIZE_DIMENSIONS: finalSize,
-          package_no:      packageNo.trim(),
-          price:           Number(productPrice),
-          stock_Number:    stockNumber.trim(),
-          product_type:    productType,
-          is_live:         finalIsLive,
-          imageFile:       imageFilePayload,
-        });
-      }
+      await createProduct({
+        MODEL_NUMBER:    modelNumber.trim(),
+        SIZE_DIMENSIONS: finalSize,
+        package_no:      packageNo.trim(),
+        price:           Number(wholesalePrice),
+        stock_Number:    Number(retailPrice),
+        product_type:    'wholesale',
+        is_live:         finalIsLive,
+        imageFile:       imageFilePayload,
+      });
 
       // Refresh global products state immediately
       await refreshProducts();
@@ -395,17 +382,30 @@ const AdminAddProduct = () => {
                 {errors.size && <span className="inline-error-msg font-body">{errors.size}</span>}
               </div>
 
-              {/* Product Price */}
+              {/* Wholesale Price */}
               <div className="form-group">
-                <label className="form-label">PRODUCT PRICE *</label>
+                <label className="form-label">WHOLESALE PRICE</label>
                 <input 
                   type="number" 
-                  className={`form-input ${errors.productPrice ? 'input-error-state' : ''}`}
+                  className={`form-input ${errors.wholesalePrice ? 'input-error-state' : ''}`}
                   placeholder="e.g. ₹1500"
-                  value={productPrice}
-                  onChange={(e) => setProductPrice(e.target.value)}
+                  value={wholesalePrice}
+                  onChange={(e) => setWholesalePrice(e.target.value)}
                 />
-                {errors.productPrice && <span className="inline-error-msg font-body">{errors.productPrice}</span>}
+                {errors.wholesalePrice && <span className="inline-error-msg font-body">{errors.wholesalePrice}</span>}
+              </div>
+
+              {/* Retail Price */}
+              <div className="form-group">
+                <label className="form-label">RETAIL PRICE</label>
+                <input 
+                  type="number" 
+                  className={`form-input ${errors.retailPrice ? 'input-error-state' : ''}`}
+                  placeholder="e.g. ₹2000"
+                  value={retailPrice}
+                  onChange={(e) => setRetailPrice(e.target.value)}
+                />
+                {errors.retailPrice && <span className="inline-error-msg font-body">{errors.retailPrice}</span>}
               </div>
 
               {/* Package No */}
@@ -418,31 +418,6 @@ const AdminAddProduct = () => {
                   value={packageNo}
                   onChange={(e) => setPackageNo(e.target.value)}
                 />
-              </div>
-
-              {/* Stock Number */}
-              <div className="form-group">
-                <label className="form-label">STOCK NUMBER</label>
-                <input 
-                  type="text" 
-                  className="form-input"
-                  placeholder="e.g. 50"
-                  value={stockNumber}
-                  onChange={(e) => setStockNumber(e.target.value)}
-                />
-              </div>
-
-              {/* Product Type */}
-              <div className="form-group">
-                <label className="form-label">PRODUCT TYPE</label>
-                <select 
-                  className="form-input"
-                  value={productType}
-                  onChange={(e) => setProductType(e.target.value)}
-                >
-                  <option value="wholesale">Wholesale</option>
-                  <option value="retail">Retail</option>
-                </select>
               </div>
 
 

@@ -7,15 +7,17 @@ import { getProductImageUrl } from '../lib/productsService';
 const ProductDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { products, retailProducts, currentUser, addToCart } = useApp();
+  const { products, retailProducts, currentUser, currentRetailUser, addToCart } = useApp();
 
   const [quantity, setQuantity] = useState(1);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [addedFeedback, setAddedFeedback] = useState(false);
 
-  const product = products.find(p => p.id === id) || (retailProducts && retailProducts.find(p => p.id === id));
-  const isRetailProduct = retailProducts && retailProducts.some(p => p.id === id);
+  const isRetailProduct = !!(currentUser?.isRetail || currentRetailUser);
+  const product = isRetailProduct
+    ? (retailProducts && retailProducts.find(p => p.id === id))
+    : (products && products.find(p => p.id === id));
 
   useEffect(() => {
     setQuantity(1);
