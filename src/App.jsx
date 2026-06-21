@@ -39,6 +39,7 @@ import RetailLogin from './pages/RetailLogin';
 import RetailCatalog from './pages/RetailCatalog';
 import Cart from './pages/Cart';
 import CheckoutSuccess from './pages/CheckoutSuccess';
+import History from './pages/History';
 
 // Admin Pages
 import AdminLogin from './pages/admin/AdminLogin';
@@ -62,6 +63,17 @@ const ClientLayout = ({ children }) => {
   );
 };
 
+const WholesaleRedirect = () => {
+  const { currentUser } = useApp();
+  const isWholesale = currentUser && !currentUser.isRetail;
+
+  if (!isWholesale) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <Navigate to="/collection" replace />;
+};
+
 function App() {
   return (
     <ErrorBoundary>
@@ -79,10 +91,12 @@ function App() {
           <Route path="/register" element={<ClientLayout><Register /></ClientLayout>} />
           <Route path="/retail-login" element={<ClientLayout><RetailLogin /></ClientLayout>} />
           <Route path="/retail" element={<ClientLayout><RetailCatalog /></ClientLayout>} />
+          <Route path="/wholesale" element={<WholesaleRedirect />} />
           
           {/* PROTECTED CLIENT ROUTES */}
           <Route path="/cart" element={<ClientLayout><Cart /></ClientLayout>} />
           <Route path="/checkout/success" element={<ClientLayout><CheckoutSuccess /></ClientLayout>} />
+          <Route path="/history" element={<ClientLayout><History /></ClientLayout>} />
 
           {/* ADMIN ROUTES (TOTALLY ISOLATED - NO CLIENT LAYOUT) */}
           <Route path="/admin/login" element={<AdminLogin />} />

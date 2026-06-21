@@ -54,7 +54,7 @@ const RetailCatalog = () => {
 
   const handleLogout = () => {
     logoutRetailUser();
-    navigate('/retail-login');
+    navigate('/');
   };
 
   return (

@@ -19,10 +19,12 @@ const Cart = () => {
   useEffect(() => {
     if (!currentUser) {
       navigate('/login');
+    } else if (currentUser.isRetail) {
+      navigate('/');
     }
   }, [currentUser, navigate]);
 
-  if (!currentUser) {
+  if (!currentUser || currentUser.isRetail) {
     return null;
   }
 
@@ -82,6 +84,66 @@ TOTAL: ₹${grandTotal}
       }
     } catch (err) {
       console.error("Failed to fetch WhatsApp number from PB:", err);
+    }
+
+    // Retrieve PocketBase record ID for the user relation
+    let userRecordId = currentUser.id;
+    if (!userRecordId) {
+      try {
+        const userRecords = await pb.collection('User').getFullList({
+          filter: `User_ID = "${currentUser.userId}"`
+        });
+        if (userRecords.length > 0) {
+          userRecordId = userRecords[0].id;
+        }
+      } catch (err) {
+        console.error("[Cart] Failed to resolve PocketBase user record ID:", err);
+      }
+    }
+
+    const productsJson = cart.map(item => ({
+      productId: item.productId,
+      productName: item.productName,
+      modelNumber: item.modelNumber,
+      category: item.category || '',
+      size: item.size || '',
+      color: item.color || '',
+      unitPrice: item.unitPrice,
+      quantity: item.quantity,
+      image: item.image || null
+    }));
+
+    let pbOrderId = '';
+    try {
+      const pbOrder = await pb.collection('orders').create({
+        userId: userRecordId || '',
+        orderDate: new Date().toISOString(),
+        products: productsJson,
+        totalAmount: grandTotal,
+        status: 'Pending'
+      });
+      pbOrderId = pbOrder.id;
+      console.log("[Cart] Order saved successfully in PocketBase. ID:", pbOrderId);
+    } catch (err) {
+      console.error("[Cart] Failed to save order to PocketBase:", err.message);
+    }
+
+    const localOrderId = pbOrderId || `ORD-${Math.floor(100000 + Math.random() * 900000)}`;
+    const newLocalOrder = {
+      id: localOrderId,
+      grandTotal,
+      timestamp,
+      status: 'Pending',
+      customer: currentUser,
+      items: productsJson
+    };
+
+    try {
+      const storedHistory = localStorage.getItem('lumiere_order_history');
+      const parsedHistory = storedHistory ? JSON.parse(storedHistory) : [];
+      localStorage.setItem('lumiere_order_history', JSON.stringify([newLocalOrder, ...parsedHistory]));
+    } catch (err) {
+      console.error("[Cart] Failed to update localStorage order history:", err);
     }
 
     const cleanPhone = finalPhone.replace(/[^0-9+]/g, '').replace('+', '');

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 
@@ -7,6 +7,8 @@ const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const profileRef = useRef(null);
 
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0);
 
@@ -17,8 +19,24 @@ const Navbar = () => {
 
   const handleRetailLogout = () => {
     logoutRetailUser();
-    navigate('/retail-login');
+    navigate('/');
   };
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (profileDropdownOpen && profileRef.current && !profileRef.current.contains(e.target)) {
+        setProfileDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [profileDropdownOpen]);
+
+  const user = currentUser || currentRetailUser;
+  const isRetail = !!currentRetailUser || !!currentUser?.isRetail;
+  const userInitial = isRetail ? 'R' : (currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U');
+  const userDisplayName = isRetail ? 'Retailer' : (currentUser?.name || 'User');
 
 
   return (
@@ -41,8 +59,8 @@ const Navbar = () => {
           </Link>
           {currentRetailUser ? (
             <Link 
-              to="/retail-catalog" 
-              className={`nav-link-item ${location.pathname === '/retail-catalog' ? 'active-link' : ''}`}
+              to="/retail" 
+              className={`nav-link-item ${location.pathname === '/retail' ? 'active-link' : ''}`}
             >
               RETAIL CATALOG
             </Link>
@@ -60,20 +78,63 @@ const Navbar = () => {
         <div className="nav-right-actions">
           
           {/* User Session status */}
-          <div className="nav-user-section">
-            {currentRetailUser ? (
-              <div className="user-session-pill">
-                <span className="user-session-name" style={{ color: '#FCD34D' }}>Retail</span>
-                <button onClick={handleRetailLogout} className="logout-nav-btn" style={{ borderLeftColor: 'rgba(252, 211, 77, 0.3)', color: '#FCA5A5' }}>
-                  RETAIL LOGOUT
+          <div className="nav-user-section" ref={profileRef}>
+            {user ? (
+              <div className="nav-profile-container">
+                <button 
+                  className="nav-profile-btn" 
+                  onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                  aria-label="User Profile Menu"
+                >
+                  <div className={`avatar-circle ${isRetail ? 'retail' : 'wholesale'}`}>
+                    {userInitial}
+                  </div>
+                  <svg 
+                    width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" 
+                    strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+                    className={`chevron-icon ${profileDropdownOpen ? 'open' : ''}`}
+                  >
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
                 </button>
-              </div>
-            ) : currentUser ? (
-              <div className="user-session-pill">
-                <span className="user-session-name">Hi, {currentUser.name.split(' ')[0]}</span>
-                <button onClick={handleLogout} className="logout-nav-btn">
-                  LOGOUT
-                </button>
+
+                {profileDropdownOpen && (
+                  <div className="profile-dropdown-menu">
+                    <div className="dropdown-user-info">
+                      <div className="dropdown-user-name">{userDisplayName}</div>
+                      <div className="dropdown-user-role">{isRetail ? 'Retail Partner' : 'Wholesale Client'}</div>
+                    </div>
+                    <div className="dropdown-divider" />
+                    {!isRetail && (
+                      <Link 
+                        to="/history" 
+                        className="dropdown-item"
+                        onClick={() => setProfileDropdownOpen(false)}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                        Order History
+                      </Link>
+                    )}
+                    <button 
+                      onClick={() => {
+                        setProfileDropdownOpen(false);
+                        if (isRetail) handleRetailLogout();
+                        else handleLogout();
+                      }} 
+                      className="dropdown-item logout-item"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                      </svg>
+                      Logout
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <Link 
@@ -146,8 +207,8 @@ const Navbar = () => {
           </Link>
           {currentRetailUser ? (
             <Link 
-              to="/retail-catalog" 
-              className={`mobile-nav-link-item ${location.pathname === '/retail-catalog' ? 'active-link' : ''}`}
+              to="/retail" 
+              className={`mobile-nav-link-item ${location.pathname === '/retail' ? 'active-link' : ''}`}
               onClick={() => setMobileMenuOpen(false)}
             >
               RETAIL CATALOG
@@ -162,23 +223,35 @@ const Navbar = () => {
             </Link>
           )}
           
-          {currentRetailUser ? (
+          {user ? (
             <div className="mobile-user-session">
-              <span className="mobile-user-name" style={{ color: '#FCD34D' }}>Retail</span>
+              <div className="mobile-profile-header">
+                <div className={`avatar-circle ${isRetail ? 'retail' : 'wholesale'}`}>
+                  {userInitial}
+                </div>
+                <div>
+                  <div className="mobile-profile-name">{userDisplayName}</div>
+                  <div className="mobile-profile-role">{isRetail ? 'Retail Partner' : 'Wholesale Client'}</div>
+                </div>
+              </div>
+              {!isRetail && (
+                <Link 
+                  to="/history" 
+                  className="mobile-nav-link-item"
+                  onClick={() => setMobileMenuOpen(false)}
+                  style={{ width: '100%' }}
+                >
+                  ORDER HISTORY
+                </Link>
+              )}
               <button 
-                onClick={() => { handleRetailLogout(); setMobileMenuOpen(false); }} 
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  if (isRetail) handleRetailLogout();
+                  else handleLogout();
+                }} 
                 className="logout-nav-btn"
-                style={{ borderLeftColor: 'rgba(252, 211, 77, 0.3)', color: '#FCA5A5' }}
-              >
-                RETAIL LOGOUT
-              </button>
-            </div>
-          ) : currentUser ? (
-            <div className="mobile-user-session">
-              <span className="mobile-user-name">Hi, {currentUser.name.split(' ')[0]}</span>
-              <button 
-                onClick={() => { handleLogout(); setMobileMenuOpen(false); }} 
-                className="logout-nav-btn"
+                style={{ width: '100%', marginTop: '12px' }}
               >
                 LOGOUT
               </button>
@@ -358,18 +431,165 @@ const Navbar = () => {
           box-sizing: border-box;
         }
 
-        .user-session-pill {
+        .nav-profile-container {
+          position: relative;
+          display: inline-block;
+        }
+
+        .nav-profile-btn {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          padding: 4px 8px;
+          border-radius: 4px;
+          transition: background-color 0.2s ease;
+          color: #ffffff;
+        }
+
+        .nav-profile-btn:hover {
+          background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .avatar-circle {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 700;
+          font-size: 13px;
+          color: #ffffff;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        .avatar-circle.wholesale {
+          background: linear-gradient(135deg, var(--accent-blue) 0%, #1D4ED8 100%);
+        }
+
+        .avatar-circle.retail {
+          background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+        }
+
+        .chevron-icon {
+          transition: transform 0.25s ease;
+          opacity: 0.7;
+        }
+
+        .chevron-icon.open {
+          transform: rotate(180deg);
+          opacity: 1;
+        }
+
+        .profile-dropdown-menu {
+          position: absolute;
+          right: 0;
+          top: calc(100% + 12px);
+          background-color: #111827;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 4px;
+          width: 200px;
+          padding: 8px 0;
+          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+          z-index: 1000;
+          transform-origin: top right;
+          animation: dropdownFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes dropdownFadeIn {
+          from {
+            opacity: 0;
+            transform: scale(0.95) translateY(-8px);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+
+        .dropdown-user-info {
+          padding: 10px 16px 12px 16px;
+        }
+
+        .dropdown-user-name {
+          font-weight: 700;
+          font-size: 13px;
+          color: #ffffff;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .dropdown-user-role {
+          font-size: 10px;
+          font-weight: 500;
+          color: #9CA3AF;
+          margin-top: 2px;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+
+        .dropdown-divider {
+          height: 1px;
+          background-color: rgba(255, 255, 255, 0.06);
+          margin: 4px 0;
+        }
+
+        .dropdown-item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          width: 100%;
+          padding: 10px 16px;
+          border: none;
+          background: transparent;
+          color: #D1D5DB;
+          font-size: 13px;
+          font-weight: 600;
+          text-align: left;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          box-sizing: border-box;
+          text-decoration: none;
+        }
+
+        .dropdown-item:hover {
+          background-color: rgba(255, 255, 255, 0.05);
+          color: #ffffff;
+        }
+
+        .dropdown-item.logout-item {
+          color: #FCA5A5;
+        }
+
+        .dropdown-item.logout-item:hover {
+          background-color: rgba(239, 68, 68, 0.1);
+          color: #EF4444;
+        }
+
+        .mobile-profile-header {
           display: flex;
           align-items: center;
           gap: 12px;
+          margin-bottom: 8px;
+          width: 100%;
         }
 
-        .user-session-name {
-          font-size: 11px;
+        .mobile-profile-name {
+          font-weight: 700;
+          font-size: 14px;
+          color: #ffffff;
+        }
+
+        .mobile-profile-role {
+          font-size: 10px;
+          color: #9CA3AF;
           text-transform: uppercase;
-          font-weight: 600;
-          letter-spacing: 0.08em;
-          color: var(--text-sub-on-dark);
+          letter-spacing: 0.05em;
+          margin-top: 1px;
         }
 
         .logout-nav-btn {
@@ -377,7 +597,7 @@ const Navbar = () => {
           font-weight: 700;
           letter-spacing: 0.08em;
           color: #ef4444;
-          padding: 4px 8px;
+          padding: 6px 12px;
           border: 1px solid #ef4444;
           border-radius: 2px;
           background: transparent;
@@ -385,8 +605,9 @@ const Navbar = () => {
           align-items: center;
           justify-content: center;
           line-height: 1;
-          height: 24px;
+          height: 28px;
           transition: all 0.2s ease;
+          box-sizing: border-box;
         }
 
         .logout-nav-btn:hover {
@@ -532,6 +753,9 @@ const Navbar = () => {
             display: none;
           }
           .nav-user-section {
+            /* Keep profile button visible, hide Sign In link in header on mobile */
+          }
+          .nav-user-section > a {
             display: none;
           }
           .nav-divider {

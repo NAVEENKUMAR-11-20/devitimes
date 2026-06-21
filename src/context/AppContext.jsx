@@ -430,6 +430,7 @@ export const AppProvider = ({ children }) => {
           
           const sessionObj = {
             userId: matchedUser.User_ID || matchedUser.id,
+            id: matchedUser.id,
             name: matchedUser.Full_Name || 'Valued Customer',
             mobile: matchedUser.moblieno || matchedUser.mobileno || '',
             isRetail: false
@@ -462,7 +463,12 @@ export const AppProvider = ({ children }) => {
   const logoutUser = () => {
     sessionStorage.removeItem('lumiere_current_user');
     localStorage.removeItem('lumiere_current_user');
+    sessionStorage.removeItem('lumiere_retail_user');
+    localStorage.removeItem('lumiere_retail_user');
+    localStorage.removeItem('pocketbase_auth');
+    pb.authStore.clear();
     setCurrentUser(null);
+    setCurrentRetailUser(null);
     setCart([]);
   };
 
@@ -497,9 +503,15 @@ export const AppProvider = ({ children }) => {
   };
 
   const logoutRetailUser = () => {
+    sessionStorage.removeItem('lumiere_current_user');
+    localStorage.removeItem('lumiere_current_user');
     sessionStorage.removeItem('lumiere_retail_user');
     localStorage.removeItem('lumiere_retail_user');
+    localStorage.removeItem('pocketbase_auth');
+    pb.authStore.clear();
+    setCurrentUser(null);
     setCurrentRetailUser(null);
+    setCart([]);
   };
 
   const checkCurrentUserStatus = async () => {
