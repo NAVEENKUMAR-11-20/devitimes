@@ -10,6 +10,8 @@ const History = () => {
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [timeFilter, setTimeFilter] = useState('3months');
+  const [searchVal, setSearchVal] = useState('');
+  const [activeSearch, setActiveSearch] = useState('');
 
   const availableYears = useMemo(() => {
     const years = new Set();
@@ -26,6 +28,21 @@ const History = () => {
   const filteredOrders = useMemo(() => {
     const now = new Date();
     return orders.filter(o => {
+      // If there is an active search, search globally across all orders
+      if (activeSearch.trim()) {
+        const query = activeSearch.toLowerCase().trim();
+        const matchesId = (o.id || '').toLowerCase().includes(query);
+        const matchesItems = (o.items || []).some(item => 
+          (item.productName || '').toLowerCase().includes(query) ||
+          (item.modelNumber || '').toLowerCase().includes(query) ||
+          (item.category || '').toLowerCase().includes(query) ||
+          (item.size || '').toLowerCase().includes(query) ||
+          (item.color || '').toLowerCase().includes(query)
+        );
+        return matchesId || matchesItems;
+      }
+
+      // Otherwise, filter by time period
       const orderDate = new Date(o.timestamp);
       if (isNaN(orderDate.getTime())) return true;
       
@@ -47,7 +64,7 @@ const History = () => {
       const orderYear = orderDate.getFullYear().toString();
       return orderYear === timeFilter;
     });
-  }, [orders, timeFilter]);
+  }, [orders, timeFilter, activeSearch]);
 
   useEffect(() => {
     if (filteredOrders.length > 0) {
@@ -197,26 +214,92 @@ const History = () => {
             </div>
             {orders.length > 0 && (
               <div className="history-filter-container font-body">
-                <span className="history-filter-label">
-                  <strong>{filteredOrders.length} order{filteredOrders.length !== 1 ? 's' : ''}</strong> placed in
-                </span>
-                <select 
-                  value={timeFilter} 
-                  onChange={(e) => setTimeFilter(e.target.value)} 
-                  className="history-filter-select"
-                >
-                  <option value="30days">last 30 days</option>
-                  <option value="3months">past 3 months</option>
-                  <option value="6months">past 6 months</option>
-                  {availableYears.map(year => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
-                  <option value="all">all orders</option>
-                </select>
+                {activeSearch ? (
+                  <span className="history-filter-label">
+                    Found <strong>{filteredOrders.length} order{filteredOrders.length !== 1 ? 's' : ''}</strong> matching search
+                  </span>
+                ) : (
+                  <>
+                    <span className="history-filter-label">
+                      <strong>{filteredOrders.length} order{filteredOrders.length !== 1 ? 's' : ''}</strong> placed in
+                    </span>
+                    <select 
+                      value={timeFilter} 
+                      onChange={(e) => setTimeFilter(e.target.value)} 
+                      className="history-filter-select"
+                    >
+                      <option value="30days">last 30 days</option>
+                      <option value="3months">past 3 months</option>
+                      <option value="6months">past 6 months</option>
+                      {availableYears.map(year => (
+                        <option key={year} value={year}>{year}</option>
+                      ))}
+                      <option value="all">all orders</option>
+                    </select>
+                  </>
+                )}
               </div>
             )}
           </div>
         </header>
+
+        {orders.length > 0 && (
+          <div className="history-search-row">
+            <div className="history-search-container">
+              <div className="history-search-input-wrapper">
+                <svg className="history-search-icon" viewBox="0 0 24 24" width="16" height="16" stroke="#8A9BB0" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input 
+                  type="text" 
+                  placeholder="Search all orders" 
+                  value={searchVal}
+                  onChange={(e) => setSearchVal(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      setActiveSearch(searchVal);
+                    }
+                  }}
+                  className="history-search-input font-body"
+                />
+                {searchVal && (
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setSearchVal('');
+                      setActiveSearch('');
+                    }} 
+                    className="history-search-clear-btn"
+                  >
+                    &times;
+                  </button>
+                )}
+              </div>
+              <button 
+                onClick={() => setActiveSearch(searchVal)}
+                className="history-search-btn font-body"
+              >
+                Search Orders
+              </button>
+            </div>
+            
+            {activeSearch && (
+              <div className="search-status-message font-body">
+                Showing results for "<strong>{activeSearch}</strong>"&nbsp;·&nbsp;
+                <button 
+                  onClick={() => {
+                    setSearchVal('');
+                    setActiveSearch('');
+                  }}
+                  className="search-clear-link"
+                >
+                  Clear search
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {orders.length === 0 ? (
           <div className="empty-history font-body">
@@ -238,7 +321,7 @@ const History = () => {
               <div className="orders-list">
                 {filteredOrders.length === 0 ? (
                   <div style={{ color: 'var(--text-muted)', fontSize: '13px', padding: '24px 0', textAlign: 'center', width: '100%' }}>
-                    No orders matching this period.
+                    {activeSearch ? 'No orders match your search query.' : 'No orders matching this period.'}
                   </div>
                 ) : (
                   filteredOrders.map((o) => (
@@ -651,6 +734,121 @@ const History = () => {
         .history-filter-select:focus {
           border-color: var(--accent-blue);
           box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+        }
+
+        .history-search-row {
+          margin-bottom: 24px;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .history-search-container {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          max-width: 500px;
+          width: 100%;
+        }
+
+        .history-search-input-wrapper {
+          position: relative;
+          display: flex;
+          align-items: center;
+          flex-grow: 1;
+          background-color: #ffffff;
+          border: 1px solid #d5d9d9;
+          border-radius: 8px;
+          padding: 0 12px;
+          height: 38px;
+          transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .history-search-input-wrapper:focus-within {
+          border-color: var(--accent-blue);
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+        }
+
+        .history-search-icon {
+          flex-shrink: 0;
+          margin-right: 8px;
+          color: var(--text-muted);
+        }
+
+        .history-search-input {
+          border: none;
+          outline: none;
+          background: transparent;
+          width: 100%;
+          height: 100%;
+          color: var(--text-primary);
+          font-size: 14px;
+        }
+
+        .history-search-input::placeholder {
+          color: var(--text-muted);
+        }
+
+        .history-search-clear-btn {
+          background: none;
+          border: none;
+          color: var(--text-muted);
+          font-size: 18px;
+          cursor: pointer;
+          padding: 0 4px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: 100%;
+        }
+
+        .history-search-clear-btn:hover {
+          color: var(--text-primary);
+        }
+
+        .history-search-btn {
+          background-color: #232f3e;
+          color: #ffffff;
+          border: none;
+          border-radius: 100px;
+          padding: 0 20px;
+          height: 38px;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: background-color 0.2s, transform 0.1s;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .history-search-btn:hover {
+          background-color: #1a242f;
+        }
+
+        .history-search-btn:active {
+          transform: scale(0.98);
+        }
+
+        .search-status-message {
+          font-size: 13px;
+          color: var(--text-secondary);
+        }
+
+        .search-clear-link {
+          background: none;
+          border: none;
+          color: var(--accent-blue);
+          text-decoration: underline;
+          cursor: pointer;
+          font-size: 13px;
+          padding: 0;
+          display: inline;
+        }
+
+        .search-clear-link:hover {
+          color: var(--button-primary-hover);
         }
 
         .history-actions-row {
