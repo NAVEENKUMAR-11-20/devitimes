@@ -78,8 +78,8 @@ const History = () => {
         }
       }
 
-      // 3. Fallback to localStorage if PB failed or returned nothing
-      if (!ordersLoaded) {
+      // 3. Fallback to localStorage if PB failed or returned no records
+      if (!ordersLoaded || fetchedOrders.length === 0) {
         const stored = localStorage.getItem('lumiere_order_history');
         let parsed = stored ? JSON.parse(stored) : [];
         
