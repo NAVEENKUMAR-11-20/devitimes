@@ -6,7 +6,6 @@ import {
   updateProduct as pbUpdateProduct,
   fetchProductById,
   getProductImageUrl,
-  fetchAllRetailProducts,
 } from '../../lib/productsService';
 import pb from '../../lib/pocketbase';
 import { useApp } from '../../context/AppContext';
@@ -142,11 +141,12 @@ const AdminProducts = () => {
       setPbLoading(true);
       setPbError('');
       await ensurePbAuth();
-      let data;
+      const allData = await fetchAllProducts();
+      let data = allData;
       if (productType === 'retail') {
-        data = await fetchAllRetailProducts();
+        data = allData.filter(p => p.product_type === 'retail' || p.product_type === 'RETAIL' || p.retailPrice > 0);
       } else {
-        data = await fetchAllProducts();
+        data = allData.filter(p => p.product_type !== 'retail' && p.product_type !== 'RETAIL');
       }
       console.log(`[PB] Fetched ${productType} products for AdminProducts:`, data);
       setProducts(data || []);
@@ -501,7 +501,7 @@ const AdminProducts = () => {
     try {
       const failed = await processInBatches(
         itemsToDelete, 
-        (p) => pb.collection('products').delete(p.pbId || p.id, { requestKey: null }), 
+        (p) => pb.collection('PRODUCT_DATAS').delete(p.pbId || p.id, { requestKey: null }), 
         10
       );
       const successCount = itemsToDelete.length - failed.length;
@@ -589,7 +589,7 @@ const AdminProducts = () => {
     
     try {
       await ensurePbAuth();
-      await pbUpdateProduct(product.pbId || id, { is_live: !currentStatus }, 'products');
+      await pbUpdateProduct(product.pbId || id, { is_live: !currentStatus }, 'PRODUCT_DATAS');
       await refreshProducts();
     } catch (err) {
       // Revert on error
@@ -616,7 +616,7 @@ const AdminProducts = () => {
     
     try {
       await ensurePbAuth();
-      await pb.collection('products').delete(product?.pbId || idToDelete, { requestKey: null });
+      await pb.collection('PRODUCT_DATAS').delete(product?.pbId || idToDelete, { requestKey: null });
       triggerToast('Product deleted successfully');
       await refreshProducts();
     } catch (err) {
@@ -633,7 +633,7 @@ const AdminProducts = () => {
     triggerToast('Fetching latest product details...');
     try {
       await ensurePbAuth();
-      const colName = productType === 'retail' ? 'retail_products' : 'products';
+      const colName = 'PRODUCT_DATAS';
       const latestProduct = await fetchProductById(product.pbId || product.id, colName);
       console.log('[DEBUG] Fetched latest product details:', latestProduct);
       
@@ -680,11 +680,11 @@ const AdminProducts = () => {
       const pbId = editForm.pbId || editForm.id;
       
       const payload = {
-        MODEL_NUMBER:    modelNumStr,
-        SIZE_DIMENSIONS: sizeStr,
-        package_no:      editForm.packageNo ? (isNaN(Number(editForm.packageNo)) ? editForm.packageNo : Number(editForm.packageNo)) : '',
-        price:           Number(wholesaleP),
-        stock_Number:    Number(retailP),
+        MODEL_NO:        modelNumStr,
+        SIZE_DM:         sizeStr,
+        PACKAGE_NO:      editForm.packageNo ? (isNaN(Number(editForm.packageNo)) ? editForm.packageNo : Number(editForm.packageNo)) : '',
+        WHOLESALE_PRICE: Number(wholesaleP),
+        RETAIL_PRICE:    Number(retailP),
         is_live:         editForm.isLive,
         original_price:  editForm.originalPrice !== undefined && editForm.originalPrice !== null && editForm.originalPrice !== '' ? Number(editForm.originalPrice) : null,
         is_on_sale:      editForm.isOnSale,
@@ -714,7 +714,7 @@ const AdminProducts = () => {
 
       console.log('[DEBUG] updated payload before saving:', payload);
 
-      const response = await pbUpdateProduct(pbId, payload, 'products');
+      const response = await pbUpdateProduct(pbId, payload, 'PRODUCT_DATAS');
       console.log('[DEBUG] PocketBase update response:', response);
 
       setEditingProduct(null);

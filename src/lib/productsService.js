@@ -8,7 +8,7 @@ import pb from './pocketbase';
  */
 export function getProductImageUrl(record) {
   if (!record) return null;
-  const prodimage = record.prodimage || record._rawImageName || record.images;
+  const prodimage = record.PRODUCT_IMAGE || record._rawImageName || record.images;
   if (!prodimage) return null;
   const pbRecord = {
     id: record.id || record.pbId,
@@ -24,29 +24,29 @@ export function getProductImageUrl(record) {
 export function mapRecord(record) {
   const imageUrl = getProductImageUrl(record);
   const isJson = imageUrl && imageUrl.toLowerCase().split('?')[0].endsWith('.json');
-  const wholesalePrice = Number(record.price) || 0;
-  const retailPrice = Number(record.stock_Number) || 0;
+  const wholesalePrice = Number(record.WHOLESALE_PRICE) || 0;
+  const retailPrice = Number(record.RETAIL_PRICE) || 0;
   return {
     id: record.id,
     status: record.status || (record.is_live ? 'LIVE' : 'HIDDEN'),
     pbId: record.id,                          // keep PB id separate
     collectionId: record.collectionId || '',  // add for compatibility
     collectionName: record.collectionName || '', // add for compatibility
-    prodimage: record.prodimage || record.images || '',        // add for compatibility
-    modelNumber: record.MODEL_NUMBER || (record.model_no !== undefined ? String(record.model_no) : ''),
-    size: record.size || ((record.SIZE_DIMENSIONS && record.SIZE_DIMENSIONS !== 0) ? `${record.SIZE_DIMENSIONS} × ${record.SIZE_DIMENSIONS} MM` : '300 × 300 MM'),
-    packageNo: record.package_no || '',
+    prodimage: record.PRODUCT_IMAGE || '',    // new schema field
+    modelNumber: record.MODEL_NO !== undefined ? String(record.MODEL_NO) : '',
+    size: record.SIZE_DM || '300 × 300 MM',
+    packageNo: record.PACKAGE_NO !== undefined ? String(record.PACKAGE_NO) : '',
     wholesalePrice: wholesalePrice,
     retailPrice: retailPrice,
-    product_type: record.product_type || '',
+    product_type: record.PRODUCT_TYPE || '',
     salePrice: wholesalePrice, // default salePrice is wholesalePrice
     originalPrice: record.original_price !== undefined && record.original_price !== null ? Number(record.original_price) : null,
     isOnSale: record.is_on_sale !== undefined ? (String(record.is_on_sale) === 'true') : false,
     isLive: record.is_live !== undefined ? (String(record.is_live) === 'true') : true,
     images: imageUrl ? (isJson ? [] : [imageUrl]) : [],
     _jsonUrl: isJson ? imageUrl : null,
-    _rawImageName: record.prodimage || record.images || '',    // original filename for updates
-    name: record.MODEL_NUMBER || (record.model_no !== undefined ? String(record.model_no) : '') || record.id,   // fallback display name
+    _rawImageName: record.PRODUCT_IMAGE || '',    // original filename for updates
+    name: record.MODEL_NO !== undefined ? String(record.MODEL_NO) : record.id,   // fallback display name
     category: record.category || 'Modern Minimalist',
     color: record.color || '',
     description: record.description || '',
@@ -59,7 +59,7 @@ export function mapRecord(record) {
 /**
  * Fetch a single product by ID.
  */
-export async function fetchProductById(pbId, collectionName = 'products') {
+export async function fetchProductById(pbId, collectionName = 'PRODUCT_DATAS') {
   console.log('[PB] Fetching product by ID:', pbId, 'from collection:', collectionName);
   try {
     const record = await pb.collection(collectionName).getOne(pbId, {
@@ -97,13 +97,11 @@ export async function fetchProductById(pbId, collectionName = 'products') {
 export async function fetchAllProducts() {
   console.log('[PB] Fetching all products');
   try {
-    const records = await pb.collection('products').getFullList({
+    const records = await pb.collection('PRODUCT_DATAS').getFullList({
       sort: '-created',
       requestKey: null,
     });
-    return records
-      .map(mapRecord)
-      .filter(p => (p.product_type !== 'retail' && p.product_type !== 'RETAIL') || p.wholesalePrice > 0);
+    return records.map(mapRecord);
   } catch (err) {
     console.error('[PB] fetchAllProducts error:', err);
     throw err;
@@ -116,18 +114,19 @@ export async function fetchAllProducts() {
 export async function createProduct(data) {
   console.log('[PB] Saving product with data:', data);
   const formData = new FormData();
-  formData.append('MODEL_NUMBER',    data.MODEL_NUMBER    || '');
-  const sizeNum = parseInt(data.SIZE_DIMENSIONS || '', 10) || 0;
-  formData.append('SIZE_DIMENSIONS', String(sizeNum));
-  formData.append('package_no',      String(data.package_no || ''));
-  formData.append('price',           String(data.price    || 0));
-  if (data.stock_Number !== undefined) {
-    formData.append('stock_Number',  String(data.stock_Number));
+  formData.append('MODEL_NO',        data.MODEL_NO !== undefined ? String(data.MODEL_NO) : '');
+  formData.append('SIZE_DM',         data.SIZE_DM || '');
+  formData.append('PACKAGE_NO',      data.PACKAGE_NO !== undefined ? String(data.PACKAGE_NO) : '');
+  formData.append('WHOLESALE_PRICE', String(data.WHOLESALE_PRICE || 0));
+  formData.append('RETAIL_PRICE',    String(data.RETAIL_PRICE || 0));
+  if (data.PRODUCT_TYPE) {
+    formData.append('PRODUCT_TYPE',  data.PRODUCT_TYPE);
   }
-  // New fields with defaults
+  
+  // Extra fields for compatibility with existing UI filters
   formData.append('status',          data.status          || 'LIVE');
   formData.append('is_live',         data.is_live !== undefined ? String(data.is_live) : 'true');
-  formData.append('isLive',          data.isLive !== undefined ? String(data.isLive) : 'true'); // duplicate for safety
+  formData.append('isLive',          data.isLive !== undefined ? String(data.isLive) : 'true');
   formData.append('category',        data.category        || 'Modern Minimalist');
   
   if (data.original_price  !== undefined) {
@@ -140,10 +139,10 @@ export async function createProduct(data) {
   if (data.color           !== undefined) formData.append('color', data.color);
 
   if (data.imageFile) {
-    formData.append('prodimage', data.imageFile);
+    formData.append('PRODUCT_IMAGE', data.imageFile);
   }
 
-  const record = await pb.collection('products').create(formData, {
+  const record = await pb.collection('PRODUCT_DATAS').create(formData, {
     requestKey: null,
   });
   console.log('[PB] Saved product response:', record);
@@ -153,34 +152,21 @@ export async function createProduct(data) {
 /**
  * Update an existing product.
  */
-export async function updateProduct(pbId, data, collectionName = 'products') {
+export async function updateProduct(pbId, data, collectionName = 'PRODUCT_DATAS') {
   console.log('[PB] updateProduct called with pbId:', pbId, 'data:', data, 'collection:', collectionName);
   const formData = new FormData();
   
-  if (data.MODEL_NUMBER !== undefined) formData.append('MODEL_NUMBER', data.MODEL_NUMBER);
-  if (data.model_no !== undefined) formData.append('MODEL_NUMBER', data.model_no);
-  
-  if (data.SIZE_DIMENSIONS !== undefined) {
-    const sizeNum = parseInt(data.SIZE_DIMENSIONS || '', 10) || 0;
-    formData.append('SIZE_DIMENSIONS', String(sizeNum));
-  }
-  if (data.size !== undefined) {
-    const sizeNum = parseInt(data.size || '', 10) || 0;
-    formData.append('SIZE_DIMENSIONS', String(sizeNum));
-  }
-  
-  if (data.price !== undefined) formData.append('price', String(data.price));
-  if (data.price_for_retail !== undefined) formData.append('stock_Number', String(data.price_for_retail));
-  if (data.stock_Number !== undefined) formData.append('stock_Number', String(data.stock_Number));
+  if (data.MODEL_NO !== undefined) formData.append('MODEL_NO', String(data.MODEL_NO));
+  if (data.SIZE_DM !== undefined) formData.append('SIZE_DM', String(data.SIZE_DM));
+  if (data.PACKAGE_NO !== undefined) formData.append('PACKAGE_NO', String(data.PACKAGE_NO));
+  if (data.WHOLESALE_PRICE !== undefined) formData.append('WHOLESALE_PRICE', String(data.WHOLESALE_PRICE));
+  if (data.RETAIL_PRICE !== undefined) formData.append('RETAIL_PRICE', String(data.RETAIL_PRICE));
+  if (data.PRODUCT_TYPE !== undefined) formData.append('PRODUCT_TYPE', data.PRODUCT_TYPE);
   
   if (data.imageFile !== undefined) {
-    formData.append('prodimage', data.imageFile === null ? '' : data.imageFile);
-  }
-  if (data.images !== undefined) {
-    formData.append('prodimage', data.images === null ? '' : data.images);
+    formData.append('PRODUCT_IMAGE', data.imageFile === null ? '' : data.imageFile);
   }
 
-  if (data.package_no !== undefined) formData.append('package_no', String(data.package_no));
   if (data.is_live !== undefined) formData.append('is_live', String(data.is_live));
   
   // Support other fields if they exist in schema
@@ -195,7 +181,7 @@ export async function updateProduct(pbId, data, collectionName = 'products') {
   if (data.color !== undefined) formData.append('color', data.color);
 
   try {
-    const record = await pb.collection('products').update(pbId, formData, {
+    const record = await pb.collection('PRODUCT_DATAS').update(pbId, formData, {
       requestKey: null,
     });
     console.log('[PB] PocketBase update response raw record:', record);
@@ -209,79 +195,9 @@ export async function updateProduct(pbId, data, collectionName = 'products') {
 /**
  * Delete a product by PocketBase record id.
  */
-export async function deleteProduct(pbId, collectionName = 'products') {
+export async function deleteProduct(pbId, collectionName = 'PRODUCT_DATAS') {
   await pb.collection(collectionName).delete(pbId, {
     requestKey: null,
   });
 }
 
-// ─── Retail Products Specific API ─────────────────────────────────────────────
-
-export async function createRetailProduct(data) {
-  try {
-    return await createProduct({
-      MODEL_NUMBER: data.model_no,
-      SIZE_DIMENSIONS: data.size,
-      package_no: data.package_no,
-      price: 0,
-      stock_Number: data.price_for_retail,
-      imageFile: data.images,
-    });
-  } catch (err) {
-    console.error('[PB] createRetailProduct error:', err);
-    throw err;
-  }
-}
-
-export async function fetchRetailProducts() {
-  try {
-    const records = await pb.collection('products').getFullList({
-      sort: '-created',
-      requestKey: null,
-    });
-    return records
-      .filter(r => (r.product_type === 'retail' || r.product_type === 'RETAIL') || (Number(r.stock_Number) > 0))
-      .map(r => ({
-        id: r.id,
-        pbId: r.id,
-        collectionId: r.collectionId,
-        collectionName: 'retail_products',
-        modelNumber: r.MODEL_NUMBER || '',
-        size: r.size || ((r.SIZE_DIMENSIONS && r.SIZE_DIMENSIONS !== 0) ? `${r.SIZE_DIMENSIONS} × ${r.SIZE_DIMENSIONS} MM` : '300 × 300 MM'),
-        packageNo: r.package_no || '',
-        salePrice: Number(r.stock_Number) || 0,
-        isLive: r.is_live !== undefined ? (String(r.is_live) === 'true') : true,
-        images: r.prodimage ? [pb.files.getURL(r, r.prodimage)] : [],
-        name: r.MODEL_NUMBER || r.id,
-        product_type: r.product_type || '',
-      }));
-  } catch (err) {
-    console.error('[PB] fetchRetailProducts error:', err);
-    return [];
-  }
-}
-
-/**
- * Fetch all retail products from PocketBase (mapped to app shape).
- */
-export async function fetchAllRetailProducts() {
-  console.log('[PB] Fetching all retail products');
-  try {
-    const records = await pb.collection('products').getFullList({
-      sort: '-created',
-      requestKey: null,
-    });
-    return records
-      .map(mapRecord)
-      .filter(p => (p.product_type === 'retail' || p.product_type === 'RETAIL') || p.retailPrice > 0)
-      .map(p => {
-        p.salePrice = p.retailPrice;
-        p.originalPrice = null;
-        p.isOnSale = false;
-        return p;
-      });
-  } catch (err) {
-    console.error('[PB] fetchAllRetailProducts error:', err);
-    throw err;
-  }
-}

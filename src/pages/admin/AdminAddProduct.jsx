@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { createProduct, createRetailProduct } from '../../lib/productsService';
+import { createProduct } from '../../lib/productsService';
 import { useApp } from '../../context/AppContext';
 
 // Helper to read file as base64 without losing quality (formerly compressImage)
@@ -165,12 +165,12 @@ const AdminAddProduct = () => {
       }
 
       await createProduct({
-        MODEL_NUMBER:    modelNumber.trim(),
-        SIZE_DIMENSIONS: finalSize,
-        package_no:      packageNo.trim(),
-        price:           Number(wholesalePrice),
-        stock_Number:    Number(retailPrice),
-        product_type:    'wholesale',
+        MODEL_NO:        modelNumber.trim(),
+        SIZE_DM:         finalSize,
+        PACKAGE_NO:      packageNo.trim(),
+        WHOLESALE_PRICE: Number(wholesalePrice),
+        RETAIL_PRICE:    Number(retailPrice),
+        PRODUCT_TYPE:    'wholesale',
         is_live:         finalIsLive,
         imageFile:       imageFilePayload,
       });

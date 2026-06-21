@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import ClockSvg from '../components/ClockSvg';
-import { getProductImageUrl, fetchRetailProducts } from '../lib/productsService';
+import { getProductImageUrl, fetchAllProducts } from '../lib/productsService';
 
 const RetailCatalog = () => {
   const { currentRetailUser, logoutRetailUser } = useApp();
@@ -29,12 +29,20 @@ const RetailCatalog = () => {
   const [liveProducts, setLiveProducts] = useState([]);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  // Fetch directly from retail_products
+  // Fetch directly from PRODUCT_DATAS
   useEffect(() => {
     const loadRetailProducts = async () => {
-      const data = await fetchRetailProducts();
-      setLiveProducts(data);
-      setIsInitialLoad(false);
+      try {
+        const data = await fetchAllProducts();
+        const rProducts = data
+          .filter(p => (p.product_type === 'retail' || p.product_type === 'RETAIL') || p.retailPrice > 0)
+          .map(p => ({ ...p, salePrice: p.retailPrice, originalPrice: null, isOnSale: false }));
+        setLiveProducts(rProducts);
+      } catch (err) {
+        console.error('Failed to load retail products', err);
+      } finally {
+        setIsInitialLoad(false);
+      }
     };
     loadRetailProducts();
   }, []);

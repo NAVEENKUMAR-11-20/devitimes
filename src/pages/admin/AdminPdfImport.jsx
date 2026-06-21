@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { createProduct, createRetailProduct } from '../../lib/productsService';
+import { createProduct } from '../../lib/productsService';
 
 const sizeOptions = [
   '200 × 200 MM',
@@ -497,11 +497,11 @@ const AdminPdfImport = () => {
       }
 
       await createProduct({
-        MODEL_NUMBER:    p.modelNumber || '',
-        SIZE_DIMENSIONS: p.size || '',
-        package_no:      p.packageNo || '',
-        price:           Number(p.wholesalePrice) || 0,
-        stock_Number:    Number(p.retailPrice) || 0,
+        MODEL_NO:        p.modelNumber || '',
+        SIZE_DM:         p.size || '',
+        PACKAGE_NO:      p.packageNo || '',
+        WHOLESALE_PRICE: Number(p.wholesalePrice) || 0,
+        RETAIL_PRICE:    Number(p.retailPrice) || 0,
         status:          'LIVE',
         is_live:         true,
         category:        p.category || 'Clock',
@@ -559,11 +559,11 @@ const AdminPdfImport = () => {
         }
 
         await createProduct({
-          MODEL_NUMBER:    p.modelNumber || '',
-          SIZE_DIMENSIONS: p.size || '',
-          package_no:      p.packageNo || '',
-          price:           Number(p.wholesalePrice) || 0,
-          stock_Number:    Number(p.retailPrice) || 0,
+          MODEL_NO:        p.modelNumber || '',
+          SIZE_DM:         p.size || '',
+          PACKAGE_NO:      p.packageNo || '',
+          WHOLESALE_PRICE: Number(p.wholesalePrice) || 0,
+          RETAIL_PRICE:    Number(p.retailPrice) || 0,
           status:          'LIVE',
           is_live:         true,
           category:        p.category || 'Clock',

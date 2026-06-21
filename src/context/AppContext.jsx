@@ -1,11 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { fetchAllProducts, fetchAllRetailProducts, mapRecord } from '../lib/productsService';
+import { fetchAllProducts, mapRecord } from '../lib/productsService';
 import { fetchAllUsers, fetchPendingRegistrations, createRegistration as pbCreateRegistration, deleteRegistration as pbDeleteRegistration, updateRegistrationStatus as pbUpdateRegistrationStatus, createUser as pbCreateUser, deleteUser as pbDeleteUser } from '../lib/usersService';
 import pb from '../lib/pocketbase';
 
 const AppContext = createContext();
-
-// (seedProducts removed — all products now come from PocketBase)
 
 // Default admin settings
 const defaultSettings = {
@@ -22,7 +20,7 @@ const defaultSettings = {
 const fetchedGalleriesCache = {};
 
 export const AppProvider = ({ children }) => {
-  // Products — fetched from PocketBase on mount (no more localStorage/seedProducts)
+  // Products — fetched from PocketBase on mount
   const [products, setProducts] = useState([]);
   const [retailProducts, setRetailProducts] = useState([]);
 
@@ -62,35 +60,23 @@ export const AppProvider = ({ children }) => {
       const pbProducts = await fetchAllProducts();
       setProducts(pbProducts);
 
+      const rProducts = pbProducts
+        .filter(p => (p.product_type === 'retail' || p.product_type === 'RETAIL') || p.retailPrice > 0)
+        .map(p => ({ ...p, salePrice: p.retailPrice, originalPrice: null, isOnSale: false }));
+      setRetailProducts(rProducts);
+
       // Fetch JSON galleries in the background
       pbProducts.forEach(prod => {
         if (prod._jsonUrl) {
           fetchJsonGalleryIfNeeded(prod, (id, images) => {
             setProducts(prev => prev.map(p => p.id === id ? { ...p, images } : p));
+            setRetailProducts(prev => prev.map(p => p.id === id ? { ...p, images } : p));
           });
         }
       });
     } catch (err) {
       console.error('[AppContext] Failed to fetch products from PocketBase:', err);
       throw err;
-    }
-  };
-
-  const loadRetailProducts = async () => {
-    try {
-      const mapped = await fetchAllRetailProducts();
-      setRetailProducts(mapped);
-
-      // Fetch JSON galleries in the background for retail products
-      mapped.forEach(prod => {
-        if (prod._jsonUrl) {
-          fetchJsonGalleryIfNeeded(prod, (id, images) => {
-            setRetailProducts(prev => prev.map(p => p.id === id ? { ...p, images } : p));
-          });
-        }
-      });
-    } catch (err) {
-      console.error('[AppContext] Failed to fetch retail products from PocketBase:', err);
     }
   };
 
@@ -117,7 +103,6 @@ export const AppProvider = ({ children }) => {
           }
         }
 
-        // Fetch retail user credentials from retail_users collection in PocketBase
         const retailRecords = await pb.collection('retail_users').getFullList();
         if (retailRecords && retailRecords.length > 0) {
           const rRecord = retailRecords[0];
@@ -127,62 +112,34 @@ export const AppProvider = ({ children }) => {
             retailPassword: rRecord.password
           }));
         }
-
-        // Admin password is no longer stored in global settings for security.
-        // It is fetched directly during login and password update.
       } catch (err) {
         console.warn('[AppContext] Failed to load settings from PB:', err);
       }
     };
 
     loadProducts();
-    loadRetailProducts();
     loadGlobalSettings();
 
     const subscribeToProducts = async () => {
       try {
-        await pb.collection('products').subscribe('*', (e) => {
+        await pb.collection('PRODUCT_DATAS').subscribe('*', (e) => {
           console.log('[AppContext] PocketBase real-time event:', e.action, e.record);
           if (!isMounted) return;
-          if (e.action === 'create') {
-            const newProd = mapRecord(e.record);
-            setProducts(prev => {
-              if (prev.some(p => p.id === newProd.id)) return prev;
-              return [newProd, ...prev];
-            });
-            if (newProd._jsonUrl) {
-              fetchJsonGalleryIfNeeded(newProd, (id, images) => {
-                if (isMounted) {
-                  setProducts(prev => prev.map(p => p.id === id ? { ...p, images } : p));
-                }
-              });
-            }
-          } else if (e.action === 'update') {
-            const updatedProd = mapRecord(e.record);
-            setProducts(prev => prev.map(p => p.id === updatedProd.id ? updatedProd : p));
-            if (updatedProd._jsonUrl) {
-              fetchJsonGalleryIfNeeded(updatedProd, (id, images) => {
-                if (isMounted) {
-                  setProducts(prev => prev.map(p => p.id === id ? { ...p, images } : p));
-                }
-              });
-            }
-          } else if (e.action === 'delete') {
-            setProducts(prev => prev.filter(p => p.id !== e.record.id));
+          if (e.action === 'create' || e.action === 'update' || e.action === 'delete') {
+            // Simplified real-time update: reload products on any change
+            loadProducts();
           }
         });
-        console.log('[AppContext] Successfully subscribed to PocketBase products collection.');
+        console.log('[AppContext] Successfully subscribed to PRODUCT_DATAS collection.');
       } catch (err) {
-        console.warn('[AppContext] PocketBase real-time subscription failed, relying on polling fallback:', err);
+        console.warn('[AppContext] PocketBase real-time subscription failed:', err);
       }
     };
 
     subscribeToProducts();
 
-    // Setup polling fallback every 3 seconds
     pollIntervalId = setInterval(() => {
       loadProducts();
-      loadRetailProducts();
       loadGlobalSettings();
     }, 3000);
 
@@ -191,9 +148,7 @@ export const AppProvider = ({ children }) => {
       if (pollIntervalId) {
         clearInterval(pollIntervalId);
       }
-      pb.collection('products').unsubscribe('*').catch(err => {
-        // Ignore unsubscribe errors on cleanup
-      });
+      pb.collection('PRODUCT_DATAS').unsubscribe('*').catch(err => {});
     };
   }, []);
 
@@ -669,7 +624,7 @@ export const AppProvider = ({ children }) => {
       currentRetailUser,
       isAdminAuthenticated,
       cart,
-      refreshProducts: () => Promise.all([loadProducts(), loadRetailProducts()]),
+      refreshProducts: loadProducts,
       refreshUsers: loadUserData,
       addProduct,
       updateProduct,
