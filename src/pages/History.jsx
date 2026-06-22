@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import pb from '../lib/pocketbase';
+import { getOrCreateRegistrationId } from '../lib/usersService';
 import ClockSvg from '../components/ClockSvg';
 
 const History = () => {
@@ -88,34 +89,95 @@ const History = () => {
     }
 
     const loadOrders = async () => {
-      let ordersLoaded = false;
-      let fetchedOrders = [];
-
-      // 1. Try to resolve the user's PocketBase record ID
-      let userRecordId = currentUser.id;
-      if (!userRecordId) {
-        try {
-          const userRecords = await pb.collection('User').getFullList({
-            filter: `User_ID = "${currentUser.userId}"`
-          });
-          if (userRecords.length > 0) {
-            userRecordId = userRecords[0].id;
-          }
-        } catch (err) {
-          console.error("[History] Failed to resolve PocketBase user record ID:", err);
-        }
+      let regUserId = '';
+      try {
+        regUserId = await getOrCreateRegistrationId(currentUser);
+      } catch (err) {
+        console.error("[History] Failed to resolve registered_users record ID:", err);
       }
 
-      // 2. Try fetching from PocketBase
-      if (userRecordId) {
+      if (regUserId) {
+        // --- Migration of localStorage orders ---
         try {
-          console.log("[History] Fetching orders for user pb ID:", userRecordId);
+          const stored = localStorage.getItem('lumiere_order_history');
+          let parsed = stored ? JSON.parse(stored) : [];
+          
+          // Filter local orders belonging to this user
+          const userLocalOrders = parsed.filter(o => o.customer && o.customer.userId === currentUser.userId);
+          
+          if (userLocalOrders.length > 0) {
+            console.log(`[History] Found ${userLocalOrders.length} local orders for migration.`);
+            
+            for (const localOrder of userLocalOrders) {
+              const isPbId = localOrder.id && !localOrder.id.startsWith('ORD-');
+              
+              if (isPbId) {
+                // If it looks like a PocketBase ID, verify if it exists and update its User relation
+                try {
+                  const record = await pb.collection('orders').getOne(localOrder.id);
+                  if (record && record.User !== regUserId) {
+                    await pb.collection('orders').update(localOrder.id, { User: regUserId });
+                    console.log(`[History] Linked existing PB order ${localOrder.id} to User ${regUserId}`);
+                  }
+                } catch (err) {
+                  // If not found in database, create it
+                  if (err.status === 404) {
+                    try {
+                      await pb.collection('orders').create({
+                        id: localOrder.id,
+                        User: regUserId,
+                        orderDate: new Date(localOrder.timestamp || Date.now()).toISOString(),
+                        products: localOrder.items,
+                        totalAmount: localOrder.grandTotal,
+                        status: localOrder.status || 'Pending'
+                      });
+                      console.log(`[History] Re-created PB order ${localOrder.id} during migration.`);
+                    } catch (e) {
+                      console.error(`[History] Failed to re-create PB order:`, e.message);
+                    }
+                  } else {
+                    console.error(`[History] Failed to verify/link order ${localOrder.id}:`, err.message);
+                  }
+                }
+              } else {
+                // If it's a generated local ID (ORD-xxx), create a new order in PocketBase
+                try {
+                  const newRecord = await pb.collection('orders').create({
+                    User: regUserId,
+                    orderDate: new Date(localOrder.timestamp || Date.now()).toISOString(),
+                    products: localOrder.items,
+                    totalAmount: localOrder.grandTotal,
+                    status: localOrder.status || 'Pending'
+                  });
+                  console.log(`[History] Migrated local order ${localOrder.id} to PB. New PB ID: ${newRecord.id}`);
+                } catch (err) {
+                  console.error(`[History] Failed to migrate local order ${localOrder.id}:`, err.message);
+                }
+              }
+            }
+
+            // Remove migrated orders from localStorage
+            const remainingOrders = parsed.filter(o => !(o.customer && o.customer.userId === currentUser.userId));
+            if (remainingOrders.length > 0) {
+              localStorage.setItem('lumiere_order_history', JSON.stringify(remainingOrders));
+            } else {
+              localStorage.removeItem('lumiere_order_history');
+            }
+            console.log("[History] Migration of local orders completed successfully.");
+          }
+        } catch (err) {
+          console.error("[History] Failed to migrate local orders:", err);
+        }
+
+        // --- Fetch all orders from PocketBase ---
+        try {
+          console.log("[History] Fetching orders for user registration ID:", regUserId);
           const records = await pb.collection('orders').getFullList({
-            filter: `userId = "${userRecordId}"`,
+            filter: `User = "${regUserId}"`,
             sort: '-created'
           });
-          
-          fetchedOrders = records.map(record => {
+
+          const fetchedOrders = records.map(record => {
             const items = Array.isArray(record.products) 
               ? record.products 
               : (typeof record.products === 'string' ? JSON.parse(record.products) : []);
@@ -137,54 +199,20 @@ const History = () => {
               }))
             };
           });
-          ordersLoaded = true;
+
           console.log("[History] Orders fetched successfully from PocketBase. Count:", fetchedOrders.length);
+          setOrders(fetchedOrders);
+          if (fetchedOrders.length > 0) {
+            setSelectedOrder(fetchedOrders[0]);
+          }
+          return;
         } catch (err) {
-          console.error("[History] Failed to fetch orders from PocketBase (falling back to localStorage):", err.message);
+          console.error("[History] Failed to fetch orders from PocketBase:", err.message);
         }
       }
 
-      // 3. Fallback to localStorage if PB failed or returned no records
-      if (!ordersLoaded || fetchedOrders.length === 0) {
-        const stored = localStorage.getItem('lumiere_order_history');
-        let parsed = stored ? JSON.parse(stored) : [];
-        
-        // Filter by current user ID for safety
-        parsed = parsed.filter(o => o.customer && o.customer.userId === currentUser.userId);
-
-        // If no history exists, populate with realistic mock data so it looks premium and complete
-        if (parsed.length === 0) {
-          parsed = [
-            {
-              id: 'ORD-849201',
-              grandTotal: 1894,
-              timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toLocaleString(), // 3 days ago
-              status: 'Delivered',
-              items: [
-                { productName: 'Wooden Classic Minimalist', modelNumber: '12', category: 'Modern Minimalist', size: '300 × 300 MM', quantity: 2, unitPrice: 455, image: null },
-                { productName: 'Luxury Gold Leaf', modelNumber: '21', category: 'Modern Minimalist', size: '300 × 300 MM', quantity: 2, unitPrice: 199, image: null }
-              ]
-            },
-            {
-              id: 'ORD-302948',
-              grandTotal: 910,
-              timestamp: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toLocaleString(), // 10 days ago
-              status: 'Delivered',
-              items: [
-                { productName: 'Luxury Gold Leaf', modelNumber: '21', category: 'Modern Minimalist', size: '300 × 300 MM', quantity: 2, unitPrice: 199, image: null },
-                { productName: 'Standard Dial Clock', modelNumber: '102', category: 'Classic', size: '300 × 300 MM', quantity: 1, unitPrice: 512, image: null }
-              ]
-            }
-          ];
-          localStorage.setItem('lumiere_order_history', JSON.stringify(parsed));
-        }
-        fetchedOrders = parsed;
-      }
-
-      setOrders(fetchedOrders);
-      if (fetchedOrders.length > 0) {
-        setSelectedOrder(fetchedOrders[0]);
-      }
+      setOrders([]);
+      setSelectedOrder(null);
     };
 
     loadOrders();

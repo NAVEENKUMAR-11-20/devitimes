@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import pb from '../lib/pocketbase';
+import { getOrCreateRegistrationId } from '../lib/usersService';
 import ClockSvg from '../components/ClockSvg';
 
 const Cart = () => {
@@ -86,19 +87,12 @@ TOTAL: ₹${grandTotal}
       console.error("Failed to fetch WhatsApp number from PB:", err);
     }
 
-    // Retrieve PocketBase record ID for the user relation
-    let userRecordId = currentUser.id;
-    if (!userRecordId) {
-      try {
-        const userRecords = await pb.collection('User').getFullList({
-          filter: `User_ID = "${currentUser.userId}"`
-        });
-        if (userRecords.length > 0) {
-          userRecordId = userRecords[0].id;
-        }
-      } catch (err) {
-        console.error("[Cart] Failed to resolve PocketBase user record ID:", err);
-      }
+    // Resolve the registered_users record ID for the order relation
+    let regUserId = '';
+    try {
+      regUserId = await getOrCreateRegistrationId(currentUser);
+    } catch (err) {
+      console.error("[Cart] Failed to resolve registered_users record ID:", err);
     }
 
     const productsJson = cart.map(item => ({
@@ -116,7 +110,7 @@ TOTAL: ₹${grandTotal}
     let pbOrderId = '';
     try {
       const pbOrder = await pb.collection('orders').create({
-        userId: userRecordId || '',
+        User: regUserId || '',
         orderDate: new Date().toISOString(),
         products: productsJson,
         totalAmount: grandTotal,
@@ -126,24 +120,6 @@ TOTAL: ₹${grandTotal}
       console.log("[Cart] Order saved successfully in PocketBase. ID:", pbOrderId);
     } catch (err) {
       console.error("[Cart] Failed to save order to PocketBase:", err.message);
-    }
-
-    const localOrderId = pbOrderId || `ORD-${Math.floor(100000 + Math.random() * 900000)}`;
-    const newLocalOrder = {
-      id: localOrderId,
-      grandTotal,
-      timestamp,
-      status: 'Pending',
-      customer: currentUser,
-      items: productsJson
-    };
-
-    try {
-      const storedHistory = localStorage.getItem('lumiere_order_history');
-      const parsedHistory = storedHistory ? JSON.parse(storedHistory) : [];
-      localStorage.setItem('lumiere_order_history', JSON.stringify([newLocalOrder, ...parsedHistory]));
-    } catch (err) {
-      console.error("[Cart] Failed to update localStorage order history:", err);
     }
 
     const cleanPhone = finalPhone.replace(/[^0-9+]/g, '').replace('+', '');
