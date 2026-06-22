@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import pb from '../lib/pocketbase';
-import { getOrCreateRegistrationId, formatOrderId } from '../lib/usersService';
+import { formatOrderId } from '../lib/usersService';
 import ClockSvg from '../components/ClockSvg';
 
 const Cart = () => {
@@ -63,13 +63,8 @@ const Cart = () => {
       console.error("Failed to fetch WhatsApp number from PB:", err);
     }
 
-    // Resolve the registered_users record ID for the order relation
-    let regUserId = '';
-    try {
-      regUserId = await getOrCreateRegistrationId(currentUser);
-    } catch (err) {
-      console.error("[Cart] Failed to resolve registered_users record ID:", err);
-    }
+    // Use the User record ID directly for the User relation in orders
+    const userRecordId = currentUser?.id || '';
 
     // Generate a unique, sortable, date-based ID (DVT-YYYYMMDD-XXXX)
     const now = new Date();
@@ -108,7 +103,7 @@ const Cart = () => {
       try {
         const pbOrder = await pb.collection('orders').create({
           id: customId,
-          User: regUserId || '',
+          User: userRecordId,
           orderDate: new Date().toISOString(),
           products: productsJson,
           totalAmount: grandTotal,
@@ -126,7 +121,7 @@ const Cart = () => {
           // If different database error, fall back to auto-generated ID to prevent checkout failure
           try {
             const pbOrder = await pb.collection('orders').create({
-              User: regUserId || '',
+              User: userRecordId,
               orderDate: new Date().toISOString(),
               products: productsJson,
               totalAmount: grandTotal,

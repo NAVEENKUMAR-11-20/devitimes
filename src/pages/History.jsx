@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import pb from '../lib/pocketbase';
-import { getOrCreateRegistrationId, formatOrderId } from '../lib/usersService';
+import { formatOrderId } from '../lib/usersService';
 import ClockSvg from '../components/ClockSvg';
 
 const History = () => {
@@ -89,14 +89,9 @@ const History = () => {
     }
 
     const loadOrders = async () => {
-      let regUserId = '';
-      try {
-        regUserId = await getOrCreateRegistrationId(currentUser);
-      } catch (err) {
-        console.error("[History] Failed to resolve registered_users record ID:", err);
-      }
+      const userRecordId = currentUser?.id || '';
 
-      if (regUserId) {
+      if (userRecordId) {
         // --- Migration of localStorage orders ---
         try {
           const stored = localStorage.getItem('lumiere_order_history');
@@ -115,9 +110,9 @@ const History = () => {
                 // If it looks like a PocketBase ID, verify if it exists and update its User relation
                 try {
                   const record = await pb.collection('orders').getOne(localOrder.id);
-                  if (record && record.User !== regUserId) {
-                    await pb.collection('orders').update(localOrder.id, { User: regUserId });
-                    console.log(`[History] Linked existing PB order ${localOrder.id} to User ${regUserId}`);
+                  if (record && record.User !== userRecordId) {
+                    await pb.collection('orders').update(localOrder.id, { User: userRecordId });
+                    console.log(`[History] Linked existing PB order ${localOrder.id} to User ${userRecordId}`);
                   }
                 } catch (err) {
                   // If not found in database, create it
@@ -125,7 +120,7 @@ const History = () => {
                     try {
                       await pb.collection('orders').create({
                         id: localOrder.id,
-                        User: regUserId,
+                        User: userRecordId,
                         orderDate: new Date(localOrder.timestamp || Date.now()).toISOString(),
                         products: localOrder.items,
                         totalAmount: localOrder.grandTotal,
@@ -143,7 +138,7 @@ const History = () => {
                 // If it's a generated local ID (ORD-xxx), create a new order in PocketBase
                 try {
                   const newRecord = await pb.collection('orders').create({
-                    User: regUserId,
+                    User: userRecordId,
                     orderDate: new Date(localOrder.timestamp || Date.now()).toISOString(),
                     products: localOrder.items,
                     totalAmount: localOrder.grandTotal,
@@ -171,9 +166,9 @@ const History = () => {
 
         // --- Fetch all orders from PocketBase ---
         try {
-          console.log("[History] Fetching orders for user registration ID:", regUserId);
+          console.log("[History] Fetching orders for User record ID:", userRecordId);
           const records = await pb.collection('orders').getFullList({
-            filter: `User = "${regUserId}"`
+            filter: `User = "${userRecordId}"`
           });
 
           // Sort oldest first to assign sequential indices to legacy orders
