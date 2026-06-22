@@ -89,7 +89,19 @@ const History = () => {
     }
 
     const loadOrders = async () => {
-      const userRecordId = currentUser?.id || '';
+      let userRecordId = currentUser?.id || '';
+      if (!userRecordId && currentUser?.userId) {
+        try {
+          const records = await pb.collection('User').getFullList({
+            filter: `User_ID = "${currentUser.userId}"`
+          });
+          if (records.length > 0) {
+            userRecordId = records[0].id;
+          }
+        } catch (err) {
+          console.error("[History] Failed to resolve User ID from database:", err);
+        }
+      }
 
       if (userRecordId) {
         // --- Migration of localStorage orders ---

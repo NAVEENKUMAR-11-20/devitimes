@@ -530,6 +530,17 @@ export const AppProvider = ({ children }) => {
           window.location.hash = '/login';
           return false;
         }
+
+        // If the session object doesn't have the database record ID, update it
+        if (!currentUser.id) {
+          const updatedSession = {
+            ...currentUser,
+            id: matchedUser.id
+          };
+          sessionStorage.setItem('lumiere_current_user', JSON.stringify(updatedSession));
+          localStorage.setItem('lumiere_current_user', JSON.stringify(updatedSession));
+          setCurrentUser(updatedSession);
+        }
       } else {
         logoutUser();
         window.location.hash = '/login';

@@ -64,7 +64,19 @@ const Cart = () => {
     }
 
     // Use the User record ID directly for the User relation in orders
-    const userRecordId = currentUser?.id || '';
+    let userRecordId = currentUser?.id || '';
+    if (!userRecordId && currentUser?.userId) {
+      try {
+        const records = await pb.collection('User').getFullList({
+          filter: `User_ID = "${currentUser.userId}"`
+        });
+        if (records.length > 0) {
+          userRecordId = records[0].id;
+        }
+      } catch (err) {
+        console.error("[Cart] Failed to resolve User ID from database:", err);
+      }
+    }
 
     // Generate a unique, sortable, date-based ID (DVT-YYYYMMDD-XXXX)
     const now = new Date();
