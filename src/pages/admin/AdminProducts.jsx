@@ -830,13 +830,13 @@ const AdminProducts = () => {
             <span style={{ color: '#6B7280', fontWeight: '600' }}>{hiddenCount} hidden</span>
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end', marginTop: '12px' }}>
+        <div className="header-actions-wrapper" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end', marginTop: '12px' }}>
           
-          <div style={{ position: 'relative' }}>
+          <div className="dropdown-container" style={{ position: 'relative' }}>
             <button 
               onClick={() => setDeleteDropdownOpen(!deleteDropdownOpen)} 
               disabled={bulkProcessing || products.length === 0}
-              className="btn-secondary font-body" 
+              className="btn-secondary font-body delete-dropdown-btn" 
               style={{ height: '40px', padding: '0 16px', fontSize: '12px', background: '#FEF2F2', color: '#B91C1C', borderColor: '#FECACA' }}
             >
               {bulkProcessing && bulkProgress.type.includes('Delet') ? (
@@ -848,7 +848,7 @@ const AdminProducts = () => {
             </button>
             
             {deleteDropdownOpen && !bulkProcessing && (
-              <div style={{ position: 'absolute', top: '44px', right: '0', background: 'white', border: '1px solid #E2E8F0', borderRadius: '4px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 50, minWidth: '200px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <div className="delete-dropdown-menu" style={{ position: 'absolute', top: '44px', right: '0', background: 'white', border: '1px solid #E2E8F0', borderRadius: '4px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 50, minWidth: '200px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 {[200, 400, 600, 800, 1000].map(count => (
                   <button key={count} onClick={() => handleBulkDelete(count)} style={{ padding: '12px 16px', textAlign: 'left', border: 'none', borderBottom: '1px solid #F1F5F9', fontSize: '12px', cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)', fontWeight: '500' }}>
                     Delete first {count} products
@@ -861,7 +861,7 @@ const AdminProducts = () => {
             )}
           </div>
 
-          <Link to="/admin/add-product" className="btn-primary font-body" style={{ height: '40px', padding: '0 20px', fontSize: '12px' }}>
+          <Link to="/admin/add-product" className="btn-primary font-body add-product-btn" style={{ height: '40px', padding: '0 20px', fontSize: '12px' }}>
             ➕ &nbsp; ADD NEW PRODUCT
           </Link>
         </div>
@@ -870,35 +870,25 @@ const AdminProducts = () => {
       {/* Search and Filters deck */}
       <div className="table-controls-card">
         
-        {/* Product Type Tabs */}
-        <div className="filters-tabs-row" style={{ borderBottom: '1px solid #E2E8F0', paddingBottom: '14px', marginBottom: '14px' }}>
-          <div className="status-tabs-group">
-            <button 
-              className={`tab-btn uppercase-label ${productType === 'wholesale' ? 'active-tab' : ''}`}
-              style={{ paddingBottom: '10px' }}
-              onClick={() => { setProductType('wholesale'); setCurrentPage(1); }}
-            >
-              Wholesale Clocks
-            </button>
-            <button 
-              className={`tab-btn uppercase-label ${productType === 'retail' ? 'active-tab' : ''}`}
-              style={{ paddingBottom: '10px' }}
-              onClick={() => { setProductType('retail'); setCurrentPage(1); }}
-            >
-              Retail Clocks
-            </button>
-          </div>
-        </div>
-
         {/* Real-time search bar */}
         <div className="search-control-wrapper">
-          <input 
-            type="text" 
-            placeholder="Search catalogue by model number, package number, or dimensions..."
-            className="form-input search-catalogue-input"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-          />
+          <div style={{ position: 'relative', width: '100%' }}>
+            <svg 
+              width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
+            >
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input 
+              type="text" 
+              placeholder="Search catalogue by model number, package number, or dimensions..."
+              className="form-input search-catalogue-input"
+              style={{ paddingLeft: '44px' }}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+            />
+          </div>
         </div>
 
         {/* Tab Filters row */}
@@ -936,92 +926,149 @@ const AdminProducts = () => {
             No products match the search or filter query.
           </div>
         ) : (
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Thumbnail</th>
-                <th onClick={() => requestSort('modelNumber')} className="sortable-header">
-                  Model No{renderSortIndicator('modelNumber')}
-                </th>
-                <th>Wholesale Price</th>
-                <th>Retail Price</th>
-                <th>Dimensions</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+          <>
+            <table className="admin-table hide-mobile">
+              <thead>
+                <tr>
+                  <th>Thumbnail</th>
+                  <th onClick={() => requestSort('modelNumber')} className="sortable-header">
+                    Model No{renderSortIndicator('modelNumber')}
+                  </th>
+                  <th>Wholesale Price</th>
+                  <th>Retail Price</th>
+                  <th>Dimensions</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedProducts.map(p => (
+                  <tr key={p.id}>
+                    
+                    {/* Thumbnail */}
+                    <td>
+                      <div className="table-thumb-wrapper">
+                        {p.images && p.images.length > 0 ? (
+                          <img 
+                            src={p.images[0]} 
+                            alt={p.name} 
+                            className="table-thumbnail-img" 
+                            onError={(e) => { e.target.onerror = null; e.target.src = "/placeholder.svg"; }}
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        ) : (
+                          <ClockSvg model={p.modelNumber} size={40} />
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Details */}
+                    <td><code>{p.modelNumber}</code></td>
+                    <td>
+                      <div className="table-price-stack">
+                        <strong>₹{p.wholesalePrice}</strong>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="table-price-stack">
+                        <strong>₹{p.retailPrice}</strong>
+                      </div>
+                    </td>
+                    <td>{p.size}</td>
+
+                    {/* Status Toggle Switch */}
+                    <td>
+                      <button 
+                        onClick={() => handleToggleLive(p.id, p.isLive)} 
+                        className={`status-toggle-switch ${p.isLive ? 'live-switch' : 'hidden-switch'}`}
+                        aria-label="Toggle live status"
+                      >
+                        <span className="toggle-slider"></span>
+                        <span className="toggle-label-text">{p.isLive ? 'LIVE' : 'HIDDEN'}</span>
+                      </button>
+                    </td>
+
+                    {/* Action Buttons */}
+                    <td>
+                      <div className="table-actions-row">
+                        <button 
+                          onClick={() => triggerEdit(p)} 
+                          className="action-icon-btn edit-btn"
+                          aria-label="Edit time product"
+                        >
+                          ✏️
+                        </button>
+                        <button 
+                          onClick={() => triggerDeleteConfirm(p.id)} 
+                          className="action-icon-btn delete-btn"
+                          aria-label="Delete product"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </td>
+
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Mobile Product Cards View */}
+            <div className="mobile-products-grid show-mobile-only">
               {paginatedProducts.map(p => (
-                <tr key={p.id}>
-                  
-                  {/* Thumbnail */}
-                  <td>
-                    <div className="table-thumb-wrapper">
+                <div className="mobile-product-card" key={p.id}>
+                  <div className="mobile-card-header">
+                    <div className="mobile-card-thumb">
                       {p.images && p.images.length > 0 ? (
                         <img 
                           src={p.images[0]} 
                           alt={p.name} 
-                          className="table-thumbnail-img" 
                           onError={(e) => { e.target.onerror = null; e.target.src = "/placeholder.svg"; }}
                           loading="lazy"
-                          decoding="async"
                         />
                       ) : (
-                        <ClockSvg model={p.modelNumber} size={40} />
+                        <ClockSvg model={p.modelNumber} size={60} />
                       )}
                     </div>
-                  </td>
-
-                  {/* Details */}
-                  <td><code>{p.modelNumber}</code></td>
-                  <td>
-                    <div className="table-price-stack">
-                      <strong>₹{p.wholesalePrice}</strong>
+                    <div className="mobile-card-details">
+                      <div className="mobile-card-model">{p.modelNumber}</div>
+                      <div className="mobile-card-size">{p.size}</div>
+                      <div className="mobile-card-status">
+                        <button 
+                          onClick={() => handleToggleLive(p.id, p.isLive)} 
+                          className={`status-toggle-switch ${p.isLive ? 'live-switch' : 'hidden-switch'}`}
+                        >
+                          <span className="toggle-slider"></span>
+                          <span className="toggle-label-text">{p.isLive ? 'LIVE' : 'HIDDEN'}</span>
+                        </button>
+                      </div>
                     </div>
-                  </td>
-                  <td>
-                    <div className="table-price-stack">
-                      <strong>₹{p.retailPrice}</strong>
+                  </div>
+                  
+                  <div className="mobile-card-prices">
+                    <div className="mobile-price-item">
+                      <span className="price-label">Wholesale</span>
+                      <span className="price-val">₹{p.wholesalePrice}</span>
                     </div>
-                  </td>
-                  <td>{p.size}</td>
+                    <div className="mobile-price-item">
+                      <span className="price-label">Retail</span>
+                      <span className="price-val">₹{p.retailPrice}</span>
+                    </div>
+                  </div>
 
-                  {/* Status Toggle Switch */}
-                  <td>
-                    <button 
-                      onClick={() => handleToggleLive(p.id, p.isLive)} 
-                      className={`status-toggle-switch ${p.isLive ? 'live-switch' : 'hidden-switch'}`}
-                      aria-label="Toggle live status"
-                    >
-                      <span className="toggle-slider"></span>
-                      <span className="toggle-label-text">{p.isLive ? 'LIVE' : 'HIDDEN'}</span>
+                  <div className="mobile-card-actions">
+                    <button onClick={() => triggerEdit(p)} className="mobile-action-btn edit">
+                      ✏️ Edit
                     </button>
-                  </td>
-
-                  {/* Action Buttons */}
-                  <td>
-                    <div className="table-actions-row">
-                      <button 
-                        onClick={() => triggerEdit(p)} 
-                        className="action-icon-btn edit-btn"
-                        aria-label="Edit time product"
-                      >
-                        ✏️
-                      </button>
-                      <button 
-                        onClick={() => triggerDeleteConfirm(p.id)} 
-                        className="action-icon-btn delete-btn"
-                        aria-label="Delete product"
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  </td>
-
-                </tr>
+                    <button onClick={() => triggerDeleteConfirm(p.id)} className="mobile-action-btn delete">
+                      🗑️ Delete
+                    </button>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+          </>
         )}
 
         {/* Paginate Controls footer */}
@@ -1836,6 +1883,10 @@ const AdminProducts = () => {
           transition: transform 0.2s ease, background-color 0.2s ease;
         }
 
+        .show-mobile-only {
+          display: none;
+        }
+
         .edit-thumb-pencil:hover {
           background-color: #2563EB;
           transform: scale(1.1);
@@ -1861,46 +1912,211 @@ const AdminProducts = () => {
         }
 
         @media (max-width: 768px) {
+          .hide-mobile {
+            display: none !important;
+          }
+          .show-mobile-only {
+            display: block;
+          }
+          
+          /* Header Actions */
           .products-header-row {
             flex-direction: column;
             align-items: flex-start;
             gap: 16px;
           }
-          .products-header-row button {
+          .header-actions-wrapper {
+            width: 100%;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 4px !important;
+          }
+          .dropdown-container {
             width: 100%;
           }
+          .delete-dropdown-btn, .add-product-btn {
+            width: 100% !important;
+            height: 48px !important;
+            border-radius: 12px !important;
+            font-size: 14px !important;
+            font-weight: 700 !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+
+          /* Sticky Search */
+          .search-control-wrapper {
+            width: 100%;
+            position: sticky;
+            top: 64px; /* below mobile topbar */
+            z-index: 30;
+            background-color: var(--page-bg);
+            padding: 8px 0;
+            margin: 0;
+          }
+          .search-catalogue-input {
+            width: 100%;
+            height: 48px;
+            border-radius: 24px;
+            padding-left: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border: 1px solid var(--border-color);
+          }
+
           .filters-tabs-row {
             flex-direction: column;
             align-items: flex-start;
+            padding-bottom: 8px;
+            margin-bottom: 8px;
           }
           .status-tabs-group {
             width: 100%;
             overflow-x: auto;
             padding-bottom: 8px;
+            gap: 16px;
           }
-          .search-control-wrapper {
-            width: 100%;
-          }
-          .search-catalogue-input {
-            width: 100%;
-          }
-          .table-container-card {
-            overflow-x: auto;
-          }
-          .admin-table {
+          .tab-btn {
+            font-size: 13px;
             white-space: nowrap;
           }
-          .admin-table th, .admin-table td {
-            padding: 12px 16px;
+
+          .table-container-card {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            overflow-x: visible;
+            padding: 0;
           }
-          .pagination-bar {
+
+          /* Mobile Product Grid */
+          .mobile-products-grid {
+            display: flex;
             flex-direction: column;
+            gap: 16px;
+            margin-top: 16px;
+          }
+          .mobile-product-card {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            border: 1px solid var(--border-color);
+          }
+          .mobile-card-header {
+            display: flex;
             gap: 16px;
             align-items: flex-start;
           }
+          .mobile-card-thumb {
+            width: 72px;
+            height: 72px;
+            border-radius: 12px;
+            background: #F8FAFC;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            flex-shrink: 0;
+          }
+          .mobile-card-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+          }
+          .mobile-card-details {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            flex-grow: 1;
+          }
+          .mobile-card-model {
+            font-weight: 700;
+            font-size: 16px;
+            color: var(--text-primary);
+          }
+          .mobile-card-size {
+            font-size: 13px;
+            color: var(--text-muted);
+          }
+          .mobile-card-status {
+            margin-top: 2px;
+          }
+
+          .mobile-card-prices {
+            display: flex;
+            justify-content: space-between;
+            background: #F8FAFC;
+            border-radius: 12px;
+            padding: 12px 16px;
+          }
+          .mobile-price-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+          }
+          .price-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-weight: 600;
+          }
+          .price-val {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text-primary);
+          }
+          
+          .mobile-card-actions {
+            display: flex;
+            gap: 12px;
+          }
+          .mobile-action-btn {
+            flex: 1;
+            height: 40px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            background: #ffffff;
+            font-size: 13px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            color: var(--text-secondary);
+          }
+          .mobile-action-btn.edit:active {
+            background: #F1F5F9;
+          }
+          .mobile-action-btn.delete {
+            color: #EF4444;
+            background: #FEF2F2;
+            border-color: #FECACA;
+          }
+          .mobile-action-btn.delete:active {
+            background: #FEE2E2;
+          }
+
+          .pagination-bar {
+            flex-direction: row;
+            gap: 8px;
+            align-items: center;
+            background: transparent;
+            border: none;
+            padding: 16px 0;
+          }
+          .pagination-btn {
+            height: 40px;
+            border-radius: 12px;
+          }
+          
           .modal-card {
             width: 95vw;
             padding: 20px;
+            border-radius: 20px;
           }
         }
 

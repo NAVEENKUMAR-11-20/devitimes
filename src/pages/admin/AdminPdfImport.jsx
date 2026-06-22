@@ -993,30 +993,6 @@ const AdminPdfImport = () => {
 
           <div className="pdf-container-split">
             
-            {/* Left: Info Card */}
-            <div className="pdf-info-card">
-              <div className="pdf-info-header">
-                <span className="pdf-card-icon">📄</span>
-                <h3 className="pdf-info-title font-heading">Upload Catalogue PDF</h3>
-              </div>
-              <p className="pdf-info-desc font-body">
-                Upload your catalog PDF file. The system will scan each page and automatically extract product information.
-              </p>
-              <div className="pdf-features-list">
-                <h4 className="font-heading">Features List:</h4>
-                <ul>
-                  <li>• Model Number</li>
-                  <li>• Size</li>
-                  <li>• PKG Number</li>
-                  <li>• Product Image</li>
-                </ul>
-              </div>
-              <div className="pdf-max-size-footer">
-                <span className="label">Max File Size:</span>
-                <span className="val">50 MB</span>
-              </div>
-            </div>
-
             {/* Right: Upload Area & Progress Card */}
             <div className="pdf-upload-card">
               <input
@@ -2238,8 +2214,10 @@ const AdminPdfImport = () => {
         /* Container Split */
         .pdf-container-split {
           display: grid;
-          grid-template-columns: 1fr 1.2fr;
+          grid-template-columns: 1fr;
           gap: 32px;
+          max-width: 800px;
+          margin: 0 auto;
         }
 
         @media (max-width: 768px) {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import pb from '../../lib/pocketbase';
@@ -15,11 +15,17 @@ const AdminLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [time, setTime] = useState(new Date());
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
+  // Open menu by default if on mobile
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(window.innerWidth <= 768);
+  const isFirstRender = useRef(true);
 
-  // Close sidebar on route change for mobile
+  // Close sidebar on route change for mobile, except on initial mount
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
     setIsMobileMenuOpen(false);
   }, [location.pathname]);
 
@@ -94,46 +100,53 @@ const AdminLayout = () => {
             to="/admin/dashboard" 
             className={`nav-sidebar-item ${isTabActive('/admin/dashboard') ? 'active-sidebar-item' : ''}`}
           >
-            Dashboard
+            <span className="mobile-nav-icon">📊</span>
+            <span className="nav-text">Dashboard</span>
           </Link>
           
           <Link 
             to="/admin/products" 
             className={`nav-sidebar-item ${isTabActive('/admin/products') ? 'active-sidebar-item' : ''}`}
           >
-            Products
+            <span className="mobile-nav-icon">📦</span>
+            <span className="nav-text">Products</span>
           </Link>
           
           <Link 
             to="/admin/add-product" 
             className={`nav-sidebar-item ${isTabActive('/admin/add-product') ? 'active-sidebar-item' : ''}`}
           >
-            Add Product
+            <span className="mobile-nav-icon">➕</span>
+            <span className="nav-text">Add Product</span>
           </Link>
           
           <Link 
             to="/admin/add-via-pdf" 
             className={`nav-sidebar-item ${isTabActive('/admin/add-via-pdf') ? 'active-sidebar-item' : ''}`}
           >
-            Add via PDF
+            <span className="mobile-nav-icon">📄</span>
+            <span className="nav-text">Add via PDF</span>
           </Link>
           
           <Link 
             to="/admin/users" 
             className={`nav-sidebar-item ${isTabActive('/admin/users') ? 'active-sidebar-item' : ''}`}
           >
-            Users
+            <span className="mobile-nav-icon">👥</span>
+            <span className="nav-text">Users</span>
           </Link>
           
           <Link 
             to="/admin/settings" 
             className={`nav-sidebar-item ${isTabActive('/admin/settings') ? 'active-sidebar-item' : ''}`}
           >
-            Settings
+            <span className="mobile-nav-icon">⚙</span>
+            <span className="nav-text">Settings</span>
           </Link>
 
           <button onClick={handleLogout} className="nav-sidebar-item sidebar-logout-btn">
-            Logout
+            <span className="mobile-nav-icon">🚪</span>
+            <span className="nav-text">Logout</span>
           </button>
 
         </nav>
@@ -347,6 +360,10 @@ const AdminLayout = () => {
           display: inline;
         }
 
+        .mobile-nav-icon {
+          display: none;
+        }
+
         @media (max-width: 768px) {
           .mobile-menu-btn {
             display: block;
@@ -356,21 +373,36 @@ const AdminLayout = () => {
           }
           .mobile-close-sidebar-btn {
             display: block;
+            background: rgba(255, 255, 255, 0.1);
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
           }
           .admin-sidebar-overlay {
             display: block;
+            backdrop-filter: blur(8px);
           }
           
+          /* Dashboard Mobile Navigation Styles */
           .admin-sidebar {
-            transform: translateX(-100%);
-            width: 260px;
-            transition: transform 0.3s ease-in-out;
-            box-shadow: 4px 0 24px rgba(0,0,0,0.3);
+            transform: translateY(100%);
+            width: 100%;
             border-right: none;
+            background: linear-gradient(135deg, #0F172A 0%, #1e293b 100%);
+            border-radius: 0;
+            transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            box-shadow: none;
+            bottom: 0;
+            top: 0;
+            height: 100vh;
+            z-index: 60;
           }
           
           .admin-sidebar.mobile-open {
-            transform: translateX(0);
+            transform: translateY(0);
           }
 
           .admin-main-viewport {
@@ -378,17 +410,74 @@ const AdminLayout = () => {
           }
 
           .sidebar-logo-block {
-            padding: 20px 16px;
+            padding: 24px 24px 16px;
+            border-bottom: none;
+          }
+          
+          .sidebar-logo-text {
+            font-size: 18px;
+            font-weight: 700;
+          }
+
+          /* Grid for Mobile Navigation Cards */
+          .sidebar-nav-links {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            padding: 16px 24px 32px;
+            overflow-y: auto;
+            align-content: start;
           }
 
           .nav-sidebar-item {
-            padding: 16px 20px;
-            font-size: 14px;
-            white-space: nowrap;
+            background-color: #ffffff;
+            color: #0F172A;
+            border-radius: 16px;
+            padding: 24px 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 600;
+            white-space: normal;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            border: none;
+          }
+
+          .nav-sidebar-item:hover {
+            background-color: #f8fafc;
+            color: var(--accent-blue);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
           }
 
           .active-sidebar-item {
-            padding-left: 16px;
+            background-color: #f1f5f9 !important;
+            color: var(--accent-blue) !important;
+            border-left: none;
+            border-bottom: 4px solid var(--accent-blue);
+            padding-left: 16px; /* Reset the active offset from desktop */
+          }
+          
+          .mobile-nav-icon {
+            display: block;
+            font-size: 28px;
+            margin-bottom: 4px;
+          }
+
+          .sidebar-logout-btn {
+            border-top: none;
+            margin-top: 0;
+            color: #ef4444;
+            background-color: #fef2f2;
+          }
+          
+          .sidebar-logout-btn:hover {
+            background-color: #fee2e2 !important;
+            color: #dc2626 !important;
           }
 
           .admin-topbar {
