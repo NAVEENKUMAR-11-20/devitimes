@@ -669,7 +669,7 @@ const History = () => {
                       onClick={() => setSelectedOrder(o)}
                     >
                       <div className="order-card-header">
-                        <span className="order-card-id font-heading">{formatOrderId(o.id)}</span>
+                        <span className="order-card-id font-heading">{o.formattedId || o.id}</span>
                         <span className={`order-status-tag ${o.status.toLowerCase()}`}>{o.status}</span>
                       </div>
                       <div className="order-card-meta font-body">
@@ -689,7 +689,7 @@ const History = () => {
                   <div>
                     <span className="detail-meta-label">ORDER ID</span>
                     <h2 className="detail-order-id font-heading" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      {formatOrderId(selectedOrder.id)}
+                      {selectedOrder.formattedId || selectedOrder.id}
                       <button 
                         onClick={() => handlePrintInvoice(selectedOrder)}
                         className="btn-invoice font-body"
