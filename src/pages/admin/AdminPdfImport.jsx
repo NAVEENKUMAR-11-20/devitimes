@@ -181,13 +181,13 @@ const AdminPdfImport = () => {
 
     const modelPatterns = [
       // Matches MODEL NO: 1221, M.NO: 1221, ART NO: 1221, ITEM NO: 1221, STYLE: 1221, DESIGN: 1221 etc.
-      /(?:MODEL|MOD|ART|ITEM|DESIGN|STYLE)\s*(?:NO\.?|NUMBER)?\s*[:.-]?\s*([a-z0-9-]+)/i,
-      // Matches M. NO. 1221, M NO: 1221, M.NO: 1221
-      /\bM\.?\s*NO\.?\s*[:.-]?\s*([a-z0-9-]+)/i,
+      /\b(?:MODEL|MOD|ART|ITEM|DESIGN|STYLE)\b\s*(?:N[O0]\.?|NUMBER)?\s*[:.-]?\s*([a-z0-9-]+)/i,
+      // Matches M. NO. 1221, M NO: 1221, M.NO: 1221, M.N0: 1221
+      /\bM\.?\s*N[O0]\.?\s*[:.-]?\s*([a-z0-9-]+)/i,
       // Matches M/N: 1221
       /\bM\/N\s*[:.-]?\s*([a-z0-9-]+)/i,
-      // Matches NO. 1221, NO: 1221
-      /\bNO\.?\s*[:.-]?\s*([a-z0-9-]+)/i,
+      // Matches NO. 1221, N0. 1221
+      /\bN[O0]\.?\s*[:.-]?\s*([a-z0-9-]+)/i,
       // Fallback: search for standalone 3 to 5 digit numbers (run after clearing size/dimension/pkg strings)
       /\b(\d{3,5})\b/,
       // Fallback 2: alphanumeric model number like A123, LUMI99, etc.
@@ -307,19 +307,19 @@ const AdminPdfImport = () => {
     const bgG = Math.round(corners.reduce((s, c) => s + c[1], 0) / 4);
     const bgB = Math.round(corners.reduce((s, c) => s + c[2], 0) / 4);
 
-    // Step 2: Define scan zone (exclude header logo and footer text area)
-    const scanTop = Math.round(h * 0.12);
-    const scanBottom = Math.round(h * 0.78);
-    const scanLeft = Math.round(w * 0.08);
-    const scanRight = Math.round(w * 0.92);
-
+    // Step 2: Build row density profile of foreground pixels
     const imgData = ctx.getImageData(0, 0, w, h);
     const pixels = imgData.data;
 
-    const xCoords = [];
-    const yCoords = [];
+    const rowCounts = new Array(h).fill(0);
     const colorThreshold = 35;
-    const step = 4;
+    const step = 4; // Sample every 4th pixel for speed
+
+    // Scan the whole page (with a small 5% safety margin on the outer edges)
+    const scanTop = Math.round(h * 0.05);
+    const scanBottom = Math.round(h * 0.95);
+    const scanLeft = Math.round(w * 0.05);
+    const scanRight = Math.round(w * 0.95);
 
     for (let y = scanTop; y < scanBottom; y += step) {
       for (let x = scanLeft; x < scanRight; x += step) {
@@ -329,33 +329,99 @@ const AdminPdfImport = () => {
         const db = Math.abs(pixels[idx + 2] - bgB);
 
         if (dr > colorThreshold || dg > colorThreshold || db > colorThreshold) {
-          xCoords.push(x);
-          yCoords.push(y);
+          rowCounts[y]++;
         }
       }
     }
 
-    let minX = 0, maxX = w, minY = 0, maxY = h;
-    let contentFound = false;
-
-    if (xCoords.length > 100) {
-      xCoords.sort((a, b) => a - b);
-      yCoords.sort((a, b) => a - b);
-
-      minX = getPercentile(xCoords, 0.02);
-      maxX = getPercentile(xCoords, 0.98);
-      minY = getPercentile(yCoords, 0.02);
-      maxY = getPercentile(yCoords, 0.98);
-      contentFound = true;
+    // Step 3: Find the row with the maximum density of foreground pixels (guaranteed to hit the clock body)
+    let maxRowVal = 0;
+    let maxRowIdx = Math.round(h / 2);
+    for (let y = scanTop; y < scanBottom; y += step) {
+      if (rowCounts[y] > maxRowVal) {
+        maxRowVal = rowCounts[y];
+        maxRowIdx = y;
+      }
     }
 
-    if (!contentFound || maxX - minX < 50 || maxY - minY < 50) {
-      const scanHeight = scanBottom - scanTop;
-      const fallbackSize = Math.min(w * 0.7, scanHeight);
-      minX = Math.round((w - fallbackSize) / 2);
-      minY = Math.round(scanTop + (scanHeight - fallbackSize) / 2);
-      maxX = minX + fallbackSize;
-      maxY = minY + fallbackSize;
+    // If no foreground pixels found, use fallback
+    if (maxRowVal === 0) {
+      const fallbackSize = Math.round(Math.min(w, h) * 0.7);
+      const cropX = Math.round((w - fallbackSize) / 2);
+      const cropY = Math.round((h - fallbackSize) / 2);
+      
+      const outCanvas = document.createElement('canvas');
+      outCanvas.width = fallbackSize;
+      outCanvas.height = fallbackSize;
+      const outCtx = outCanvas.getContext('2d');
+      outCtx.fillStyle = '#FFFFFF';
+      outCtx.fillRect(0, 0, fallbackSize, fallbackSize);
+      outCtx.drawImage(sourceCanvas, cropX, cropY, fallbackSize, fallbackSize, 0, 0, fallbackSize, fallbackSize);
+      const enhancedCanvas = enhanceAndUpscaleImage(outCanvas, 1200);
+      return enhancedCanvas.toDataURL('image/png', 1.0);
+    }
+
+    // Step 4: Find the vertical boundaries (minY and maxY) of the clock by searching upwards and downwards from maxRowIdx
+    // Stop when row density drops below 2% of the peak value (indicating white space/gap between clock and other text/logos)
+    const stopThreshold = Math.max(1, Math.round(maxRowVal * 0.02));
+    
+    let minY = scanTop;
+    for (let y = maxRowIdx; y >= scanTop; y -= step) {
+      if (rowCounts[y] < stopThreshold) {
+        minY = y;
+        break;
+      }
+    }
+
+    let maxY = scanBottom;
+    for (let y = maxRowIdx; y < scanBottom; y += step) {
+      if (rowCounts[y] < stopThreshold) {
+        maxY = y;
+        break;
+      }
+    }
+
+    // Step 5: Find the horizontal boundaries (minX and maxX) of the clock
+    // Build vertical profile strictly within the vertical span of the clock [minY, maxY] to avoid logo/footer interference
+    const clockColCounts = new Array(w).fill(0);
+    for (let y = minY; y < maxY; y += step) {
+      for (let x = scanLeft; x < scanRight; x += step) {
+        const idx = (y * w + x) * 4;
+        const dr = Math.abs(pixels[idx] - bgR);
+        const dg = Math.abs(pixels[idx + 1] - bgG);
+        const db = Math.abs(pixels[idx + 2] - bgB);
+
+        if (dr > colorThreshold || dg > colorThreshold || db > colorThreshold) {
+          clockColCounts[x]++;
+        }
+      }
+    }
+
+    let maxColVal = 0;
+    let maxColIdx = Math.round(w / 2);
+    for (let x = scanLeft; x < scanRight; x += step) {
+      if (clockColCounts[x] > maxColVal) {
+        maxColVal = clockColCounts[x];
+        maxColIdx = x;
+      }
+    }
+
+    const colStopThreshold = Math.max(1, Math.round(maxColVal * 0.02));
+
+    let minX = scanLeft;
+    for (let x = maxColIdx; x >= scanLeft; x -= step) {
+      if (clockColCounts[x] < colStopThreshold) {
+        minX = x;
+        break;
+      }
+    }
+
+    let maxX = scanRight;
+    for (let x = maxColIdx; x < scanRight; x += step) {
+      if (clockColCounts[x] < colStopThreshold) {
+        maxX = x;
+        break;
+      }
     }
 
     const contentW = maxX - minX;
