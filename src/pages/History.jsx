@@ -173,19 +173,48 @@ const History = () => {
         try {
           console.log("[History] Fetching orders for user registration ID:", regUserId);
           const records = await pb.collection('orders').getFullList({
-            filter: `User = "${regUserId}"`,
-            sort: '-created'
+            filter: `User = "${regUserId}"`
           });
 
-          const fetchedOrders = records.map(record => {
+          // Sort oldest first to assign sequential indices to legacy orders
+          const sortedRecords = [...records].sort((a, b) => new Date(a.created).getTime() - new Date(b.created).getTime());
+          const dayCounters = {};
+
+          let fetchedOrders = sortedRecords.map(record => {
             const items = Array.isArray(record.products) 
               ? record.products 
               : (typeof record.products === 'string' ? JSON.parse(record.products) : []);
+
+            // Generate date string (YYYYMMDD) in local time
+            const dateObj = new Date(record.orderDate || record.created);
+            const yyyy = dateObj.getFullYear();
+            const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const dd = String(dateObj.getDate()).padStart(2, '0');
+            const dateStr = `${yyyy}${mm}${dd}`;
+
+            let formattedId = '';
+            if (record.id.toLowerCase().startsWith('dvt') && record.id.length === 15) {
+              // Custom ID: Format directly from ID
+              const clean = record.id.toUpperCase();
+              formattedId = `DVT-${clean.substring(3, 11)}-${clean.substring(11)}`;
+              
+              // Track maximum sequence number for this day
+              const seqNum = parseInt(clean.substring(11), 10);
+              if (!isNaN(seqNum)) {
+                dayCounters[dateStr] = Math.max(dayCounters[dateStr] || 0, seqNum);
+              }
+            } else {
+              // Legacy ID: Assign sequential sequence number
+              dayCounters[dateStr] = (dayCounters[dateStr] || 0) + 1;
+              formattedId = `DVT-${dateStr}-${String(dayCounters[dateStr]).padStart(4, '0')}`;
+            }
               
             return {
               id: record.id,
+              formattedId: formattedId,
               grandTotal: record.totalAmount,
               timestamp: new Date(record.orderDate || record.created).toLocaleString(),
+              _rawCreated: record.created,
               status: record.status || 'Pending',
               items: items.map(item => ({
                 productName: item.productName || item.name || '',
@@ -199,6 +228,9 @@ const History = () => {
               }))
             };
           });
+
+          // Sort back to newest first for display
+          fetchedOrders.sort((a, b) => new Date(b._rawCreated).getTime() - new Date(a._rawCreated).getTime());
 
           console.log("[History] Orders fetched successfully from PocketBase. Count:", fetchedOrders.length);
           setOrders(fetchedOrders);
@@ -219,7 +251,7 @@ const History = () => {
   }, [currentUser, currentRetailUser, navigate]);
 
   const handlePrintInvoice = (order) => {
-    const formattedId = formatOrderId(order.id);
+    const formattedId = order.formattedId || formatOrderId(order.id);
     const printWindow = window.open('', '_blank', 'width=800,height=900');
     if (!printWindow) {
       alert("Please allow popups to print/view the invoice.");
