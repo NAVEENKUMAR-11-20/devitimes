@@ -457,7 +457,7 @@ const History = () => {
               <div class="section-title">Billing To</div>
               <div class="detail-text"><strong>${customerName}</strong></div>
               <div class="detail-text">Wholesale Partner ID: ${customerId}</div>
-              \${customerMobile ? \`<div class="detail-text">Mobile: \${customerMobile}</div>\` : ''}
+              ${customerMobile ? `<div class="detail-text">Mobile: ${customerMobile}</div>` : ''}
             </div>
             <div>
               <div class="section-title">Supplier Details</div>
@@ -478,18 +478,18 @@ const History = () => {
               </tr>
             </thead>
             <tbody>
-              \${order.items.map((item, idx) => \`
+              ${order.items.map((item, idx) => `
                 <tr>
-                  <td>\${idx + 1}</td>
+                  <td>${idx + 1}</td>
                   <td>
-                    <div class="item-desc">\${item.productName}</div>
-                    <div class="item-meta">Model: \${item.modelNumber} | Category: \${item.category} \${item.size ? \`| Size: \${item.size}\` : ''} \${item.color ? \`| Color: \${item.color}\` : ''}</div>
+                    <div class="item-desc">${item.productName}</div>
+                    <div class="item-meta">Model: ${item.modelNumber} | Category: ${item.category} ${item.size ? `| Size: ${item.size}` : ''} ${item.color ? `| Color: ${item.color}` : ''}</div>
                   </td>
-                  <td style="text-align: right;">₹\${item.unitPrice}</td>
-                  <td style="text-align: center;">\${item.quantity}</td>
-                  <td style="text-align: right; font-weight: 500;">₹\${item.unitPrice * item.quantity}</td>
+                  <td style="text-align: right;">₹${item.unitPrice}</td>
+                  <td style="text-align: center;">${item.quantity}</td>
+                  <td style="text-align: right; font-weight: 500;">₹${item.unitPrice * item.quantity}</td>
                 </tr>
-              \`).join('')}
+              `).join('')}
             </tbody>
           </table>
 
@@ -497,11 +497,11 @@ const History = () => {
             <table class="summary-table">
               <tr>
                 <td>Subtotal:</td>
-                <td style="text-align: right;">₹\${subtotal}</td>
+                <td style="text-align: right;">₹${subtotal}</td>
               </tr>
               <tr class="total-row">
                 <td>Grand Total:</td>
-                <td style="text-align: right;">₹\${order.grandTotal}</td>
+                <td style="text-align: right;">₹${order.grandTotal}</td>
               </tr>
             </table>
           </div>
