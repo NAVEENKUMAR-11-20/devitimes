@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import pb from '../lib/pocketbase';
-import { getOrCreateRegistrationId } from '../lib/usersService';
+import { getOrCreateRegistrationId, formatOrderId } from '../lib/usersService';
 import ClockSvg from '../components/ClockSvg';
 
 const History = () => {
@@ -219,6 +219,7 @@ const History = () => {
   }, [currentUser, currentRetailUser, navigate]);
 
   const handlePrintInvoice = (order) => {
+    const formattedId = formatOrderId(order.id);
     const printWindow = window.open('', '_blank', 'width=800,height=900');
     if (!printWindow) {
       alert("Please allow popups to print/view the invoice.");
@@ -236,7 +237,7 @@ const History = () => {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Invoice - ${order.id}</title>
+        <title>Invoice - ${formattedId}</title>
         <style>
           @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
           body {
@@ -413,7 +414,7 @@ const History = () => {
             </div>
             <div class="invoice-title-block">
               <div class="invoice-title">INVOICE</div>
-              <div class="invoice-meta"><strong>Invoice No:</strong> ${order.id}</div>
+              <div class="invoice-meta"><strong>Invoice No:</strong> ${formattedId}</div>
               <div class="invoice-meta"><strong>Date:</strong> ${order.timestamp.split(',')[0]}</div>
               <div class="invoice-meta"><strong>Status:</strong> ${order.status}</div>
             </div>
@@ -475,7 +476,7 @@ const History = () => {
 
           <div class="footer">
             <p>This is a computer-generated invoice for your wholesale purchase record.</p>
-            <p>For any queries regarding this order, please quote invoice number ${order.id}.</p>
+            <p>For any queries regarding this order, please quote invoice number ${formattedId}.</p>
             <p style="font-weight: 600; color: #1A2332; margin-top: 15px;">Thank you for your business!</p>
           </div>
         </div>
@@ -636,7 +637,7 @@ const History = () => {
                       onClick={() => setSelectedOrder(o)}
                     >
                       <div className="order-card-header">
-                        <span className="order-card-id font-heading">{o.id}</span>
+                        <span className="order-card-id font-heading">{formatOrderId(o.id)}</span>
                         <span className={`order-status-tag ${o.status.toLowerCase()}`}>{o.status}</span>
                       </div>
                       <div className="order-card-meta font-body">
@@ -656,7 +657,7 @@ const History = () => {
                   <div>
                     <span className="detail-meta-label">ORDER ID</span>
                     <h2 className="detail-order-id font-heading" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      {selectedOrder.id}
+                      {formatOrderId(selectedOrder.id)}
                       <button 
                         onClick={() => handlePrintInvoice(selectedOrder)}
                         className="btn-invoice font-body"

@@ -154,3 +154,13 @@ export async function getOrCreateRegistrationId(currentUser) {
   return '';
 }
 
+/** Formats a 15-char PocketBase order ID to DVT-YYYYMMDD-XXXX format if it matches the pattern */
+export function formatOrderId(id) {
+  if (id && id.toLowerCase().startsWith('dvt') && id.length === 15) {
+    const clean = id.toUpperCase();
+    return `DVT-${clean.substring(3, 11)}-${clean.substring(11)}`;
+  }
+  return id;
+}
+
+

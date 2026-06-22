@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import pb from '../lib/pocketbase';
-import { getOrCreateRegistrationId } from '../lib/usersService';
+import { getOrCreateRegistrationId, formatOrderId } from '../lib/usersService';
 import ClockSvg from '../components/ClockSvg';
 
 const Cart = () => {
@@ -47,30 +47,6 @@ const Cart = () => {
       orderItemsText += `• ${item.productName}\n  Model: ${item.modelNumber}\n  Category: ${item.category}\n  Size: ${item.size}\n  Color: ${item.color || 'Default'}\n  Qty: ${item.quantity}\n  Price: ₹${item.unitPrice} × ${item.quantity} = ₹${item.unitPrice * item.quantity}\n  Product Image:\n  ${absoluteImageUrl}\n\n`;
     });
 
-    const message = `━━━━━━━━━━━━━━━━━━━━━
-🕐 DEVI TIMES — NEW ORDER
-━━━━━━━━━━━━━━━━━━━━━
-
-👤 CUSTOMER DETAILS
-Name: ${currentUser.name}
-Mobile: ${currentUser.mobile}
-User ID: ${currentUser.userId}
-
-🛒 ORDER ITEMS
-${orderItemsText.trim()}
-
-────────────────
-TOTAL: ₹${grandTotal}
-━━━━━━━━━━━━━━━━━━━━━
-[${timestamp}]`;
-
-    sessionStorage.setItem('lumiere_last_order', JSON.stringify({
-      customer: currentUser,
-      items: cart,
-      grandTotal,
-      timestamp
-    }));
-
     let finalPhone = settings.whatsappNumber;
     try {
       const records = await pb.collection('app_settings').getFullList();
@@ -95,6 +71,23 @@ TOTAL: ₹${grandTotal}
       console.error("[Cart] Failed to resolve registered_users record ID:", err);
     }
 
+    // Generate a unique, sortable, date-based ID (DVT-YYYYMMDD-XXXX)
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${yyyy}${mm}${dd}`;
+    let nextSeq = 1;
+    try {
+      const todayOrders = await pb.collection('orders').getFullList({
+        filter: `id ~ "dvt${todayStr}"`
+      });
+      nextSeq = todayOrders.length + 1;
+    } catch (err) {
+      console.error("[Cart] Failed to query today's orders count:", err);
+      nextSeq = Math.floor(1000 + Math.random() * 9000);
+    }
+
     const productsJson = cart.map(item => ({
       productId: item.productId,
       productName: item.productName,
@@ -107,20 +100,79 @@ TOTAL: ₹${grandTotal}
       image: item.image || null
     }));
 
+    // Save order to PocketBase with retry logic for custom ID
     let pbOrderId = '';
-    try {
-      const pbOrder = await pb.collection('orders').create({
-        User: regUserId || '',
-        orderDate: new Date().toISOString(),
-        products: productsJson,
-        totalAmount: grandTotal,
-        status: 'Pending'
-      });
-      pbOrderId = pbOrder.id;
-      console.log("[Cart] Order saved successfully in PocketBase. ID:", pbOrderId);
-    } catch (err) {
-      console.error("[Cart] Failed to save order to PocketBase:", err.message);
+    let attempt = 0;
+    while (attempt < 5) {
+      const customId = `dvt${todayStr}${String(nextSeq).padStart(4, '0')}`;
+      try {
+        const pbOrder = await pb.collection('orders').create({
+          id: customId,
+          User: regUserId || '',
+          orderDate: new Date().toISOString(),
+          products: productsJson,
+          totalAmount: grandTotal,
+          status: 'Pending'
+        });
+        pbOrderId = pbOrder.id;
+        console.log("[Cart] Order saved successfully in PocketBase. ID:", pbOrderId);
+        break;
+      } catch (err) {
+        console.warn(`[Cart] Attempt ${attempt + 1} failed for custom ID ${customId}:`, err.message);
+        if (err.status === 400 && err.data && err.data.id) {
+          nextSeq++;
+          attempt++;
+        } else {
+          // If different database error, fall back to auto-generated ID to prevent checkout failure
+          try {
+            const pbOrder = await pb.collection('orders').create({
+              User: regUserId || '',
+              orderDate: new Date().toISOString(),
+              products: productsJson,
+              totalAmount: grandTotal,
+              status: 'Pending'
+            });
+            pbOrderId = pbOrder.id;
+            console.log("[Cart] Order saved successfully in PocketBase with auto-generated ID. ID:", pbOrderId);
+          } catch (e) {
+            console.error("[Cart] Failed to save order with auto-generated ID:", e.message);
+          }
+          break;
+        }
+      }
     }
+
+    const formattedOrderId = formatOrderId(pbOrderId || `ORD-${Math.floor(100000 + Math.random() * 900000)}`);
+
+    // Construct WhatsApp message with formatted order ID
+    const message = `━━━━━━━━━━━━━━━━━━━━━
+🕐 DEVI TIMES — NEW ORDER
+━━━━━━━━━━━━━━━━━━━━━
+
+📄 ORDER DETAILS
+Order ID: ${formattedOrderId}
+
+👤 CUSTOMER DETAILS
+Name: ${currentUser.name}
+Mobile: ${currentUser.mobile}
+User ID: ${currentUser.userId}
+
+🛒 ORDER ITEMS
+${orderItemsText.trim()}
+
+────────────────
+TOTAL: ₹${grandTotal}
+━━━━━━━━━━━━━━━━━━━━━
+[${timestamp}]`;
+
+    // Save details to sessionStorage for the CheckoutSuccess page
+    sessionStorage.setItem('lumiere_last_order', JSON.stringify({
+      id: formattedOrderId,
+      customer: currentUser,
+      items: cart,
+      grandTotal,
+      timestamp
+    }));
 
     const cleanPhone = finalPhone.replace(/[^0-9+]/g, '').replace('+', '');
     const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;

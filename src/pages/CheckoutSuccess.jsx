@@ -69,6 +69,10 @@ const CheckoutSuccess = () => {
               
               <div className="receipt-meta-box">
                 <div>
+                  <span style={{color:'var(--text-muted)',fontSize:'10px',fontWeight:'600',letterSpacing:'0.1em',textTransform:'uppercase'}}>Order ID</span>
+                  <div style={{fontWeight:'700',color:'var(--text-primary)',marginTop:'2px'}}>{order.id || 'N/A'}</div>
+                </div>
+                <div style={{textAlign:'center'}}>
                   <span style={{color:'var(--text-muted)',fontSize:'10px',fontWeight:'600',letterSpacing:'0.1em',textTransform:'uppercase'}}>User ID</span>
                   <div style={{fontWeight:'700',color:'var(--text-primary)',marginTop:'2px'}}>{order.customer.userId}</div>
                 </div>
