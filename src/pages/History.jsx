@@ -483,7 +483,7 @@ const History = () => {
                   <td>${idx + 1}</td>
                   <td>
                     <div class="item-desc">${item.productName}</div>
-                    <div class="item-meta">Model: ${item.modelNumber} | Category: ${item.category} ${item.size ? `| Size: ${item.size}` : ''} ${item.color ? `| Color: ${item.color}` : ''}</div>
+                    <div class="item-meta">Model: ${item.modelNumber}${item.size ? ` | Size: ${item.size}` : ''}${item.color ? ` | Color: ${item.color}` : ''}</div>
                   </td>
                   <td style="text-align: right;">₹${item.unitPrice}</td>
                   <td style="text-align: center;">${item.quantity}</td>
