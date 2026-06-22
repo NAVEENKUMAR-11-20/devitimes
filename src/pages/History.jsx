@@ -448,7 +448,6 @@ const History = () => {
               <div class="invoice-title">INVOICE</div>
               <div class="invoice-meta"><strong>Invoice No:</strong> ${formattedId}</div>
               <div class="invoice-meta"><strong>Date:</strong> ${order.timestamp.split(',')[0]}</div>
-              <div class="invoice-meta"><strong>Status:</strong> ${order.status}</div>
             </div>
           </div>
 
@@ -670,7 +669,6 @@ const History = () => {
                     >
                       <div className="order-card-header">
                         <span className="order-card-id font-heading">{o.formattedId || o.id}</span>
-                        <span className={`order-status-tag ${o.status.toLowerCase()}`}>{o.status}</span>
                       </div>
                       <div className="order-card-meta font-body">
                         <span>{o.timestamp.split(',')[0]}</span>
