@@ -36,9 +36,7 @@ const History = () => {
         const matchesItems = (o.items || []).some(item => 
           (item.productName || '').toLowerCase().includes(query) ||
           (item.modelNumber || '').toLowerCase().includes(query) ||
-          (item.category || '').toLowerCase().includes(query) ||
-          (item.size || '').toLowerCase().includes(query) ||
-          (item.color || '').toLowerCase().includes(query)
+          (item.size || '').toLowerCase().includes(query)
         );
         return matchesId || matchesItems;
       }
@@ -226,9 +224,7 @@ const History = () => {
               items: items.map(item => ({
                 productName: item.productName || item.name || '',
                 modelNumber: item.modelNumber || item.model || '',
-                category: item.category || '',
                 size: item.size || '',
-                color: item.color || '',
                 quantity: item.quantity || 1,
                 unitPrice: item.price || item.unitPrice || 0,
                 image: item.image || null
@@ -489,7 +485,7 @@ const History = () => {
                   <td>${idx + 1}</td>
                   <td>
                     <div class="item-desc">${item.productName}</div>
-                    <div class="item-meta">Model: ${item.modelNumber}${item.size ? ` | Size: ${item.size}` : ''}${item.color ? ` | Color: ${item.color}` : ''}</div>
+                    <div class="item-meta">Model: ${item.modelNumber}${item.size ? ` | Size: ${item.size}` : ''}</div>
                   </td>
                   <td style="text-align: right;">₹${item.unitPrice}</td>
                   <td style="text-align: center;">${item.quantity}</td>
@@ -729,14 +725,14 @@ const History = () => {
                           {item.image ? (
                             <img src={item.image} alt={item.productName} className="detail-item-thumbnail" loading="lazy" />
                           ) : (
-                            <ClockSvg model={item.modelNumber} category={item.category} color={item.color} size={48} />
+                            <ClockSvg model={item.modelNumber} size={48} />
                           )}
                         </div>
                         
                         <div className="detail-item-info">
                           <div className="detail-item-name font-heading">{item.productName}</div>
                           <div className="detail-item-meta">
-                            Model: <code>{item.modelNumber}</code> &nbsp;·&nbsp; {item.category} &nbsp;·&nbsp; {item.size}
+                            Model: <code>{item.modelNumber}</code> &nbsp;·&nbsp; {item.size}
                           </div>
                         </div>
                         

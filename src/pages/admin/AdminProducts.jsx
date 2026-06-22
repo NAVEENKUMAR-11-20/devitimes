@@ -689,8 +689,6 @@ const AdminProducts = () => {
         original_price:  editForm.originalPrice !== undefined && editForm.originalPrice !== null && editForm.originalPrice !== '' ? Number(editForm.originalPrice) : null,
         is_on_sale:      editForm.isOnSale,
         description:     editForm.description || '',
-        category:        editForm.category || 'Modern Minimalist',
-        color:           editForm.color || '',
       };
 
       if (editForm.images.length === 0) {
@@ -969,7 +967,7 @@ const AdminProducts = () => {
                           decoding="async"
                         />
                       ) : (
-                        <ClockSvg model={p.modelNumber} category={p.category} color={p.color} size={40} />
+                        <ClockSvg model={p.modelNumber} size={40} />
                       )}
                     </div>
                   </td>

@@ -44,7 +44,7 @@ const Cart = () => {
       let imgPath = item.image || `/images/clock-${item.modelNumber}.png`;
       const absoluteImageUrl = imgPath.startsWith('http') ? imgPath : `${baseUrl}${imgPath.startsWith('/') ? '' : '/'}${imgPath}`;
 
-      orderItemsText += `• ${item.productName}\n  Model: ${item.modelNumber}\n  Category: ${item.category}\n  Size: ${item.size}\n  Color: ${item.color || 'Default'}\n  Qty: ${item.quantity}\n  Price: ₹${item.unitPrice} × ${item.quantity} = ₹${item.unitPrice * item.quantity}\n  Product Image:\n  ${absoluteImageUrl}\n\n`;
+      orderItemsText += `• ${item.productName}\n  Model: ${item.modelNumber}\n  Size: ${item.size}\n  Qty: ${item.quantity}\n  Price: ₹${item.unitPrice} × ${item.quantity} = ₹${item.unitPrice * item.quantity}\n  Product Image:\n  ${absoluteImageUrl}\n\n`;
     });
 
     let finalPhone = settings.whatsappNumber;
@@ -99,9 +99,7 @@ const Cart = () => {
       productId: item.productId,
       productName: item.productName,
       modelNumber: item.modelNumber,
-      category: item.category || '',
       size: item.size || '',
-      color: item.color || '',
       unitPrice: item.unitPrice,
       quantity: item.quantity,
       image: item.image || null
@@ -251,13 +249,12 @@ TOTAL: ₹${grandTotal}
                         {item.image ? (
                           <img src={item.image} alt={item.productName} className="cart-item-thumbnail" loading="lazy" decoding="async" />
                         ) : (
-                          <ClockSvg model={item.modelNumber} category={item.category} color={item.color} size={60} />
+                          <ClockSvg model={item.modelNumber} size={60} />
                         )}
                       </div>
 
                       {/* Item Details Stack */}
                       <div className="cart-item-details-stack">
-                        <span className="category-label" style={{ fontSize: '9px' }}>{item.category}</span>
                         <h3 className="cart-item-name font-heading">{item.productName}</h3>
                         <div className="cart-item-meta font-body">
                           Model: <strong>{item.modelNumber}</strong> &nbsp;|&nbsp; {item.size}

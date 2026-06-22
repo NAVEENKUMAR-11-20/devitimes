@@ -89,7 +89,7 @@ const CheckoutSuccess = () => {
                     <div className="receipt-item-info">
                       <div className="receipt-item-name font-heading">{item.productName}</div>
                       <div className="receipt-item-meta">
-                        Model: {item.modelNumber} &nbsp;·&nbsp; {item.category} &nbsp;·&nbsp; {item.size}
+                        Model: {item.modelNumber} &nbsp;·&nbsp; {item.size}
                       </div>
                     </div>
                     <div className="receipt-item-qty-price">

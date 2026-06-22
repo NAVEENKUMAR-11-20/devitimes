@@ -47,8 +47,8 @@ export function mapRecord(record) {
     _jsonUrl: isJson ? imageUrl : null,
     _rawImageName: record.PRODUCT_IMAGE || '',    // original filename for updates
     name: record.MODEL_NO !== undefined ? String(record.MODEL_NO) : record.id,   // fallback display name
-    category: record.category || 'Modern Minimalist',
-    color: record.color || '',
+    category: 'Modern Minimalist',
+    color: '',
     description: record.description || '',
     source: 'pocketbase',
     createdAt: record.created,
@@ -127,7 +127,6 @@ export async function createProduct(data) {
   formData.append('status',          data.status          || 'LIVE');
   formData.append('is_live',         data.is_live !== undefined ? String(data.is_live) : 'true');
   formData.append('isLive',          data.isLive !== undefined ? String(data.isLive) : 'true');
-  formData.append('category',        data.category        || 'Modern Minimalist');
   
   if (data.original_price  !== undefined) {
     formData.append('original_price', data.original_price !== null ? String(data.original_price) : '');
@@ -136,7 +135,6 @@ export async function createProduct(data) {
     formData.append('is_on_sale', String(data.is_on_sale));
   }
   if (data.description     !== undefined) formData.append('description', data.description);
-  if (data.color           !== undefined) formData.append('color', data.color);
 
   if (data.imageFile) {
     formData.append('PRODUCT_IMAGE', data.imageFile);
@@ -177,8 +175,6 @@ export async function updateProduct(pbId, data, collectionName = 'PRODUCT_DATAS'
     formData.append('is_on_sale', String(data.is_on_sale));
   }
   if (data.description !== undefined) formData.append('description', data.description);
-  if (data.category !== undefined) formData.append('category', data.category);
-  if (data.color !== undefined) formData.append('color', data.color);
 
   try {
     const record = await pb.collection('PRODUCT_DATAS').update(pbId, formData, {
