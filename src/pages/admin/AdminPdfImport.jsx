@@ -169,73 +169,128 @@ const AdminPdfImport = () => {
     let size = '';
     let packageNo = '';
 
-    const modelRegex = /M\s*NO\.?\s*:?\s*(\d+)/i;
-    const sizeRegex = /SIZE\s*:?\s*([0-9]+\s*[Xx×]\s*[0-9]+\s*MM)/i;
-    const pkgRegex = /PKG\s*:?\s*(\d+)/i;
+    const sizePatterns = [
+      /(?:SIZE\s*[:.-]?\s*)?(\d{2,4}\s*(?:[Xx×\*]|to)\s*\d{2,4}(?:\s*(?:[Xx×\*]|to)\s*\d{2,4})?\s*(?:MM|CM|INCH|INCHES)?)/i,
+      /\b(\d{2,4}\s*(?:[Xx×\*]|to)\s*\d{2,4}(?:\s*(?:[Xx×\*]|to)\s*\d{2,4})?\s*(?:MM|CM|INCH|INCHES)?)/i
+    ];
 
-    // Search using the requested regex patterns across all search texts
+    const pkgPatterns = [
+      /(?:PKG|PACKAGE|PACKING)\s*(?:NO\.?|QTY)?\s*[:.-]?\s*([a-z0-9-]+)/i,
+      /\b(?:PKG|PCS)\s*[:.-]?\s*(\d+)/i,
+    ];
+
+    const modelPatterns = [
+      // Matches MODEL NO: 1221, M.NO: 1221, ART NO: 1221, ITEM NO: 1221, STYLE: 1221, DESIGN: 1221 etc.
+      /(?:MODEL|MOD|ART|ITEM|DESIGN|STYLE)\s*(?:NO\.?|NUMBER)?\s*[:.-]?\s*([a-z0-9-]+)/i,
+      // Matches M. NO. 1221, M NO: 1221, M.NO: 1221
+      /\bM\.?\s*NO\.?\s*[:.-]?\s*([a-z0-9-]+)/i,
+      // Matches M/N: 1221
+      /\bM\/N\s*[:.-]?\s*([a-z0-9-]+)/i,
+      // Matches NO. 1221, NO: 1221
+      /\bNO\.?\s*[:.-]?\s*([a-z0-9-]+)/i,
+      // Fallback: search for standalone 3 to 5 digit numbers (run after clearing size/dimension/pkg strings)
+      /\b(\d{3,5})\b/,
+      // Fallback 2: alphanumeric model number like A123, LUMI99, etc.
+      /\b([a-z0-9]{3,6})\b/i
+    ];
+
+    // 1. Extract Size first
+    let rawSizeMatch = '';
     for (const text of searchTexts) {
-      if (!modelNumber) {
-        const mMatch = text.match(modelRegex);
-        if (mMatch && mMatch[1]) modelNumber = mMatch[1];
-      }
       if (!size) {
-        const sMatch = text.match(sizeRegex);
-        if (sMatch && sMatch[1]) {
-          let rawSize = sMatch[1].toUpperCase();
-          if (rawSize.endsWith('MM') && !rawSize.endsWith(' MM')) {
-            rawSize = rawSize.slice(0, -2) + ' MM';
-          }
-          size = rawSize.replace(/\s*[Xx×]\s*/g, ' × ').trim();
-        }
-      }
-      if (!packageNo) {
-        const pMatch = text.match(pkgRegex);
-        if (pMatch && pMatch[1]) packageNo = pMatch[1];
-      }
-    }
-
-    // Fallback: scan individual text items for split elements
-    if (!modelNumber || !size || !packageNo) {
-      for (let i = 0; i < textItems.length; i++) {
-        const curr = textItems[i].str.trim();
-        const next = textItems[i + 1]?.str?.trim() || '';
-        const next2 = textItems[i + 2]?.str?.trim() || '';
-        const combined = `${curr} ${next} ${next2}`;
-
-        if (!modelNumber) {
-          const mMatch = combined.match(modelRegex);
-          if (mMatch && mMatch[1]) modelNumber = mMatch[1];
-        }
-
-        if (!size) {
-          const sMatch = combined.match(sizeRegex);
+        for (const pattern of sizePatterns) {
+          const sMatch = text.match(pattern);
           if (sMatch && sMatch[1]) {
-            let rawSize = sMatch[1].toUpperCase();
+            rawSizeMatch = sMatch[1];
+            let rawSize = sMatch[1].toUpperCase().trim();
+            const hasUnit = rawSize.endsWith('MM') || rawSize.endsWith('CM') || rawSize.endsWith('INCH') || rawSize.endsWith('INCHES');
             if (rawSize.endsWith('MM') && !rawSize.endsWith(' MM')) {
               rawSize = rawSize.slice(0, -2) + ' MM';
+            } else if (rawSize.endsWith('CM') && !rawSize.endsWith(' CM')) {
+              rawSize = rawSize.slice(0, -2) + ' CM';
+            } else if (rawSize.endsWith('INCH') && !rawSize.endsWith(' INCH')) {
+              rawSize = rawSize.slice(0, -4) + ' INCH';
+            } else if (rawSize.endsWith('INCHES') && !rawSize.endsWith(' INCHES')) {
+              rawSize = rawSize.slice(0, -6) + ' INCHES';
+            } else if (!hasUnit) {
+              rawSize = rawSize + ' MM';
             }
-            size = rawSize.replace(/\s*[Xx×]\s*/g, ' × ').trim();
+            size = rawSize.replace(/\s*(?:[Xx×\*]|TO)\s*/g, ' × ').trim();
+            break;
           }
         }
-
-        if (!packageNo) {
-          const pMatch = combined.match(pkgRegex);
-          if (pMatch && pMatch[1]) packageNo = pMatch[1];
-        }
-
-        if (modelNumber && size && packageNo) break;
       }
     }
 
-    // Status: Ready or Needs Review based ONLY on whether all required text fields are successfully extracted
-    const allFound = modelNumber && size && packageNo;
+    // 2. Extract Package Number next
+    let rawPkgMatch = '';
+    for (const text of searchTexts) {
+      if (!packageNo) {
+        for (const pattern of pkgPatterns) {
+          const pMatch = text.match(pattern);
+          if (pMatch && pMatch[1]) {
+            rawPkgMatch = pMatch[0]; // Store the whole matched phrase to clean up
+            packageNo = pMatch[1].trim();
+            break;
+          }
+        }
+      }
+    }
+
+    // 3. Extract Model Number
+    for (const text of searchTexts) {
+      if (!modelNumber) {
+        let cleanText = text;
+        
+        // Remove the matched size substring
+        if (rawSizeMatch) {
+          cleanText = cleanText.replace(rawSizeMatch, '');
+        }
+        
+        // Remove individual dimensions of the size to avoid standalone digit confusion
+        if (size) {
+          const dimensions = size.split('×');
+          for (let d of dimensions) {
+            d = d.replace(/(?:MM|CM|INCH|INCHES)/i, '').trim();
+            if (d) {
+              const dRegex = new RegExp(`\\b${d}\\b`, 'g');
+              cleanText = cleanText.replace(dRegex, '');
+            }
+          }
+        }
+
+        // Remove the matched package number substring
+        if (rawPkgMatch) {
+          cleanText = cleanText.replace(rawPkgMatch, '');
+        }
+        if (packageNo) {
+          cleanText = cleanText.replace(new RegExp(`\\b${packageNo}\\b`, 'g'), '');
+        }
+
+        // Try to match the model patterns
+        for (const pattern of modelPatterns) {
+          const mMatch = cleanText.match(pattern);
+          if (mMatch && mMatch[1]) {
+            modelNumber = mMatch[1].trim();
+            break;
+          }
+        }
+      }
+    }
+
+    const allFound = modelNumber && size;
     const status = allFound ? 'Ready' : 'Needs Review';
 
     return { modelNumber, size, packageNo, status, rawText: spaceJoined };
   };
 
   // ─── Smart auto-crop: isolate the clock product from the PDF page ─────────
+  const getPercentile = (arr, pct) => {
+    if (arr.length === 0) return 0;
+    const idx = Math.floor((arr.length - 1) * pct);
+    return arr[idx];
+  };
+
   const smartCropProductImage = (sourceCanvas) => {
     const w = sourceCanvas.width;
     const h = sourceCanvas.height;
@@ -252,95 +307,95 @@ const AdminPdfImport = () => {
     const bgG = Math.round(corners.reduce((s, c) => s + c[1], 0) / 4);
     const bgB = Math.round(corners.reduce((s, c) => s + c[2], 0) / 4);
 
-    // Step 2: Define the scan zone — skip top 15% (logo area), bottom 25% (text area)
-    const scanTop = Math.round(h * 0.15);
-    const scanBottom = Math.round(h * 0.75);
-    const scanLeft = Math.round(w * 0.05);
-    const scanRight = Math.round(w * 0.95);
+    // Step 2: Define scan zone (exclude header logo and footer text area)
+    const scanTop = Math.round(h * 0.12);
+    const scanBottom = Math.round(h * 0.78);
+    const scanLeft = Math.round(w * 0.08);
+    const scanRight = Math.round(w * 0.92);
 
-    // Step 3: Get pixel data for the scan zone
-    const scanW = scanRight - scanLeft;
-    const scanH = scanBottom - scanTop;
-    const imgData = ctx.getImageData(scanLeft, scanTop, scanW, scanH);
+    const imgData = ctx.getImageData(0, 0, w, h);
     const pixels = imgData.data;
 
-    // Step 4: Find the bounding box of non-background pixels
-    // A pixel is "content" if it differs significantly from the detected background
-    const colorThreshold = 35; // how different a pixel must be from bg to count as content
-    let minX = scanW, maxX = 0, minY = scanH, maxY = 0;
-    let contentFound = false;
-
-    // Sample every 4th pixel for speed on large canvases
+    const xCoords = [];
+    const yCoords = [];
+    const colorThreshold = 35;
     const step = 4;
-    for (let y = 0; y < scanH; y += step) {
-      for (let x = 0; x < scanW; x += step) {
-        const idx = (y * scanW + x) * 4;
+
+    for (let y = scanTop; y < scanBottom; y += step) {
+      for (let x = scanLeft; x < scanRight; x += step) {
+        const idx = (y * w + x) * 4;
         const dr = Math.abs(pixels[idx] - bgR);
         const dg = Math.abs(pixels[idx + 1] - bgG);
         const db = Math.abs(pixels[idx + 2] - bgB);
 
         if (dr > colorThreshold || dg > colorThreshold || db > colorThreshold) {
-          if (x < minX) minX = x;
-          if (x > maxX) maxX = x;
-          if (y < minY) minY = y;
-          if (y > maxY) maxY = y;
-          contentFound = true;
+          xCoords.push(x);
+          yCoords.push(y);
         }
       }
     }
 
-    // Step 5: If no content found, fall back to center crop
-    if (!contentFound || maxX - minX < 20 || maxY - minY < 20) {
-      const fallbackSize = Math.min(w, h) * 0.6;
-      minX = (w - fallbackSize) / 2 - scanLeft;
-      minY = (h * 0.15);
+    let minX = 0, maxX = w, minY = 0, maxY = h;
+    let contentFound = false;
+
+    if (xCoords.length > 100) {
+      xCoords.sort((a, b) => a - b);
+      yCoords.sort((a, b) => a - b);
+
+      minX = getPercentile(xCoords, 0.02);
+      maxX = getPercentile(xCoords, 0.98);
+      minY = getPercentile(yCoords, 0.02);
+      maxY = getPercentile(yCoords, 0.98);
+      contentFound = true;
+    }
+
+    if (!contentFound || maxX - minX < 50 || maxY - minY < 50) {
+      const scanHeight = scanBottom - scanTop;
+      const fallbackSize = Math.min(w * 0.7, scanHeight);
+      minX = Math.round((w - fallbackSize) / 2);
+      minY = Math.round(scanTop + (scanHeight - fallbackSize) / 2);
       maxX = minX + fallbackSize;
       maxY = minY + fallbackSize;
     }
 
-    // Convert scan-zone-relative coords back to full canvas coords
-    const absLeft = scanLeft + minX;
-    const absTop = scanTop + minY;
-    const absRight = scanLeft + maxX;
-    const absBottom = scanTop + maxY;
+    const contentW = maxX - minX;
+    const contentH = maxY - minY;
 
-    // Step 6: Add balanced padding (8% of the detected region size)
-    const contentW = absRight - absLeft;
-    const contentH = absBottom - absTop;
-    const pad = Math.round(Math.max(contentW, contentH) * 0.08);
+    // Pad crop area by 10% of the largest dimension to ensure the clock is not cropped too tightly
+    const pad = Math.round(Math.max(contentW, contentH) * 0.10);
 
-    let cropX = Math.max(0, absLeft - pad);
-    let cropY = Math.max(0, absTop - pad);
+    let cropX = Math.max(0, minX - pad);
+    let cropY = Math.max(0, minY - pad);
     let cropW = Math.min(w - cropX, contentW + pad * 2);
     let cropH = Math.min(h - cropY, contentH + pad * 2);
 
-    // Step 7: Make the crop region square (centered)
-    if (cropW > cropH) {
-      const diff = cropW - cropH;
-      cropY = Math.max(0, cropY - Math.floor(diff / 2));
-      cropH = cropW;
-      if (cropY + cropH > h) cropY = Math.max(0, h - cropH);
-    } else if (cropH > cropW) {
-      const diff = cropH - cropW;
-      cropX = Math.max(0, cropX - Math.floor(diff / 2));
-      cropW = cropH;
-      if (cropX + cropW > w) cropX = Math.max(0, w - cropW);
-    }
+    // Make crop box perfectly square (centered around the content center)
+    const contentCenterX = minX + contentW / 2;
+    const contentCenterY = minY + contentH / 2;
+    const squareSize = Math.min(w, h, Math.max(cropW, cropH));
 
-    // Step 8: Render the cropped product to a clean, high-resolution output canvas
-    const outputSize = Math.max(cropW, cropH);
+    cropX = Math.round(Math.max(0, contentCenterX - squareSize / 2));
+    cropY = Math.round(Math.max(0, contentCenterY - squareSize / 2));
+    cropW = squareSize;
+    cropH = squareSize;
+
+    // Adjust crop bounds to stay fully within canvas
+    if (cropX + cropW > w) cropX = w - cropW;
+    if (cropY + cropH > h) cropY = h - cropH;
+
+    // Render cropped image
     const outCanvas = document.createElement('canvas');
-    outCanvas.width = outputSize;
-    outCanvas.height = outputSize;
+    outCanvas.width = squareSize;
+    outCanvas.height = squareSize;
     const outCtx = outCanvas.getContext('2d');
 
     // Fill with clean white background
     outCtx.fillStyle = '#FFFFFF';
-    outCtx.fillRect(0, 0, outputSize, outputSize);
+    outCtx.fillRect(0, 0, squareSize, squareSize);
 
-    // Draw the cropped clock centered with a relative inner margin
-    const margin = Math.round(outputSize * 0.03); // 3% margin
-    const drawSize = outputSize - margin * 2;
+    // Draw centered cropped region with a small 3% margin
+    const margin = Math.round(squareSize * 0.03);
+    const drawSize = squareSize - margin * 2;
     outCtx.imageSmoothingEnabled = true;
     outCtx.imageSmoothingQuality = 'high';
     outCtx.drawImage(
@@ -391,46 +446,102 @@ const AdminPdfImport = () => {
         setProgress(40);
 
         for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-          setProgress(Math.round(40 + (pageNum / totalPages) * 55));
-          setLoadingText(`Processing page ${pageNum} of ${totalPages}...`);
+          try {
+            setProgress(Math.round(40 + (pageNum / totalPages) * 55));
+            setLoadingText(`Processing page ${pageNum} of ${totalPages}...`);
 
-          const page = await pdf.getPage(pageNum);
+            const page = await pdf.getPage(pageNum);
 
-          // ── Render full page to canvas at high quality ──────────────────
-          const viewport = page.getViewport({ scale: 4.0 });
-          const fullCanvas = document.createElement('canvas');
-          fullCanvas.width = viewport.width;
-          fullCanvas.height = viewport.height;
-          const fullCtx = fullCanvas.getContext('2d');
-          await page.render({ canvasContext: fullCtx, viewport }).promise;
+            // ── Render full page to canvas at high quality ──────────────────
+            let fullCanvas = document.createElement('canvas');
+            let imageBase64 = null;
+            let textItems = [];
 
-          // ── Smart auto-crop: detect the clock product region ──────────
-          const imageBase64 = smartCropProductImage(fullCanvas);
+            try {
+              const viewport = page.getViewport({ scale: 4.0 });
+              fullCanvas.width = viewport.width;
+              fullCanvas.height = viewport.height;
+              const fullCtx = fullCanvas.getContext('2d');
+              await page.render({ canvasContext: fullCtx, viewport }).promise;
+              
+              // ── Smart auto-crop: detect the clock product region ──────────
+              try {
+                imageBase64 = smartCropProductImage(fullCanvas);
+              } catch (cropErr) {
+                console.error(`Smart crop failed for page ${pageNum}:`, cropErr);
+                // Fallback to capturing the full-page canvas as image
+                imageBase64 = fullCanvas.toDataURL('image/png', 1.0);
+              }
+            } catch (renderErr) {
+              console.error(`Failed to render page ${pageNum}:`, renderErr);
+              // Fallback to a blank white image if rendering failed completely
+              const fallbackCanvas = document.createElement('canvas');
+              fallbackCanvas.width = 800;
+              fallbackCanvas.height = 800;
+              const fbCtx = fallbackCanvas.getContext('2d');
+              fbCtx.fillStyle = '#FFFFFF';
+              fbCtx.fillRect(0, 0, 800, 800);
+              imageBase64 = fallbackCanvas.toDataURL('image/png', 1.0);
+            }
 
-          // ── Extract all text items from same page ──────────────────────
-          const textContent = await page.getTextContent();
+            try {
+              // ── Extract all text items from same page ──────────────────────
+              const textContent = await page.getTextContent();
+              textItems = textContent.items || [];
+            } catch (textErr) {
+              console.error(`Failed to extract text for page ${pageNum}:`, textErr);
+            }
 
-          // ── Parse: pass raw items so parser can try multiple join strategies
-          const parsed = extractFromPageText(textContent.items);
+            // ── Parse: pass raw items so parser can try multiple join strategies
+            const parsed = extractFromPageText(textItems);
 
-          parsedItems.push({
-            tempId: `pg_${pageNum}_${Date.now()}`,
-            pageNum,
-            modelNumber: parsed.modelNumber,
-            size: parsed.size,
-            packageNo: parsed.packageNo,
-            status: parsed.status,
-            images: [imageBase64],
-            // Stored fields with safe defaults (required by addProduct schema)
-            name: parsed.modelNumber ? `Clock Model ${parsed.modelNumber}` : `Page ${pageNum} Product`,
-            category: 'Modern Minimalist',
-            color: '',
-            wholesalePrice: 0,
-            retailPrice: 0,
-            originalPrice: null,
-            description: `Extracted from catalog page ${pageNum}.`,
-            include: true,
-          });
+            parsedItems.push({
+              tempId: `pg_${pageNum}_${Date.now()}`,
+              pageNum,
+              modelNumber: parsed.modelNumber || '',
+              size: parsed.size || '',
+              packageNo: parsed.packageNo || '',
+              status: parsed.status,
+              images: [imageBase64],
+              // Stored fields with safe defaults (required by addProduct schema)
+              name: parsed.modelNumber ? `Clock Model ${parsed.modelNumber}` : `Page ${pageNum} Product`,
+              category: 'Modern Minimalist',
+              color: '',
+              wholesalePrice: 0,
+              retailPrice: 0,
+              originalPrice: null,
+              description: `Extracted from catalog page ${pageNum}.`,
+              include: true,
+            });
+          } catch (pageErr) {
+            console.error(`Page ${pageNum} failed completely:`, pageErr);
+            // Fallback placeholder card
+            const fallbackCanvas = document.createElement('canvas');
+            fallbackCanvas.width = 800;
+            fallbackCanvas.height = 800;
+            const fbCtx = fallbackCanvas.getContext('2d');
+            fbCtx.fillStyle = '#FFFFFF';
+            fbCtx.fillRect(0, 0, 800, 800);
+            const imageBase64 = fallbackCanvas.toDataURL('image/png', 1.0);
+
+            parsedItems.push({
+              tempId: `pg_${pageNum}_${Date.now()}`,
+              pageNum,
+              modelNumber: '',
+              size: '',
+              packageNo: '',
+              status: 'Needs Review',
+              images: [imageBase64],
+              name: `Page ${pageNum} Product`,
+              category: 'Modern Minimalist',
+              color: '',
+              wholesalePrice: 0,
+              retailPrice: 0,
+              originalPrice: null,
+              description: `Failed to extract page ${pageNum}.`,
+              include: true,
+            });
+          }
         }
 
         setExtractedProducts(parsedItems);
