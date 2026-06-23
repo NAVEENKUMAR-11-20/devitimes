@@ -579,17 +579,7 @@ const AdminSettings = () => {
                 onChange={(e) => setLowStockThreshold(e.target.value)}
               />
             </div>
-            <div className="form-checkboxes-row font-body" style={{ marginTop: '16px', display: 'flex', alignItems: 'center' }}>
-              <label className="checkbox-container">
-                <input 
-                  type="checkbox" 
-                  checked={inventoryAlertEnabled}
-                  onChange={(e) => setInventoryAlertEnabled(e.target.checked)}
-                />
-                <span style={{ color: '#ffffff', marginLeft: '8px' }}>Enable WhatsApp Alerts</span>
-              </label>
-            </div>
-            <div className="form-checkboxes-row font-body" style={{ marginTop: '12px', display: 'flex', alignItems: 'center' }}>
+             <div className="form-checkboxes-row font-body" style={{ marginTop: '16px', display: 'flex', alignItems: 'center' }}>
               <label className="checkbox-container">
                 <input 
                   type="checkbox" 

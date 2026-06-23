@@ -768,7 +768,6 @@ export const AppProvider = ({ children }) => {
   };
 
   const checkAndTriggerLowStockAlert = async (product, newStockVal) => {
-    if (!settings.inventoryAlertEnabled) return;
     const threshold = settings.lowStockThreshold || 10;
     
     if (newStockVal <= threshold) {
@@ -776,24 +775,6 @@ export const AppProvider = ({ children }) => {
       const prevAlertInfo = updatedAlertData[product.id] || { alertSent: false };
       
       if (!prevAlertInfo.alertSent) {
-        try {
-          const adminWhatsAppRaw = settings.whatsappNumber || '7358349394';
-          let adminWhatsApp = adminWhatsAppRaw.replace(/\D/g, '');
-          if (adminWhatsApp.length === 10) {
-            adminWhatsApp = '91' + adminWhatsApp;
-          }
-          const now = new Date();
-          const alertTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          const alertDate = now.toLocaleDateString();
-          
-          const message = `⚠️ DeviTimes Low Stock Alert\n\nProduct: ${product.name || 'Wall Clock'}\nModel No: ${product.modelNumber || product.MODEL_NO || product.id}\nCurrent Stock: ${newStockVal}\nThreshold: ${threshold}\n\nPlease restock the product immediately.`;
-          
-          const whatsappUrl = `https://wa.me/${adminWhatsApp}?text=${encodeURIComponent(message)}`;
-          window.open(whatsappUrl, '_blank');
-        } catch (e) {
-          console.warn("Failed to open WhatsApp window automatically:", e);
-        }
-
         updatedAlertData[product.id] = {
           alertSent: true,
           lastAlertSentAt: new Date().toISOString()

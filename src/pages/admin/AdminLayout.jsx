@@ -36,42 +36,9 @@ const AdminLayout = () => {
     });
   };
 
-  const triggerWhatsAppAlert = async (alert) => {
-    const adminWhatsAppRaw = settings.whatsappNumber || '7358349394';
-    let adminWhatsApp = adminWhatsAppRaw.replace(/\D/g, '');
-    if (adminWhatsApp.length === 10) {
-      adminWhatsApp = '91' + adminWhatsApp;
-    }
-
-    const now = new Date();
-    const alertTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const alertDate = now.toLocaleDateString();
-
-    const message = `⚠️ Low Stock Alert - DeviTimes\n\nProduct: ${alert.name || 'Wall Clock'}\nModel No: ${alert.modelNumber}\nCurrent Stock: ${alert.stock}\nTime & Date: ${alertTime} on ${alertDate}\n\nPlease restock the product.`;
-
-    const whatsappUrl = `https://wa.me/${adminWhatsApp}?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl, '_blank');
-
-    // Mark as sent in settings
-    const updatedAlertData = {
-      ...settings.alertData,
-      [alert.id]: {
-        alertSent: true,
-        lastAlertSentAt: now.toISOString()
-      }
-    };
-    updateSettings({ alertData: updatedAlertData });
-    await saveSettingsToPB({
-      ...settings,
-      alertData: updatedAlertData
-    });
-
-    // Remove from active alerts list
-    setStockAlerts(prev => prev.filter(a => a.id !== alert.id));
-  };
 
   useEffect(() => {
-    if (!settings.inventoryAlertEnabled) return;
+    if (settings.bannerAlertEnabled === false) return;
     if (!products || products.length === 0) return;
 
     const threshold = settings.lowStockThreshold || 10;
@@ -98,37 +65,12 @@ const AdminLayout = () => {
             }];
           });
 
-          // Open WhatsApp automatically in background
-          let opened = false;
-          try {
-            const adminWhatsAppRaw = settings.whatsappNumber || '7358349394';
-            let adminWhatsApp = adminWhatsAppRaw.replace(/\D/g, '');
-            if (adminWhatsApp.length === 10) {
-              adminWhatsApp = '91' + adminWhatsApp;
-            }
-            const now = new Date();
-            const alertTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            const alertDate = now.toLocaleDateString();
-            const message = `⚠️ Low Stock Alert - DeviTimes\n\nProduct: ${p.name || 'Wall Clock'}\nModel No: ${p.modelNumber || p.id}\nCurrent Stock: ${prodStock}\nTime & Date: ${alertTime} on ${alertDate}\n\nPlease restock the product.`;
-            const whatsappUrl = `https://wa.me/${adminWhatsApp}?text=${encodeURIComponent(message)}`;
-            
-            const newWin = window.open(whatsappUrl, '_blank');
-            if (newWin && !newWin.closed) {
-              opened = true;
-            }
-          } catch (e) {
-            console.warn("Failed to open WhatsApp window automatically:", e);
-          }
-
-          // ONLY update alertSent in the database if the window successfully opened!
-          // If it was blocked, we keep alertSent as false so the banner remains visible.
-          if (opened) {
-            alertData[p.id] = {
-              alertSent: true,
-              lastAlertSentAt: new Date().toISOString()
-            };
-            changed = true;
-          }
+          // Mark as sent immediately to avoid popping up again on subsequent renders
+          alertData[p.id] = {
+            alertSent: true,
+            lastAlertSentAt: new Date().toISOString()
+          };
+          changed = true;
         }
       } else {
         // If replenished, reset the alertSent flag
@@ -150,7 +92,7 @@ const AdminLayout = () => {
         alertData
       });
     }
-  }, [products, settings.alertData, settings.lowStockThreshold, settings.inventoryAlertEnabled]);
+  }, [products, settings.alertData, settings.lowStockThreshold, settings.bannerAlertEnabled]);
 
   // Close sidebar on route change for mobile, except on initial mount
   useEffect(() => {
@@ -329,11 +271,7 @@ const AdminLayout = () => {
                 <p>Model No: <strong>{alert.modelNumber}</strong></p>
                 <p>Current Stock: <strong style={{ color: '#ef4444' }}>{alert.stock}</strong></p>
               </div>
-              <div className="stock-alert-card-footer">
-                <button className="btn-primary open-wa-btn" onClick={() => triggerWhatsAppAlert(alert)}>
-                  Open WhatsApp Alert
-                </button>
-              </div>
+
             </div>
           ))}
         </div>
