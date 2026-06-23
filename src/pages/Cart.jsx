@@ -52,7 +52,10 @@ const Cart = () => {
       const records = await pb.collection('app_settings').getFullList();
       if (records && records.length > 0) {
         const raw = records[0].whatsapp_number;
-        if (raw && raw.startsWith('[') && raw.endsWith(']')) {
+        if (raw && raw.startsWith('[INVENTORY_V1,') && raw.endsWith(']')) {
+          const parts = raw.slice(1, -1).split(',');
+          finalPhone = parts[1] || '';
+        } else if (raw && raw.startsWith('[') && raw.endsWith(']')) {
           const parts = raw.slice(1, -1).split(',');
           finalPhone = parts[0] || '';
         } else {

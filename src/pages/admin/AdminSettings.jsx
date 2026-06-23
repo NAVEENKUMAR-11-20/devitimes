@@ -363,6 +363,14 @@ const AdminSettings = () => {
 
     const packed = `[INVENTORY_V1,${finalNumber},${finalThreshold},${finalEnabled},${base64Alert}]`;
 
+    // Optimistically update local react context instantly
+    updateSettings({ 
+      whatsappNumber: finalNumber,
+      lowStockThreshold: finalThreshold,
+      inventoryAlertEnabled: finalEnabled
+    });
+    triggerToast('Settings updated');
+
     try {
       if (pbSettingsId) {
         console.log('Updating settings record...');
@@ -380,17 +388,9 @@ const AdminSettings = () => {
       console.log('Settings saved successfully.');
     } catch (err) {
       console.error("Failed to save to PocketBase:", err);
-      alert('Failed to save to PocketBase.');
+      alert('Failed to save settings to database. Please check your connection.');
       return;
     }
-
-    updateSettings({ 
-      whatsappNumber: finalNumber,
-      lowStockThreshold: finalThreshold,
-      inventoryAlertEnabled: finalEnabled
-    });
-    alert('Inventory Alert settings saved successfully.');
-    triggerToast('Settings saved');
   };
 
   // Section 3 Save

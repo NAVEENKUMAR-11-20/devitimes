@@ -160,7 +160,54 @@ export const AppProvider = ({ children }) => {
       }
     };
 
+    const subscribeToSettings = async () => {
+      try {
+        await pb.collection('app_settings').subscribe('*', (e) => {
+          console.log('[AppContext] PocketBase settings real-time event:', e.action, e.record);
+          if (!isMounted) return;
+          if (e.action === 'update' || e.action === 'create') {
+            const raw = e.record.whatsapp_number;
+            if (raw && raw.startsWith('[INVENTORY_V1,') && raw.endsWith(']')) {
+              const parts = raw.slice(1, -1).split(',');
+              let parsedAlertData = {};
+              if (parts[4]) {
+                try {
+                  parsedAlertData = JSON.parse(atob(parts[4]));
+                } catch (err) {
+                  console.error("Failed to parse alert data from PB settings:", err);
+                }
+              }
+              const thresholdVal = (parts[2] !== undefined && !isNaN(Number(parts[2]))) ? Number(parts[2]) : 10;
+              const enabledVal = parts[3] === 'false' ? false : true;
+              setSettings(prev => ({
+                ...prev,
+                whatsappNumber: parts[1] || prev.whatsappNumber || "7358349394",
+                lowStockThreshold: thresholdVal,
+                inventoryAlertEnabled: enabledVal,
+                alertData: Object.keys(parsedAlertData).length > 0 ? parsedAlertData : prev.alertData
+              }));
+            } else if (raw && raw.startsWith('[') && raw.endsWith(']')) {
+              const parts = raw.slice(1, -1).split(',');
+              setSettings(prev => ({
+                ...prev,
+                whatsappNumber: parts[0] || prev.whatsappNumber
+              }));
+            } else if (raw) {
+              setSettings(prev => ({
+                ...prev,
+                whatsappNumber: raw
+              }));
+            }
+          }
+        });
+        console.log('[AppContext] Successfully subscribed to app_settings collection.');
+      } catch (err) {
+        console.warn('[AppContext] PocketBase settings subscription failed:', err);
+      }
+    };
+
     subscribeToProducts();
+    subscribeToSettings();
 
     pollIntervalId = setInterval(() => {
       loadProducts();
@@ -173,6 +220,7 @@ export const AppProvider = ({ children }) => {
         clearInterval(pollIntervalId);
       }
       pb.collection('PRODUCT_DATAS').unsubscribe('*').catch(err => {});
+      pb.collection('app_settings').unsubscribe('*').catch(err => {});
     };
   }, []);
 
