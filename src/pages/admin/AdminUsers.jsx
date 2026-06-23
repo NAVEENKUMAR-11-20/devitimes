@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
+import pb from '../../lib/pocketbase';
 
 const AdminUsers = ({ initialTab = 'USERS' }) => {
   const { 
@@ -22,11 +23,6 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
     setActiveSubtab(initialTab);
   }, [initialTab]);
 
-  // Refresh/refetch users when opening Users page
-  React.useEffect(() => {
-    refreshUsers().catch(err => console.error('[AdminUsers] Failed to refresh users:', err));
-  }, [refreshUsers]);
-
   // Reveal password list tracker
   const [revealedPasswords, setRevealedPasswords] = useState({}); // userId -> boolean
 
@@ -34,7 +30,13 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
   const [showUserModal, setShowUserModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [modalForm, setModalForm] = useState({
-    userId: '', name: '', mobile: '', password: '', confirmPassword: ''
+    userType: 'Wholesale', // 'Wholesale' or 'Retail'
+    userId: '',
+    name: '',
+    mobile: '',
+    password: '',
+    confirmPassword: '',
+    status: 'active' // 'active' or 'suspended'
   });
   
   // Track if this is creating credentials from a pending registration request
@@ -43,6 +45,79 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
   // Search filter
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Retail users state
+  const [retailUsers, setRetailUsers] = useState([]);
+  const [loadingRetail, setLoadingRetail] = useState(false);
+
+  // Fetch retail users
+  const fetchRetailUsers = async () => {
+    try {
+      const records = await pb.collection('retail_users').getFullList({ sort: '-created' });
+      return records.map(r => {
+        const nameStr = r.name || '';
+        const parts = nameStr.split(' | ');
+        const name = parts[0] || '';
+        const mobile = parts[1] || '';
+        
+        return {
+          id: r.id,
+          pbId: r.id,
+          userId: r.username,
+          name: name,
+          mobile: mobile,
+          password: r.password || '',
+          status: r.active ? 'active' : 'suspended',
+          createdAt: r.created,
+          userType: 'Retail'
+        };
+      });
+    } catch (err) {
+      console.error('[AdminUsers] Failed to fetch retail users:', err);
+      return [];
+    }
+  };
+
+  // Load Wholesale & Retail data
+  const loadAllData = React.useCallback(async () => {
+    setLoadingRetail(true);
+    try {
+      await refreshUsers();
+      const ru = await fetchRetailUsers();
+      setRetailUsers(ru);
+    } catch (err) {
+      console.error('[AdminUsers] Failed to load data:', err);
+    } finally {
+      setLoadingRetail(false);
+    }
+  }, [refreshUsers]);
+
+  React.useEffect(() => {
+    loadAllData();
+  }, [loadAllData]);
+
+  // Combine Wholesale & Retail
+  const mappedWholesaleUsers = useMemo(() => {
+    return users.map(u => ({
+      ...u,
+      userType: 'Wholesale'
+    }));
+  }, [users]);
+
+  const allUsers = useMemo(() => {
+    return [...mappedWholesaleUsers, ...retailUsers];
+  }, [mappedWholesaleUsers, retailUsers]);
+
+  // Filter combined list
+  const filteredUsers = useMemo(() => {
+    return allUsers.filter(u => {
+      const q = searchQuery.toLowerCase().trim();
+      return u.name.toLowerCase().includes(q) || 
+             u.userId.toLowerCase().includes(q) || 
+             u.mobile.includes(q) ||
+             u.userType.toLowerCase().includes(q);
+    });
+  }, [allUsers, searchQuery]);
+
   const togglePasswordReveal = (userId) => {
     setRevealedPasswords(prev => ({
       ...prev,
@@ -50,11 +125,41 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
     }));
   };
 
-  // Status toggle switch
-  const handleToggleStatus = async (userId, currentStatus) => {
-    const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
-    await updateUserStatus(userId, newStatus);
-    await refreshUsers();
+  // Status toggle switch (unified)
+  const handleToggleStatus = async (user) => {
+    const newStatus = user.status === 'active' ? 'suspended' : 'active';
+    if (user.userType === 'Retail') {
+      try {
+        await pb.collection('retail_users').update(user.pbId, {
+          active: newStatus === 'active'
+        });
+        await loadAllData();
+      } catch (err) {
+        console.error('[AdminUsers] Failed to update retail status:', err);
+        alert('Failed to update status in PocketBase');
+      }
+    } else {
+      await updateUserStatus(user.userId, newStatus);
+      await loadAllData();
+    }
+  };
+
+  // Delete user (unified)
+  const handleDeleteUser = async (user) => {
+    if (confirm(`Delete account for ${user.name}? This will remove their history.`)) {
+      if (user.userType === 'Retail') {
+        try {
+          await pb.collection('retail_users').delete(user.pbId);
+          await loadAllData();
+        } catch (err) {
+          console.error('[AdminUsers] Failed to delete retail user:', err);
+          alert('Failed to delete user in PocketBase');
+        }
+      } else {
+        await deleteUser(user.userId);
+        await loadAllData();
+      }
+    }
   };
 
   // Generate 8-character random password helper
@@ -77,15 +182,17 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
     setPendingRegIdToApprove(null);
     
     // Auto suggest User ID (LUM- + sequential number)
-    const nextSeq = users.length + 1;
+    const nextSeq = allUsers.length + 1;
     const padded = String(nextSeq).padStart(3, '0');
     
     setModalForm({
+      userType: 'Wholesale',
       userId: `LUM-${padded}`,
       name: '',
       mobile: '',
       password: '',
-      confirmPassword: ''
+      confirmPassword: '',
+      status: 'active'
     });
     setShowUserModal(true);
   };
@@ -95,15 +202,17 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
     setIsEditing(false);
     setPendingRegIdToApprove(reg.id);
 
-    const nextSeq = users.length + 1;
+    const nextSeq = allUsers.length + 1;
     const padded = String(nextSeq).padStart(3, '0');
 
     setModalForm({
+      userType: 'Wholesale',
       userId: `LUM-${padded}`,
       name: reg.name,
       mobile: reg.mobile,
       password: '',
-      confirmPassword: ''
+      confirmPassword: '',
+      status: 'active'
     });
     setShowUserModal(true);
   };
@@ -111,57 +220,90 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
   const handleModalSubmit = async (e) => {
     e.preventDefault();
 
-    if (!modalForm.userId.trim() || !modalForm.name.trim() || !modalForm.mobile.trim() || !modalForm.password) {
+    const userIdVal = modalForm.userId.trim();
+    const nameVal = modalForm.name.trim();
+    const mobileVal = modalForm.mobile.replace(/[\s-()]/g, '');
+    const passwordVal = modalForm.password;
+    const confirmVal = modalForm.confirmPassword;
+    const typeVal = modalForm.userType;
+    const statusVal = modalForm.status;
+
+    if (!userIdVal || !nameVal || !mobileVal || !passwordVal || !confirmVal) {
       alert('All fields are required.');
       return;
     }
 
-    if (modalForm.password !== modalForm.confirmPassword) {
+    if (passwordVal !== confirmVal) {
       alert('Passwords do not match.');
       return;
     }
 
     // Indian Mobile regex
     const indianMobileRegex = /^(?:\+91|91)?[6-9]\d{9}$/;
-    if (!indianMobileRegex.test(modalForm.mobile.replace(/[\s-()]/g, ''))) {
+    if (!indianMobileRegex.test(mobileVal)) {
       alert('Please enter a valid Indian mobile number.');
       return;
     }
 
-    // Check if user ID already exists
-    const userIdExists = users.some(u => u.userId.toLowerCase() === modalForm.userId.trim().toLowerCase());
-    if (userIdExists && !isEditing) {
-      alert(`User ID ${modalForm.userId} already exists in database. Try overriding.`);
+    // Check if User ID already exists (case-insensitive)
+    const userIdExists = allUsers.some(u => u.userId.toLowerCase() === userIdVal.toLowerCase());
+    if (userIdExists) {
+      alert(`User ID "${userIdVal}" already exists. Please choose a unique User ID.`);
       return;
     }
 
-    if (pendingRegIdToApprove) {
-      // Approve from self registration request
-      await approveRegistration(pendingRegIdToApprove, modalForm.userId.trim(), modalForm.password);
-    } else {
-      // Manual create
-      await createUser({
-        userId: modalForm.userId.trim(),
-        name: modalForm.name.trim(),
-        mobile: modalForm.mobile.replace(/[\s-()]/g, ''),
-        password: modalForm.password,
-        status: 'active'
-      });
+    // Check if Mobile Number already exists
+    const mobileExists = allUsers.some(u => u.mobile.replace(/[\s-()]/g, '') === mobileVal);
+    if (mobileExists) {
+      alert(`Mobile number "${mobileVal}" is already registered. Please use a unique mobile number.`);
+      return;
     }
 
-    await refreshUsers();
+    try {
+      if (pendingRegIdToApprove) {
+        // Approve from self registration request
+        await approveRegistration(pendingRegIdToApprove, userIdVal, passwordVal);
+      } else {
+        if (typeVal === 'Retail') {
+          // Save to retail_users collection in PB
+          await pb.collection('retail_users').create({
+            username: userIdVal,
+            name: `${nameVal} | ${mobileVal}`,
+            password: passwordVal,
+            active: statusVal === 'active'
+          });
+        } else {
+          // Manual create Wholesale
+          await createUser({
+            userId: userIdVal,
+            name: nameVal,
+            mobile: mobileVal,
+            password: passwordVal,
+            status: statusVal
+          });
+        }
+      }
 
-    setShowUserModal(false);
-    alert('Client account created successfully!');
+      await loadAllData();
+      setShowUserModal(false);
+      alert('Client account created successfully!');
+    } catch (err) {
+      console.error('[AdminUsers] Failed to submit form:', err);
+      alert('Failed to save user. Please check if fields are valid.');
+    }
   };
 
   // WhatsApp Share builder
   const handleShareCredentials = (user) => {
     const cleanPhone = user.mobile.replace(/[^0-9]/g, '');
+    if (!cleanPhone) {
+      alert('Mobile number is not available.');
+      return;
+    }
     const message = `Welcome to ${settings.storeName}! Your login credentials:
 User ID: ${user.userId}
 Password: ${user.password}
-Login at: ${settings.websiteUrl}/#/login`;
+Login at: ${settings.websiteUrl}/#/${user.userType === 'Retail' ? 'retail-login' : 'login'}`;
 
     const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
     const newWindow = window.open(url, '_blank');
@@ -170,15 +312,28 @@ Login at: ${settings.websiteUrl}/#/login`;
     }
   };
 
-  // Filter Active list
-  const filteredUsers = useMemo(() => {
-    return users.filter(u => {
-      const q = searchQuery.toLowerCase().trim();
-      return u.name.toLowerCase().includes(q) || 
-             u.userId.toLowerCase().includes(q) || 
-             u.mobile.includes(q);
-    });
-  }, [users, searchQuery]);
+  // Listen to Escape key to close modal & prevent background scroll
+  React.useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setShowUserModal(false);
+      }
+    };
+    if (showUserModal) {
+      window.addEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'hidden';
+    }
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+    };
+  }, [showUserModal]);
+
+  const handleOverlayClick = (e) => {
+    if (e.target.classList.contains('modal-overlay')) {
+      setShowUserModal(false);
+    }
+  };
 
   return (
     <div className="admin-users-root font-body">
@@ -196,25 +351,41 @@ Login at: ${settings.websiteUrl}/#/login`;
         </button>
       </div>
 
-      {/* Tabs list (Registered users) */}
+      {/* Tabs list (Registered users & Pending) */}
       <div className="users-tabs-bar">
         
         <div className="subtabs-group">
-          <span className="subtab-btn uppercase-label active-subtab" style={{ cursor: 'default' }}>
-            Registered Users ({users.length})
+          <span 
+            className={`subtab-btn uppercase-label ${activeSubtab === 'USERS' ? 'active-subtab' : ''}`}
+            onClick={() => setActiveSubtab('USERS')}
+            style={{ cursor: 'pointer' }}
+          >
+            Registered Users ({allUsers.length})
+          </span>
+          <span 
+            className={`subtab-btn uppercase-label ${activeSubtab === 'PENDING' ? 'active-subtab' : ''}`}
+            onClick={() => setActiveSubtab('PENDING')}
+            style={{ cursor: 'pointer' }}
+          >
+            Pending Registrations ({pendingRegistrations.length})
+            {pendingRegistrations.length > 0 && (
+              <span className="pending-badge-count">{pendingRegistrations.length}</span>
+            )}
           </span>
         </div>
 
         {/* Search bar */}
-        <div className="search-users-wrapper">
-          <input 
-            type="text" 
-            placeholder="Search by name, ID or mobile..." 
-            className="form-input search-users-input"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
+        {activeSubtab === 'USERS' && (
+          <div className="search-users-wrapper">
+            <input 
+              type="text" 
+              placeholder="Search by name, ID or mobile..." 
+              className="form-input search-users-input"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        )}
 
       </div>
 
@@ -230,6 +401,7 @@ Login at: ${settings.websiteUrl}/#/login`;
               <thead>
                 <tr>
                   <th>User ID</th>
+                  <th>User Type</th>
                   <th>Full Name</th>
                   <th>Mobile Number</th>
                   <th>Password</th>
@@ -243,10 +415,15 @@ Login at: ${settings.websiteUrl}/#/login`;
                   const showPass = revealedPasswords[u.userId] || false;
                   
                   return (
-                    <tr key={u.userId}>
+                    <tr key={u.userId || u.id}>
                       <td><code>{u.userId}</code></td>
+                      <td>
+                        <span className={`user-type-tag ${u.userType.toLowerCase()}`}>
+                          {u.userType}
+                        </span>
+                      </td>
                       <td><strong style={{ color: 'var(--text-primary)' }}>{u.name}</strong></td>
-                      <td>{u.mobile}</td>
+                      <td>{u.mobile || '-'}</td>
                       <td>
                         <div className="password-cell-wrapper">
                           <span>{showPass ? u.password : '••••••••'}</span>
@@ -263,7 +440,7 @@ Login at: ${settings.websiteUrl}/#/login`;
                       <td>
                         {/* Account Status Switch */}
                         <button
-                          onClick={() => handleToggleStatus(u.userId, u.status)}
+                          onClick={() => handleToggleStatus(u)}
                           className={`status-toggle-switch ${u.status === 'active' ? 'live-switch' : 'hidden-switch'}`}
                         >
                           <span className="toggle-slider"></span>
@@ -282,12 +459,7 @@ Login at: ${settings.websiteUrl}/#/login`;
                             Share via WA 📱
                           </button>
                           <button 
-                            onClick={async () => {
-                              if (confirm(`Delete account for ${u.name}? This will remove their cart history.`)) {
-                                await deleteUser(u.userId);
-                                await refreshUsers();
-                              }
-                            }}
+                            onClick={() => handleDeleteUser(u)}
                             className="action-icon-btn delete-btn"
                             style={{ width: '28px', height: '28px' }}
                           >
@@ -304,12 +476,68 @@ Login at: ${settings.websiteUrl}/#/login`;
         </div>
       )}
 
-
+      {/* SUBTAB 2: PENDING REGISTRATION LIST */}
+      {activeSubtab === 'PENDING' && (
+        <div className="table-container-card">
+          {pendingRegistrations.length === 0 ? (
+            <div className="empty-table-state font-body">
+              No pending registrations found.
+            </div>
+          ) : (
+            <table className="admin-table pending-regs-table">
+              <thead>
+                <tr>
+                  <th>Full Name</th>
+                  <th>Mobile Number</th>
+                  <th>Requested Date</th>
+                  <th>Status</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingRegistrations.map(reg => (
+                  <tr key={reg.id}>
+                    <td><strong style={{ color: 'var(--text-primary)' }}>{reg.name}</strong></td>
+                    <td>{reg.mobile}</td>
+                    <td>{new Date(reg.registeredAt).toLocaleDateString()}</td>
+                    <td>
+                      <span className="pending-badge">Pending</span>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div className="table-actions-row">
+                        <button 
+                          onClick={() => handleApprovePendingClick(reg)}
+                          className="btn-primary"
+                          style={{ padding: '4px 8px', fontSize: '10px', height: '28px', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+                        >
+                          Approve ✅
+                        </button>
+                        <button 
+                          onClick={async () => {
+                            if (confirm(`Reject/Delete registration request for ${reg.name}?`)) {
+                              await deleteRegistrationRequest(reg.id);
+                            }
+                          }}
+                          className="action-icon-btn delete-btn"
+                          style={{ width: '28px', height: '28px' }}
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
 
       {/* --- CREATE USER MODAL OVERLAY --- */}
       {showUserModal && (
-        <div className="modal-overlay">
+        <div className="modal-overlay" onClick={handleOverlayClick}>
           <div className="modal-card animate-fade-in" style={{ maxWidth: '440px' }}>
+            <button className="modal-close-btn" onClick={() => setShowUserModal(false)}>×</button>
             
             <h3 className="modal-title font-heading" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', textAlign: 'left' }}>
               Create Login Credentials
@@ -317,6 +545,19 @@ Login at: ${settings.websiteUrl}/#/login`;
 
             <form onSubmit={handleModalSubmit} className="admin-form" style={{ marginTop: '20px', textAlign: 'left' }}>
               
+              {/* User Type */}
+              <div className="form-group">
+                <label className="form-label">USER TYPE *</label>
+                <select 
+                  className="form-input"
+                  value={modalForm.userType}
+                  onChange={(e) => setModalForm(prev => ({ ...prev, userType: e.target.value }))}
+                  disabled={!!pendingRegIdToApprove}
+                >
+                  <option value="Wholesale">Wholesale</option>
+                </select>
+              </div>
+
               {/* User ID */}
               <div className="form-group">
                 <label className="form-label">USER ID *</label>
@@ -383,6 +624,19 @@ Login at: ${settings.websiteUrl}/#/login`;
                   value={modalForm.confirmPassword}
                   onChange={(e) => setModalForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
                 />
+              </div>
+
+              {/* Status */}
+              <div className="form-group">
+                <label className="form-label">STATUS *</label>
+                <select 
+                  className="form-input"
+                  value={modalForm.status}
+                  onChange={(e) => setModalForm(prev => ({ ...prev, status: e.target.value }))}
+                >
+                  <option value="active">Active</option>
+                  <option value="suspended">Inactive</option>
+                </select>
               </div>
 
               {/* Notice */}
@@ -471,6 +725,26 @@ Login at: ${settings.websiteUrl}/#/login`;
           height: 36px;
           font-size: 12px;
           width: 240px;
+        }
+
+        /* User Type tag styles */
+        .user-type-tag {
+          font-size: 10px;
+          font-weight: 700;
+          padding: 4px 8px;
+          border-radius: 4px;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+        .user-type-tag.wholesale {
+          background-color: #eff6ff;
+          color: #1e40af;
+          border: 1px solid #bfdbfe;
+        }
+        .user-type-tag.retail {
+          background-color: #fdf2f8;
+          color: #9d174d;
+          border: 1px solid #fbcfe8;
         }
 
         /* --- Updated Professional Table Styles --- */
@@ -630,6 +904,58 @@ Login at: ${settings.websiteUrl}/#/login`;
         .table-actions-row button {
           touch-action: manipulation;
           cursor: pointer;
+        }
+
+        /* Modal popup dialog styling */
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100vw;
+          height: 100vh;
+          background-color: rgba(15, 23, 42, 0.6);
+          backdrop-filter: blur(4px);
+          z-index: 9999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .modal-card {
+          background-color: #ffffff;
+          border-radius: 12px;
+          padding: 32px;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+          position: relative;
+          max-width: 440px;
+          width: 90%;
+          max-height: 90vh;
+          overflow-y: auto;
+          box-sizing: border-box;
+        }
+
+        .modal-close-btn {
+          position: absolute;
+          top: 16px;
+          right: 16px;
+          width: 32px;
+          height: 32px;
+          border: none;
+          background: #F1F5F9;
+          color: #64748B;
+          border-radius: 50%;
+          font-size: 16px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          z-index: 10;
+        }
+
+        .modal-close-btn:hover {
+          background: #E2E8F0;
+          color: #0F172A;
         }
 
         @media (max-width: 768px) {
