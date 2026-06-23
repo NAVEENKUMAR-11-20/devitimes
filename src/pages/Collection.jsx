@@ -274,7 +274,6 @@ const Collection = () => {
                     {/* Product Details Section */}
                     <div className="card-text-area">
                       <div>
-                        <h2 className="product-name font-heading" style={{ marginTop: '4px', fontSize: '17px' }}>{product.name || 'Unnamed Product'}</h2>
                         
                         <div style={{ marginTop: '8px', fontSize: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>
                           MODEL NUMBER

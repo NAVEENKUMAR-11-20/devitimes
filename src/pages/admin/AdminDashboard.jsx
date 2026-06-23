@@ -169,7 +169,7 @@ const AdminDashboard = () => {
                     {p.images && p.images.length > 0 ? (
                       <img 
                         src={p.images[0]} 
-                        alt={p.name || 'Wall Clock'} 
+                        alt={p.modelNumber} 
                         onError={(e) => { e.target.onerror = null; e.target.src = "/placeholder.svg"; }}
                       />
                     ) : (
@@ -178,14 +178,10 @@ const AdminDashboard = () => {
                   </div>
                   <div className="low-stock-card-content">
                     <div className="low-stock-header-row">
-                      <h4 className="low-stock-product-name font-heading">{p.name || 'Wall Clock'}</h4>
+                      <h4 className="low-stock-product-name font-heading">Model {p.modelNumber}</h4>
                       <span className="low-stock-badge">LOW STOCK</span>
                     </div>
                     <div className="low-stock-specs font-body">
-                      <div className="spec-item">
-                        <span className="spec-label">Model No:</span>
-                        <span className="spec-val"><code>{p.modelNumber}</code></span>
-                      </div>
                       <div className="spec-item">
                         <span className="spec-label">Current Stock:</span>
                         <span className="spec-val" style={{ color: 'var(--accent-red)', fontWeight: '700' }}>{p.stock !== undefined ? p.stock : 20}</span>
@@ -284,9 +280,9 @@ const AdminDashboard = () => {
               recentProducts.map(p => (
                 <div key={p.id} className="activity-item-row font-body">
                   <div className="activity-item-main">
-                    <strong>{p.name}</strong> 
+                    <strong>Model {p.modelNumber}</strong> 
                     <span className="activity-meta">
-                      Model: {p.modelNumber} | Category: {p.category} | Type: <span style={{ fontWeight: '700', fontSize: '10px', color: p.type === 'RETAIL' ? '#3B82F6' : '#6B7280', letterSpacing: '0.04em' }}>{p.type}</span>
+                      Category: {p.category} | Type: <span style={{ fontWeight: '700', fontSize: '10px', color: p.type === 'RETAIL' ? '#3B82F6' : '#6B7280', letterSpacing: '0.04em' }}>{p.type}</span>
                     </span>
                   </div>
                   <div className="activity-item-badge">

@@ -44,7 +44,7 @@ const Cart = () => {
       let imgPath = item.image || `/images/clock-${item.modelNumber}.png`;
       const absoluteImageUrl = imgPath.startsWith('http') ? imgPath : `${baseUrl}${imgPath.startsWith('/') ? '' : '/'}${imgPath}`;
 
-      orderItemsText += `• ${item.productName}\n  Model: ${item.modelNumber}\n  Size: ${item.size}\n  Qty: ${item.quantity}\n  Price: ₹${item.unitPrice} × ${item.quantity} = ₹${item.unitPrice * item.quantity}\n  Product Image:\n  ${absoluteImageUrl}\n\n`;
+      orderItemsText += `• Model: ${item.modelNumber}\n  Size: ${item.size}\n  Qty: ${item.quantity}\n  Price: ₹${item.unitPrice} × ${item.quantity} = ₹${item.unitPrice * item.quantity}\n  Product Image:\n  ${absoluteImageUrl}\n\n`;
     });
 
     let finalPhone = settings.whatsappNumber;
@@ -274,7 +274,7 @@ TOTAL: ₹${grandTotal}
                       {/* Thumbnail Image */}
                       <div className="cart-thumbnail-wrapper">
                         {item.image ? (
-                          <img src={item.image} alt={item.productName} className="cart-item-thumbnail" loading="lazy" decoding="async" />
+                          <img src={item.image} alt={item.modelNumber} className="cart-item-thumbnail" loading="lazy" decoding="async" />
                         ) : (
                           <ClockSvg model={item.modelNumber} size={60} />
                         )}
@@ -282,9 +282,9 @@ TOTAL: ₹${grandTotal}
 
                       {/* Item Details Stack */}
                       <div className="cart-item-details-stack">
-                        <h3 className="cart-item-name font-heading">{item.productName}</h3>
+                        <h3 className="cart-item-name font-heading">Model {item.modelNumber}</h3>
                         <div className="cart-item-meta font-body">
-                          Model: <strong>{item.modelNumber}</strong> &nbsp;|&nbsp; {item.size}
+                          {item.size}
                         </div>
                       </div>
 

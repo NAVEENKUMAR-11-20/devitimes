@@ -76,7 +76,7 @@ const ProductDetail = () => {
           <span className="breadcrumb-separator">&gt;</span>
           <Link to={isRetailProduct ? "/collection/retail" : "/collection"} className="breadcrumb-link font-body">Collection</Link>
           <span className="breadcrumb-separator">&gt;</span>
-          <span className="breadcrumb-current font-body">{product.name}</span>
+          <span className="breadcrumb-current font-body">Model {product.modelNumber}</span>
         </div>
       </div>
 
@@ -90,7 +90,7 @@ const ProductDetail = () => {
               {product.isOnSale && <span className="badge-sale absolute-badge">SALE</span>}
               <div className="zoom-image-wrapper">
                 {imagesList.length > 0 ? (
-                  <img src={imagesList[activeImageIndex]} alt={product.name} className="viewport-img" loading="lazy" decoding="async" />
+                  <img src={imagesList[activeImageIndex]} alt={product.modelNumber} className="viewport-img" loading="lazy" decoding="async" />
                 ) : (
                   <ClockSvg model={product.modelNumber} category={product.category} color={product.color} size={300} />
                 )}
@@ -105,7 +105,7 @@ const ProductDetail = () => {
                     className={`thumb-btn ${idx === activeImageIndex ? 'active-thumb' : ''}`}
                     onClick={() => setActiveImageIndex(idx)}
                   >
-                    <img src={img} alt={`${product.name} View ${idx + 1}`} loading="lazy" decoding="async" />
+                    <img src={img} alt={`Model ${product.modelNumber} View ${idx + 1}`} loading="lazy" decoding="async" />
                   </button>
                 ))}
               </div>
@@ -114,7 +114,7 @@ const ProductDetail = () => {
 
           {/* Right Column: Details */}
           <div className="detail-right-col">
-            <h1 className="detail-title font-heading">{product.name}</h1>
+            <h1 className="detail-title font-heading">Model {product.modelNumber}</h1>
             
             {/* Premium Specifications Card */}
             <div className="detail-specs-card">

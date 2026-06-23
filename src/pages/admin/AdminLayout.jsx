@@ -23,6 +23,17 @@ const AdminLayout = () => {
     setDismissedAlertIds(prev => [...prev, id]);
   };
 
+  const handleWhatsAppClick = (alert) => {
+    const adminWhatsAppRaw = settings.whatsappNumber || '7358349394';
+    let adminWhatsApp = adminWhatsAppRaw.replace(/\D/g, '');
+    if (adminWhatsApp.length === 10) {
+      adminWhatsApp = '91' + adminWhatsApp;
+    }
+    const message = `⚠️ DeviTimes Low Stock Alert\n\nModel No: ${alert.modelNumber}\n\nCurrent Stock: ${alert.stock}\n\nThreshold: ${alert.threshold}\n\nPlease restock the product immediately.`;
+    const whatsappUrl = `https://wa.me/${adminWhatsApp}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
   // Calculate which wholesale products are low-stock and not dismissed in this session
   const activeStockAlerts = useMemo(() => {
     if (settings.bannerAlertEnabled === false) return [];
@@ -35,13 +46,21 @@ const AdminLayout = () => {
         const prodStock = p.stock !== undefined ? p.stock : 20;
         return prodStock <= threshold && !dismissedAlertIds.includes(p.id);
       })
-      .map(p => ({
-        id: p.id,
-        name: p.name || 'Wall Clock',
-        modelNumber: p.modelNumber || p.id,
-        stock: p.stock !== undefined ? p.stock : 20
-      }));
-  }, [products, dismissedAlertIds, settings.lowStockThreshold, settings.bannerAlertEnabled]);
+      .map(p => {
+        const rawTime = settings.alertData?.[p.id]?.lastAlertSentAt;
+        const timeObj = rawTime ? new Date(rawTime) : new Date();
+        const alertTimeStr = timeObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' on ' + timeObj.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        
+        return {
+          id: p.id,
+          modelNumber: p.modelNumber || p.id,
+          stock: p.stock !== undefined ? p.stock : 20,
+          threshold: threshold,
+          image: p.images && p.images.length > 0 ? p.images[0] : null,
+          alertTime: alertTimeStr
+        };
+      });
+  }, [products, dismissedAlertIds, settings.lowStockThreshold, settings.bannerAlertEnabled, settings.alertData]);
 
   // Close sidebar on route change for mobile, except on initial mount
   useEffect(() => {
@@ -215,11 +234,31 @@ const AdminLayout = () => {
                 <strong style={{ fontWeight: 600 }}>Low Stock Alert</strong>
                 <button className="close-alert-btn" onClick={() => dismissAlert(alert.id)}>×</button>
               </div>
-              <div className="stock-alert-card-body">
-                <p>Product: <strong>{alert.name || 'Wall Clock'}</strong></p>
-                <p>Model No: <strong>{alert.modelNumber}</strong></p>
-                <p>Current Stock: <strong style={{ color: '#ef4444' }}>{alert.stock}</strong></p>
+              <div className="stock-alert-card-body" style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
+                <div className="alert-card-thumb" style={{ width: '60px', height: '60px', borderRadius: '4px', overflow: 'hidden', background: '#ffffff', marginRight: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid #334155' }}>
+                  {alert.image ? (
+                    <img src={alert.image} alt={alert.modelNumber} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'cover' }} onError={(e) => { e.target.onerror = null; e.target.src = "/placeholder.svg"; }} />
+                  ) : (
+                    <span style={{ fontSize: '24px' }}>⏰</span>
+                  )}
+                </div>
+                <div style={{ flexGrow: 1, fontSize: '12px', lineHeight: '1.4' }}>
+                  <p style={{ margin: '2px 0' }}>Model: <strong style={{ color: '#ffffff' }}>{alert.modelNumber}</strong></p>
+                  <p style={{ margin: '2px 0' }}>Stock: <strong style={{ color: '#ef4444', fontWeight: '700' }}>{alert.stock}</strong></p>
+                  <p style={{ margin: '2px 0' }}>Threshold: <strong style={{ color: '#ffffff' }}>{alert.threshold}</strong></p>
+                  <p style={{ margin: '2px 0' }}>Alert Time: <span style={{ color: '#94a3b8' }}>{alert.alertTime}</span></p>
+                </div>
               </div>
+              {settings.inventoryAlertEnabled !== false && (
+                <div className="stock-alert-card-footer">
+                  <button className="btn-primary open-wa-btn" onClick={() => handleWhatsAppClick(alert)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px 12px', fontSize: '13px', borderRadius: '4px' }}>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                      <path d="M12.012 2c-5.506 0-9.989 4.478-9.99 9.984a9.96 9.96 0 001.333 4.982L2 22l5.202-1.362a9.92 9.92 0 004.808 1.258h.005c5.507 0 9.99-4.478 9.99-9.986 0-2.669-1.037-5.176-2.923-7.062A9.914 9.914 0 0012.012 2zM12.01 20.393h-.004a8.31 8.31 0 01-4.238-1.161l-.304-.18-3.149.826.84-3.072-.198-.314a8.31 8.31 0 01-1.275-4.51c.002-4.587 3.73-8.311 8.324-8.311a8.27 8.27 0 015.88 2.438 8.27 8.27 0 012.44 5.88c-.002 4.59-3.73 8.313-8.325 8.313zm4.557-6.223c-.25-.124-1.477-.727-1.705-.81-.228-.083-.393-.124-.558.124-.165.25-.639.81-.784.975-.145.165-.29.185-.54.062-.25-.125-1.05-.388-2.001-1.236-.74-.66-1.24-1.473-1.385-1.722-.145-.25-.015-.385.11-.509.112-.112.25-.29.375-.436.125-.145.166-.25.25-.416.083-.166.042-.31-.02-.435-.063-.125-.558-1.348-.764-1.848-.2-.5-.401-.429-.558-.429h-.475c-.165 0-.435.063-.663.312-.228.25-.87.852-.87 2.077 0 1.226.89 2.41 1.015 2.577.124.166 1.752 2.675 4.246 3.75.593.256 1.057.409 1.417.524.597.19 1.14.163 1.57.099.479-.072 1.477-.601 1.683-1.18.207-.58.207-1.08.145-1.18-.062-.101-.228-.182-.478-.306z"/>
+                    </svg>
+                    WhatsApp Alert
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>

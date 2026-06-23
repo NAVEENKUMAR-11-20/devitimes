@@ -34,7 +34,6 @@ const History = () => {
         const query = activeSearch.toLowerCase().trim();
         const matchesId = (o.id || '').toLowerCase().includes(query);
         const matchesItems = (o.items || []).some(item => 
-          (item.productName || '').toLowerCase().includes(query) ||
           (item.modelNumber || '').toLowerCase().includes(query) ||
           (item.size || '').toLowerCase().includes(query)
         );
@@ -484,8 +483,8 @@ const History = () => {
                 <tr>
                   <td>${idx + 1}</td>
                   <td>
-                    <div class="item-desc">${item.productName}</div>
-                    <div class="item-meta">Model: ${item.modelNumber}${item.size ? ` | Size: ${item.size}` : ''}</div>
+                    <div class="item-desc">Model ${item.modelNumber}</div>
+                    <div class="item-meta">${item.size ? `Size: ${item.size}` : ''}</div>
                   </td>
                   <td style="text-align: right;">₹${item.unitPrice}</td>
                   <td style="text-align: center;">${item.quantity}</td>
@@ -723,16 +722,16 @@ const History = () => {
                       <div key={idx} className="detail-item-row">
                         <div className="detail-item-thumbnail-wrapper">
                           {item.image ? (
-                            <img src={item.image} alt={item.productName} className="detail-item-thumbnail" loading="lazy" />
+                            <img src={item.image} alt={item.modelNumber} className="detail-item-thumbnail" loading="lazy" />
                           ) : (
                             <ClockSvg model={item.modelNumber} size={48} />
                           )}
                         </div>
                         
                         <div className="detail-item-info">
-                          <div className="detail-item-name font-heading">{item.productName}</div>
+                          <div className="detail-item-name font-heading">Model {item.modelNumber}</div>
                           <div className="detail-item-meta">
-                            Model: <code>{item.modelNumber}</code> &nbsp;·&nbsp; {item.size}
+                            {item.size}
                           </div>
                         </div>
                         

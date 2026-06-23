@@ -87,9 +87,9 @@ const CheckoutSuccess = () => {
                 {order.items.map((item, idx) => (
                   <div key={idx} className="receipt-item-row">
                     <div className="receipt-item-info">
-                      <div className="receipt-item-name font-heading">{item.productName}</div>
+                      <div className="receipt-item-name font-heading">Model {item.modelNumber}</div>
                       <div className="receipt-item-meta">
-                        Model: {item.modelNumber} &nbsp;·&nbsp; {item.size}
+                        {item.size}
                       </div>
                     </div>
                     <div className="receipt-item-qty-price">
