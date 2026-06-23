@@ -19,11 +19,24 @@ const AdminLayout = () => {
   const isFirstRender = useRef(true);
   const [stockAlerts, setStockAlerts] = useState([]);
 
-  const dismissAlert = (id) => {
+  const dismissAlert = async (id) => {
     setStockAlerts(prev => prev.filter(alert => alert.id !== id));
+    // Mark as sent/acknowledged in settings so it doesn't pop up again
+    const updatedAlertData = {
+      ...settings.alertData,
+      [id]: {
+        alertSent: true,
+        lastAlertSentAt: new Date().toISOString()
+      }
+    };
+    updateSettings({ alertData: updatedAlertData });
+    await saveSettingsToPB({
+      ...settings,
+      alertData: updatedAlertData
+    });
   };
 
-  const triggerWhatsAppAlert = (alert) => {
+  const triggerWhatsAppAlert = async (alert) => {
     const adminWhatsAppRaw = settings.whatsappNumber || '7358349394';
     let adminWhatsApp = adminWhatsAppRaw.replace(/\D/g, '');
     if (adminWhatsApp.length === 10) {
@@ -38,6 +51,23 @@ const AdminLayout = () => {
 
     const whatsappUrl = `https://wa.me/${adminWhatsApp}?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
+
+    // Mark as sent in settings
+    const updatedAlertData = {
+      ...settings.alertData,
+      [alert.id]: {
+        alertSent: true,
+        lastAlertSentAt: now.toISOString()
+      }
+    };
+    updateSettings({ alertData: updatedAlertData });
+    await saveSettingsToPB({
+      ...settings,
+      alertData: updatedAlertData
+    });
+
+    // Remove from active alerts list
+    setStockAlerts(prev => prev.filter(a => a.id !== alert.id));
   };
 
   useEffect(() => {
@@ -68,7 +98,8 @@ const AdminLayout = () => {
             }];
           });
 
-          // Open WhatsApp automatically
+          // Open WhatsApp automatically in background
+          let opened = false;
           try {
             const adminWhatsAppRaw = settings.whatsappNumber || '7358349394';
             let adminWhatsApp = adminWhatsAppRaw.replace(/\D/g, '');
@@ -80,17 +111,24 @@ const AdminLayout = () => {
             const alertDate = now.toLocaleDateString();
             const message = `⚠️ Low Stock Alert - DeviTimes\n\nProduct: ${p.name || 'Wall Clock'}\nModel No: ${p.modelNumber || p.id}\nCurrent Stock: ${prodStock}\nTime & Date: ${alertTime} on ${alertDate}\n\nPlease restock the product.`;
             const whatsappUrl = `https://wa.me/${adminWhatsApp}?text=${encodeURIComponent(message)}`;
-            window.open(whatsappUrl, '_blank');
+            
+            const newWin = window.open(whatsappUrl, '_blank');
+            if (newWin && !newWin.closed) {
+              opened = true;
+            }
           } catch (e) {
             console.warn("Failed to open WhatsApp window automatically:", e);
           }
 
-          // Update alert state
-          alertData[p.id] = {
-            alertSent: true,
-            lastAlertSentAt: new Date().toISOString()
-          };
-          changed = true;
+          // ONLY update alertSent in the database if the window successfully opened!
+          // If it was blocked, we keep alertSent as false so the banner remains visible.
+          if (opened) {
+            alertData[p.id] = {
+              alertSent: true,
+              lastAlertSentAt: new Date().toISOString()
+            };
+            changed = true;
+          }
         }
       } else {
         // If replenished, reset the alertSent flag

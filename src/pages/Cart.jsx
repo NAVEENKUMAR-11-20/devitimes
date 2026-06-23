@@ -170,8 +170,20 @@ const Cart = () => {
 
     const formattedOrderId = formatOrderId(pbOrderId || `ORD-${Math.floor(100000 + Math.random() * 900000)}`);
 
+    // Check if any ordered items have reached low stock threshold
+    let lowStockAlertsText = '';
+    const threshold = settings.lowStockThreshold || 10;
+    for (const item of cart) {
+      const prod = products.find(p => p.id === item.productId);
+      const currentStock = prod && prod.stock !== undefined ? prod.stock : 20;
+      const newStock = Math.max(0, currentStock - item.quantity);
+      if (newStock <= threshold) {
+        lowStockAlertsText += `⚠️ LOW STOCK ALERT: ${item.productName} (Model: ${item.modelNumber}) has reached ${newStock} units.\n`;
+      }
+    }
+
     // Construct WhatsApp message with formatted order ID
-    const message = `━━━━━━━━━━━━━━━━━━━━━
+    let message = `━━━━━━━━━━━━━━━━━━━━━
 🕐 DEVI TIMES — NEW ORDER
 ━━━━━━━━━━━━━━━━━━━━━
 
@@ -188,8 +200,13 @@ ${orderItemsText.trim()}
 
 ────────────────
 TOTAL: ₹${grandTotal}
-━━━━━━━━━━━━━━━━━━━━━
-[${timestamp}]`;
+━━━━━━━━━━━━━━━━━━━━━`;
+
+    if (lowStockAlertsText) {
+      message += `\n\n🔔 INVENTORY NOTICE\n${lowStockAlertsText.trim()}\n━━━━━━━━━━━━━━━━━━━━━`;
+    }
+
+    message += `\n[${timestamp}]`;
 
     // Save details to sessionStorage for the CheckoutSuccess page
     sessionStorage.setItem('lumiere_last_order', JSON.stringify({

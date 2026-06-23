@@ -717,9 +717,40 @@ const AdminProducts = () => {
       const response = await pbUpdateProduct(pbId, payload, 'PRODUCT_DATAS');
       console.log('[DEBUG] PocketBase update response:', response);
 
-      // If stock is replenished above threshold, reset alertSent flag in settings.alertData
+      // If stock is set below or equal to threshold, trigger WhatsApp alert immediately (since this is a user click gesture)
       const threshold = settings.lowStockThreshold || 10;
-      if (newStockVal > threshold) {
+      if (newStockVal <= threshold) {
+        const updatedAlertData = { ...settings.alertData };
+        const prevAlertInfo = updatedAlertData[pbId] || { alertSent: false };
+        if (!prevAlertInfo.alertSent) {
+          try {
+            const adminWhatsAppRaw = settings.whatsappNumber || '7358349394';
+            let adminWhatsApp = adminWhatsAppRaw.replace(/\D/g, '');
+            if (adminWhatsApp.length === 10) {
+              adminWhatsApp = '91' + adminWhatsApp;
+            }
+            const now = new Date();
+            const alertTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const alertDate = now.toLocaleDateString();
+            const message = `⚠️ Low Stock Alert - DeviTimes\n\nProduct: ${editingProduct.name || 'Wall Clock'}\nModel No: ${editingProduct.modelNumber || pbId}\nCurrent Stock: ${newStockVal}\nTime & Date: ${alertTime} on ${alertDate}\n\nPlease restock the product.`;
+            const whatsappUrl = `https://wa.me/${adminWhatsApp}?text=${encodeURIComponent(message)}`;
+            window.open(whatsappUrl, '_blank');
+          } catch (e) {
+            console.warn("Failed to open WhatsApp window automatically:", e);
+          }
+
+          updatedAlertData[pbId] = {
+            alertSent: true,
+            lastAlertSentAt: new Date().toISOString()
+          };
+          updateSettings({ alertData: updatedAlertData });
+          await saveSettingsToPB({
+            ...settings,
+            alertData: updatedAlertData
+          });
+        }
+      } else {
+        // If stock is replenished above threshold, reset alertSent flag in settings.alertData
         const updatedAlertData = { ...settings.alertData };
         if (updatedAlertData[pbId]) {
           updatedAlertData[pbId] = {
