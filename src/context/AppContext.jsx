@@ -16,6 +16,7 @@ const defaultSettings = {
   retailPassword: "naveenwork001",
   lowStockThreshold: 10,
   inventoryAlertEnabled: true,
+  bannerAlertEnabled: true,
   alertData: {}
 };
 
@@ -92,39 +93,53 @@ export const AppProvider = ({ children }) => {
         const records = await pb.collection('app_settings').getFullList();
         if (records && records.length > 0) {
           const raw = records[0].whatsapp_number;
-          if (raw && raw.startsWith('[INVENTORY_V1,') && raw.endsWith(']')) {
+          let phoneVal = raw;
+          let thresholdVal = 10;
+          let enabledVal = true;
+          let bannerVal = true;
+          let parsedAlertData = {};
+
+          if (raw && raw.startsWith('[INVENTORY_V2,') && raw.endsWith(']')) {
             const parts = raw.slice(1, -1).split(',');
-            let parsedAlertData = {};
+            phoneVal = parts[1] || '';
+            thresholdVal = (parts[2] !== undefined && !isNaN(Number(parts[2]))) ? Number(parts[2]) : 10;
+            enabledVal = parts[3] !== 'false';
+            bannerVal = parts[4] !== 'false';
+            if (parts[5]) {
+              try {
+                parsedAlertData = JSON.parse(atob(parts[5]));
+              } catch (e) {
+                console.error("Failed to parse alert data from PB settings V2:", e);
+              }
+            }
+          } else if (raw && raw.startsWith('[INVENTORY_V1,') && raw.endsWith(']')) {
+            const parts = raw.slice(1, -1).split(',');
+            phoneVal = parts[1] || '';
+            thresholdVal = (parts[2] !== undefined && !isNaN(Number(parts[2]))) ? Number(parts[2]) : 10;
+            enabledVal = parts[3] !== 'false';
+            bannerVal = true;
             if (parts[4]) {
               try {
                 parsedAlertData = JSON.parse(atob(parts[4]));
               } catch (e) {
-                console.error("Failed to parse alert data from PB settings:", e);
+                console.error("Failed to parse alert data from PB settings V1:", e);
               }
             }
-            setSettings(prev => {
-              const thresholdVal = (parts[2] !== undefined && !isNaN(Number(parts[2]))) ? Number(parts[2]) : 10;
-              const enabledVal = parts[3] === 'false' ? false : true;
-              return {
-                ...prev,
-                whatsappNumber: parts[1] || prev.whatsappNumber || "7358349394",
-                lowStockThreshold: thresholdVal,
-                inventoryAlertEnabled: enabledVal,
-                alertData: Object.keys(parsedAlertData).length > 0 ? parsedAlertData : prev.alertData
-              };
-            });
           } else if (raw && raw.startsWith('[') && raw.endsWith(']')) {
             const parts = raw.slice(1, -1).split(',');
-            setSettings(prev => ({
-              ...prev,
-              whatsappNumber: parts[0] || prev.whatsappNumber
-            }));
+            phoneVal = parts[0] || '';
           } else if (raw) {
-            setSettings(prev => ({
-              ...prev,
-              whatsappNumber: raw
-            }));
+            phoneVal = raw;
           }
+
+          setSettings(prev => ({
+            ...prev,
+            whatsappNumber: phoneVal || prev.whatsappNumber || "7358349394",
+            lowStockThreshold: thresholdVal,
+            inventoryAlertEnabled: enabledVal,
+            bannerAlertEnabled: bannerVal,
+            alertData: Object.keys(parsedAlertData).length > 0 ? parsedAlertData : prev.alertData
+          }));
         }
 
         const retailRecords = await pb.collection('retail_users').getFullList();
@@ -167,37 +182,53 @@ export const AppProvider = ({ children }) => {
           if (!isMounted) return;
           if (e.action === 'update' || e.action === 'create') {
             const raw = e.record.whatsapp_number;
-            if (raw && raw.startsWith('[INVENTORY_V1,') && raw.endsWith(']')) {
+            let phoneVal = raw;
+            let thresholdVal = 10;
+            let enabledVal = true;
+            let bannerVal = true;
+            let parsedAlertData = {};
+
+            if (raw && raw.startsWith('[INVENTORY_V2,') && raw.endsWith(']')) {
               const parts = raw.slice(1, -1).split(',');
-              let parsedAlertData = {};
+              phoneVal = parts[1] || '';
+              thresholdVal = (parts[2] !== undefined && !isNaN(Number(parts[2]))) ? Number(parts[2]) : 10;
+              enabledVal = parts[3] !== 'false';
+              bannerVal = parts[4] !== 'false';
+              if (parts[5]) {
+                try {
+                  parsedAlertData = JSON.parse(atob(parts[5]));
+                } catch (err) {
+                  console.error("Failed to parse alert data from PB settings V2:", err);
+                }
+              }
+            } else if (raw && raw.startsWith('[INVENTORY_V1,') && raw.endsWith(']')) {
+              const parts = raw.slice(1, -1).split(',');
+              phoneVal = parts[1] || '';
+              thresholdVal = (parts[2] !== undefined && !isNaN(Number(parts[2]))) ? Number(parts[2]) : 10;
+              enabledVal = parts[3] !== 'false';
+              bannerVal = true;
               if (parts[4]) {
                 try {
                   parsedAlertData = JSON.parse(atob(parts[4]));
                 } catch (err) {
-                  console.error("Failed to parse alert data from PB settings:", err);
+                  console.error("Failed to parse alert data from PB settings V1:", err);
                 }
               }
-              const thresholdVal = (parts[2] !== undefined && !isNaN(Number(parts[2]))) ? Number(parts[2]) : 10;
-              const enabledVal = parts[3] === 'false' ? false : true;
-              setSettings(prev => ({
-                ...prev,
-                whatsappNumber: parts[1] || prev.whatsappNumber || "7358349394",
-                lowStockThreshold: thresholdVal,
-                inventoryAlertEnabled: enabledVal,
-                alertData: Object.keys(parsedAlertData).length > 0 ? parsedAlertData : prev.alertData
-              }));
             } else if (raw && raw.startsWith('[') && raw.endsWith(']')) {
               const parts = raw.slice(1, -1).split(',');
-              setSettings(prev => ({
-                ...prev,
-                whatsappNumber: parts[0] || prev.whatsappNumber
-              }));
+              phoneVal = parts[0] || '';
             } else if (raw) {
-              setSettings(prev => ({
-                ...prev,
-                whatsappNumber: raw
-              }));
+              phoneVal = raw;
             }
+
+            setSettings(prev => ({
+              ...prev,
+              whatsappNumber: phoneVal || prev.whatsappNumber || "7358349394",
+              lowStockThreshold: thresholdVal,
+              inventoryAlertEnabled: enabledVal,
+              bannerAlertEnabled: bannerVal,
+              alertData: Object.keys(parsedAlertData).length > 0 ? parsedAlertData : prev.alertData
+            }));
           }
         });
         console.log('[AppContext] Successfully subscribed to app_settings collection.');
@@ -715,9 +746,10 @@ export const AppProvider = ({ children }) => {
     const whatsappNum = newSettings.whatsappNumber || "7358349394";
     const threshold = (newSettings.lowStockThreshold !== undefined && !isNaN(Number(newSettings.lowStockThreshold))) ? Number(newSettings.lowStockThreshold) : 10;
     const enabled = newSettings.inventoryAlertEnabled !== false;
+    const bannerEnabled = newSettings.bannerAlertEnabled !== false;
     const base64Alert = btoa(JSON.stringify(newSettings.alertData || {}));
 
-    const packed = `[INVENTORY_V1,${whatsappNum},${threshold},${enabled},${base64Alert}]`;
+    const packed = `[INVENTORY_V2,${whatsappNum},${threshold},${enabled},${bannerEnabled},${base64Alert}]`;
 
     try {
       const records = await pb.collection('app_settings').getFullList();
@@ -732,6 +764,59 @@ export const AppProvider = ({ children }) => {
       }
     } catch (err) {
       console.error("Failed to save settings to PocketBase app_settings:", err);
+    }
+  };
+
+  const checkAndTriggerLowStockAlert = async (product, newStockVal) => {
+    if (!settings.inventoryAlertEnabled) return;
+    const threshold = settings.lowStockThreshold || 10;
+    
+    if (newStockVal <= threshold) {
+      const updatedAlertData = { ...settings.alertData };
+      const prevAlertInfo = updatedAlertData[product.id] || { alertSent: false };
+      
+      if (!prevAlertInfo.alertSent) {
+        try {
+          const adminWhatsAppRaw = settings.whatsappNumber || '7358349394';
+          let adminWhatsApp = adminWhatsAppRaw.replace(/\D/g, '');
+          if (adminWhatsApp.length === 10) {
+            adminWhatsApp = '91' + adminWhatsApp;
+          }
+          const now = new Date();
+          const alertTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const alertDate = now.toLocaleDateString();
+          
+          const message = `⚠️ DeviTimes Low Stock Alert\n\nProduct: ${product.name || 'Wall Clock'}\nModel No: ${product.modelNumber || product.MODEL_NO || product.id}\nCurrent Stock: ${newStockVal}\nThreshold: ${threshold}\n\nPlease restock the product immediately.`;
+          
+          const whatsappUrl = `https://wa.me/${adminWhatsApp}?text=${encodeURIComponent(message)}`;
+          window.open(whatsappUrl, '_blank');
+        } catch (e) {
+          console.warn("Failed to open WhatsApp window automatically:", e);
+        }
+
+        updatedAlertData[product.id] = {
+          alertSent: true,
+          lastAlertSentAt: new Date().toISOString()
+        };
+        updateSettings({ alertData: updatedAlertData });
+        await saveSettingsToPB({
+          ...settings,
+          alertData: updatedAlertData
+        });
+      }
+    } else {
+      const updatedAlertData = { ...settings.alertData };
+      if (updatedAlertData[product.id]) {
+        updatedAlertData[product.id] = {
+          ...updatedAlertData[product.id],
+          alertSent: false
+        };
+        updateSettings({ alertData: updatedAlertData });
+        await saveSettingsToPB({
+          ...settings,
+          alertData: updatedAlertData
+        });
+      }
     }
   };
 
@@ -771,7 +856,8 @@ export const AppProvider = ({ children }) => {
       loginAdmin,
       logoutAdmin,
       updateSettings,
-      saveSettingsToPB
+      saveSettingsToPB,
+      checkAndTriggerLowStockAlert
     }}>
       {children}
     </AppContext.Provider>

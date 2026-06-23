@@ -10,7 +10,8 @@ const AdminDashboard = () => {
     users,
     pendingRegistrations,
     refreshProducts,
-    refreshUsers
+    refreshUsers,
+    settings
   } = useApp();
 
   const [loading, setLoading] = useState(() => {
@@ -71,6 +72,15 @@ const AdminDashboard = () => {
 
   // Metrics calculations
   console.log('Fetched products from PocketBase (Dashboard):', products);
+
+  // Filter for low stock wholesale products
+  const threshold = settings?.lowStockThreshold || 10;
+  const lowStockProducts = products.filter(p => {
+    const isWholesale = p.product_type !== 'retail' && p.product_type !== 'RETAIL';
+    const prodStock = p.stock !== undefined ? p.stock : 20;
+    return isWholesale && prodStock <= threshold;
+  });
+
   const uniqueProductIds = new Set([
     ...products.map(p => p.id),
     ...(retailProducts || []).map(p => p.id)
@@ -142,6 +152,64 @@ const AdminDashboard = () => {
         <h1 className="dashboard-heading font-heading">Dashboard Overview</h1>
         <p className="dashboard-desc font-body">Real-time statistics and quick controls for DEVI TIMES e-commerce.</p>
       </div>
+
+      {/* Persistent Low Stock Alerts Section */}
+      {settings?.bannerAlertEnabled !== false && lowStockProducts.length > 0 && (
+        <div className="dashboard-low-stock-section font-body">
+          <div className="dashboard-section-header">
+            <span className="section-icon">⚠️</span>
+            <h2 className="dashboard-section-title font-heading">Low Stock Alerts</h2>
+          </div>
+          <div className="low-stock-cards-grid">
+            {lowStockProducts.map(p => {
+              const lastAlert = settings.alertData?.[p.id]?.lastAlertSentAt;
+              return (
+                <div className="low-stock-alert-card animate-fade-in" key={p.id}>
+                  <div className="low-stock-card-thumb">
+                    {p.images && p.images.length > 0 ? (
+                      <img 
+                        src={p.images[0]} 
+                        alt={p.name || 'Wall Clock'} 
+                        onError={(e) => { e.target.onerror = null; e.target.src = "/placeholder.svg"; }}
+                      />
+                    ) : (
+                      <div className="fallback-clock-thumb">⏰</div>
+                    )}
+                  </div>
+                  <div className="low-stock-card-content">
+                    <div className="low-stock-header-row">
+                      <h4 className="low-stock-product-name font-heading">{p.name || 'Wall Clock'}</h4>
+                      <span className="low-stock-badge">LOW STOCK</span>
+                    </div>
+                    <div className="low-stock-specs font-body">
+                      <div className="spec-item">
+                        <span className="spec-label">Model No:</span>
+                        <span className="spec-val"><code>{p.modelNumber}</code></span>
+                      </div>
+                      <div className="spec-item">
+                        <span className="spec-label">Current Stock:</span>
+                        <span className="spec-val" style={{ color: 'var(--accent-red)', fontWeight: '700' }}>{p.stock !== undefined ? p.stock : 20}</span>
+                      </div>
+                      <div className="spec-item">
+                        <span className="spec-label">Threshold:</span>
+                        <span className="spec-val">{threshold}</span>
+                      </div>
+                      {lastAlert && (
+                        <div className="spec-item full-width">
+                          <span className="spec-label">Last Alert:</span>
+                          <span className="spec-val" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                            {new Date(lastAlert).toLocaleString()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Metrics Row (4 Cards) */}
       <div className="metrics-row-grid">
@@ -468,6 +536,152 @@ const AdminDashboard = () => {
           color: #6B7280;
           background-color: #F3F4F6;
           padding: 2px 6px;
+        }
+
+        /* Low Stock Alerts Section Dashboard styling */
+        .dashboard-low-stock-section {
+          background-color: #ffffff;
+          padding: 24px;
+          border-radius: 4px;
+          border: 1px solid var(--border-color);
+          box-shadow: var(--card-shadow);
+          margin-bottom: 32px;
+          border-left: 4px solid var(--accent-red);
+        }
+
+        .dashboard-section-header {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 20px;
+        }
+
+        .section-icon {
+          font-size: 20px;
+        }
+
+        .dashboard-section-title {
+          font-size: 18px;
+          font-weight: 700;
+          color: var(--text-primary);
+          margin: 0;
+        }
+
+        .low-stock-cards-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+          gap: 20px;
+        }
+
+        .low-stock-alert-card {
+          display: flex;
+          background: #f8fafc;
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          padding: 16px;
+          gap: 16px;
+          transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .low-stock-alert-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .low-stock-card-thumb {
+          width: 80px;
+          height: 80px;
+          background: #ffffff;
+          border: 1px solid var(--border-color);
+          border-radius: 6px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          flex-shrink: 0;
+        }
+
+        .low-stock-card-thumb img {
+          max-width: 100%;
+          max-height: 100%;
+          object-fit: cover;
+        }
+
+        .fallback-clock-thumb {
+          font-size: 28px;
+        }
+
+        .low-stock-card-content {
+          display: flex;
+          flex-direction: column;
+          flex-grow: 1;
+        }
+
+        .low-stock-header-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          margin-bottom: 8px;
+          gap: 8px;
+        }
+
+        .low-stock-product-name {
+          font-size: 15px;
+          font-weight: 700;
+          color: var(--text-primary);
+          margin: 0;
+        }
+
+        .low-stock-badge {
+          background-color: #fee2e2;
+          color: #ef4444;
+          font-size: 9px;
+          font-weight: 700;
+          padding: 2px 6px;
+          border-radius: 4px;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          flex-shrink: 0;
+        }
+
+        .low-stock-specs {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 6px;
+          font-size: 12px;
+        }
+
+        .spec-item {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+
+        .spec-item.full-width {
+          grid-column: 1 / -1;
+          margin-top: 4px;
+          border-top: 1px dashed var(--border-color);
+          padding-top: 4px;
+        }
+
+        .spec-label {
+          color: var(--text-muted);
+          font-size: 10px;
+          text-transform: uppercase;
+          font-weight: 600;
+        }
+
+        .spec-val {
+          color: var(--text-secondary);
+          font-weight: 600;
+        }
+
+        .spec-val code {
+          background: #e2e8f0;
+          padding: 1px 4px;
+          border-radius: 4px;
+          font-family: monospace;
+          font-size: 11px;
         }
       `}</style>
     </div>

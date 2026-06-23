@@ -35,6 +35,7 @@ const AdminSettings = () => {
   const [whatsappNumber, setWhatsappNumber] = useState(settings.whatsappNumber);
   const [lowStockThreshold, setLowStockThreshold] = useState(settings.lowStockThreshold || 10);
   const [inventoryAlertEnabled, setInventoryAlertEnabled] = useState(settings.inventoryAlertEnabled !== false);
+  const [bannerAlertEnabled, setBannerAlertEnabled] = useState(settings.bannerAlertEnabled !== false);
 
   // Admin Password resets State
   const [currentPassword, setCurrentPassword] = useState('');
@@ -292,11 +293,20 @@ const AdminSettings = () => {
           let phoneVal = record.whatsapp_number;
           let thresholdVal = (settings.lowStockThreshold !== undefined && !isNaN(Number(settings.lowStockThreshold))) ? Number(settings.lowStockThreshold) : 10;
           let enabledVal = settings.inventoryAlertEnabled !== false;
-          if (phoneVal && phoneVal.startsWith('[INVENTORY_V1,') && phoneVal.endsWith(']')) {
+          let bannerVal = settings.bannerAlertEnabled !== false;
+
+          if (phoneVal && phoneVal.startsWith('[INVENTORY_V2,') && phoneVal.endsWith(']')) {
             const parts = phoneVal.slice(1, -1).split(',');
             phoneVal = parts[1] || '';
             thresholdVal = (parts[2] !== undefined && !isNaN(Number(parts[2]))) ? Number(parts[2]) : 10;
-            enabledVal = parts[3] === 'false' ? false : true;
+            enabledVal = parts[3] !== 'false';
+            bannerVal = parts[4] !== 'false';
+          } else if (phoneVal && phoneVal.startsWith('[INVENTORY_V1,') && phoneVal.endsWith(']')) {
+            const parts = phoneVal.slice(1, -1).split(',');
+            phoneVal = parts[1] || '';
+            thresholdVal = (parts[2] !== undefined && !isNaN(Number(parts[2]))) ? Number(parts[2]) : 10;
+            enabledVal = parts[3] !== 'false';
+            bannerVal = true;
           } else if (phoneVal && phoneVal.startsWith('[') && phoneVal.endsWith(']')) {
             const parts = phoneVal.slice(1, -1).split(',');
             phoneVal = parts[0] || '';
@@ -305,10 +315,12 @@ const AdminSettings = () => {
           setWhatsappNumber(phoneVal);
           setLowStockThreshold(thresholdVal);
           setInventoryAlertEnabled(enabledVal);
+          setBannerAlertEnabled(bannerVal);
           updateSettings({
             whatsappNumber: phoneVal,
             lowStockThreshold: thresholdVal,
-            inventoryAlertEnabled: enabledVal
+            inventoryAlertEnabled: enabledVal,
+            bannerAlertEnabled: bannerVal
           });
         } else {
           console.log('Creating settings record...');
@@ -359,15 +371,17 @@ const AdminSettings = () => {
     const finalNumber = whatsappNumber.trim();
     const finalThreshold = (lowStockThreshold !== undefined && !isNaN(Number(lowStockThreshold))) ? Number(lowStockThreshold) : 10;
     const finalEnabled = inventoryAlertEnabled !== false;
+    const finalBanner = bannerAlertEnabled !== false;
     const base64Alert = btoa(JSON.stringify(settings.alertData || {}));
 
-    const packed = `[INVENTORY_V1,${finalNumber},${finalThreshold},${finalEnabled},${base64Alert}]`;
+    const packed = `[INVENTORY_V2,${finalNumber},${finalThreshold},${finalEnabled},${finalBanner},${base64Alert}]`;
 
     // Optimistically update local react context instantly
     updateSettings({ 
       whatsappNumber: finalNumber,
       lowStockThreshold: finalThreshold,
-      inventoryAlertEnabled: finalEnabled
+      inventoryAlertEnabled: finalEnabled,
+      bannerAlertEnabled: finalBanner
     });
     triggerToast('Settings updated');
 
@@ -572,7 +586,17 @@ const AdminSettings = () => {
                   checked={inventoryAlertEnabled}
                   onChange={(e) => setInventoryAlertEnabled(e.target.checked)}
                 />
-                <span style={{ color: '#ffffff', marginLeft: '8px' }}>Enable Inventory Alerts</span>
+                <span style={{ color: '#ffffff', marginLeft: '8px' }}>Enable WhatsApp Alerts</span>
+              </label>
+            </div>
+            <div className="form-checkboxes-row font-body" style={{ marginTop: '12px', display: 'flex', alignItems: 'center' }}>
+              <label className="checkbox-container">
+                <input 
+                  type="checkbox" 
+                  checked={bannerAlertEnabled}
+                  onChange={(e) => setBannerAlertEnabled(e.target.checked)}
+                />
+                <span style={{ color: '#ffffff', marginLeft: '8px' }}>Enable Dashboard Alert Banner</span>
               </label>
             </div>
             <button type="submit" className="btn-primary settings-save-btn" style={{ marginTop: '20px' }}>
