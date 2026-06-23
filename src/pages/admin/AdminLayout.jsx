@@ -79,7 +79,7 @@ const AdminLayout = () => {
     let changed = false;
 
     // Filter for wholesale products
-    const wholesaleProducts = products.filter(p => !((p.product_type === 'retail' || p.product_type === 'RETAIL') || p.retailPrice > 0));
+    const wholesaleProducts = products.filter(p => p.product_type !== 'retail' && p.product_type !== 'RETAIL');
 
     wholesaleProducts.forEach(p => {
       const prodStock = p.stock !== undefined ? p.stock : 20;
