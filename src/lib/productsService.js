@@ -53,6 +53,7 @@ export function mapRecord(record) {
     source: 'pocketbase',
     createdAt: record.created,
     updatedAt: record.updated || '',
+    stock: record.STOCK !== undefined ? Number(record.STOCK) : 20,
   };
 }
 
@@ -135,6 +136,11 @@ export async function createProduct(data) {
     formData.append('is_on_sale', String(data.is_on_sale));
   }
   if (data.description     !== undefined) formData.append('description', data.description);
+  if (data.stock !== undefined) {
+    formData.append('STOCK', String(data.stock));
+  } else if (data.STOCK !== undefined) {
+    formData.append('STOCK', String(data.STOCK));
+  }
 
   if (data.imageFile) {
     formData.append('PRODUCT_IMAGE', data.imageFile);
@@ -166,6 +172,11 @@ export async function updateProduct(pbId, data, collectionName = 'PRODUCT_DATAS'
   }
 
   if (data.is_live !== undefined) formData.append('is_live', String(data.is_live));
+  if (data.stock !== undefined) {
+    formData.append('STOCK', String(data.stock));
+  } else if (data.STOCK !== undefined) {
+    formData.append('STOCK', String(data.STOCK));
+  }
   
   // Support other fields if they exist in schema
   if (data.original_price !== undefined) {

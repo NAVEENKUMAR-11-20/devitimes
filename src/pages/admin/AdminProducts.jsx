@@ -121,7 +121,7 @@ const enhanceAndUpscaleImage = (canvas, targetMinSize = 1200) => {
 const adminGalleriesCache = {};
 
 const AdminProducts = () => {
-  const { refreshProducts } = useApp();
+  const { refreshProducts, settings, updateSettings, saveSettingsToPB } = useApp();
 
   const ensurePbAuth = async () => {
     // Clear regular user session to prevent API rules policy mismatch on public collections
@@ -678,6 +678,7 @@ const AdminProducts = () => {
     try {
       await ensurePbAuth();
       const pbId = editForm.pbId || editForm.id;
+      const newStockVal = Number(editForm.stock !== undefined ? editForm.stock : 20);
       
       const payload = {
         MODEL_NO:        modelNumStr,
@@ -689,6 +690,7 @@ const AdminProducts = () => {
         original_price:  editForm.originalPrice !== undefined && editForm.originalPrice !== null && editForm.originalPrice !== '' ? Number(editForm.originalPrice) : null,
         is_on_sale:      editForm.isOnSale,
         description:     editForm.description || '',
+        STOCK:           newStockVal,
       };
 
       if (editForm.images.length === 0) {
@@ -714,6 +716,23 @@ const AdminProducts = () => {
 
       const response = await pbUpdateProduct(pbId, payload, 'PRODUCT_DATAS');
       console.log('[DEBUG] PocketBase update response:', response);
+
+      // If stock is replenished above threshold, reset alertSent flag in settings.alertData
+      const threshold = settings.lowStockThreshold || 10;
+      if (newStockVal > threshold) {
+        const updatedAlertData = { ...settings.alertData };
+        if (updatedAlertData[pbId]) {
+          updatedAlertData[pbId] = {
+            ...updatedAlertData[pbId],
+            alertSent: false
+          };
+          updateSettings({ alertData: updatedAlertData });
+          await saveSettingsToPB({
+            ...settings,
+            alertData: updatedAlertData
+          });
+        }
+      }
 
       setEditingProduct(null);
       triggerToast('Product updated successfully');
@@ -945,6 +964,7 @@ const AdminProducts = () => {
                 </th>
                 <th>Wholesale Price</th>
                 <th>Retail Price</th>
+                <th>Stock</th>
                 <th>Dimensions</th>
                 <th>Status</th>
                 <th>Actions</th>
@@ -983,6 +1003,22 @@ const AdminProducts = () => {
                     <div className="table-price-stack">
                       <strong>₹{p.retailPrice}</strong>
                     </div>
+                  </td>
+                  <td style={{ fontWeight: '600' }}>
+                    {p.stock !== undefined ? p.stock : 20}
+                    {p.stock <= (settings.lowStockThreshold || 10) && (
+                      <span style={{ 
+                        marginLeft: '8px', 
+                        fontSize: '11px', 
+                        padding: '2px 6px', 
+                        background: '#fee2e2', 
+                        color: '#ef4444', 
+                        borderRadius: '4px',
+                        fontWeight: '700'
+                      }}>
+                        LOW
+                      </span>
+                    )}
                   </td>
                   <td>{p.size}</td>
 
@@ -1109,6 +1145,16 @@ const AdminProducts = () => {
                     onChange={(e) => setEditForm(prev => ({ ...prev, retailPrice: Number(e.target.value) }))}
                   />
                 </div>
+              </div>
+
+              <div className="form-group" style={{ marginTop: '16px' }}>
+                <label className="form-label">STOCK QUANTITY</label>
+                <input 
+                  type="number" 
+                  className="form-input"
+                  value={editForm.stock !== undefined ? editForm.stock : 20}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, stock: Number(e.target.value) }))}
+                />
               </div>
 
               {/* Checkboxes */}

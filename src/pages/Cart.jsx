@@ -147,6 +147,24 @@ const Cart = () => {
       }
     }
 
+    // Decrement STOCK for ordered wholesale products in PocketBase
+    if (pbOrderId) {
+      for (const item of cart) {
+        try {
+          const prod = products.find(p => p.id === item.productId);
+          const currentStock = prod && prod.stock !== undefined ? prod.stock : 20;
+          const newStock = Math.max(0, currentStock - item.quantity);
+          console.log(`[Cart] Decrementing stock for product ${item.productId}: ${currentStock} -> ${newStock}`);
+          
+          await pb.collection('PRODUCT_DATAS').update(item.productId, {
+            STOCK: newStock
+          });
+        } catch (err) {
+          console.error(`[Cart] Failed to update stock for product ${item.productId}:`, err);
+        }
+      }
+    }
+
     const formattedOrderId = formatOrderId(pbOrderId || `ORD-${Math.floor(100000 + Math.random() * 900000)}`);
 
     // Construct WhatsApp message with formatted order ID

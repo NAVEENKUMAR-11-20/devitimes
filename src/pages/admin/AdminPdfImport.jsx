@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createProduct } from '../../lib/productsService';
+import { useApp } from '../../context/AppContext';
 
 const sizeOptions = [
   '200 × 200 MM',
@@ -86,6 +87,7 @@ const enhanceAndUpscaleImage = (canvas, targetMinSize = 1200) => {
 
 const AdminPdfImport = () => {
   const navigate = useNavigate();
+  const { settings, updateSettings, saveSettingsToPB } = useApp();
 
   // Helper: convert a base64 data-URL to a File object for FormData upload
   const base64ToFile = (base64, filename = 'product.png') => {
@@ -617,6 +619,7 @@ const AdminPdfImport = () => {
         is_live:         true,
         category:        p.category || 'Clock',
         imageFile,
+        STOCK:           20,
       });
 
       // Remove the saved product from the list
@@ -680,6 +683,7 @@ const AdminPdfImport = () => {
           category:        p.category || 'Clock',
           product_type:    'wholesale',
           imageFile,
+          STOCK:           20,
         });
         success++;
       } catch (err) {

@@ -33,6 +33,8 @@ const AdminSettings = () => {
 
   // WhatsApp Configuration State
   const [whatsappNumber, setWhatsappNumber] = useState(settings.whatsappNumber);
+  const [lowStockThreshold, setLowStockThreshold] = useState(settings.lowStockThreshold || 10);
+  const [inventoryAlertEnabled, setInventoryAlertEnabled] = useState(settings.inventoryAlertEnabled !== false);
 
   // Admin Password resets State
   const [currentPassword, setCurrentPassword] = useState('');
@@ -288,14 +290,25 @@ const AdminSettings = () => {
           setPbSettingsId(record.id);
           
           let phoneVal = record.whatsapp_number;
-          if (phoneVal && phoneVal.startsWith('[') && phoneVal.endsWith(']')) {
+          let thresholdVal = settings.lowStockThreshold;
+          let enabledVal = settings.inventoryAlertEnabled;
+          if (phoneVal && phoneVal.startsWith('[INVENTORY_V1,') && phoneVal.endsWith(']')) {
+            const parts = phoneVal.slice(1, -1).split(',');
+            phoneVal = parts[1] || '';
+            thresholdVal = parts[2] !== undefined ? Number(parts[2]) : 10;
+            enabledVal = parts[3] !== undefined ? (parts[3] === 'true') : true;
+          } else if (phoneVal && phoneVal.startsWith('[') && phoneVal.endsWith(']')) {
             const parts = phoneVal.slice(1, -1).split(',');
             phoneVal = parts[0] || '';
           }
           
           setWhatsappNumber(phoneVal);
+          setLowStockThreshold(thresholdVal);
+          setInventoryAlertEnabled(enabledVal);
           updateSettings({
-            whatsappNumber: phoneVal
+            whatsappNumber: phoneVal,
+            lowStockThreshold: thresholdVal,
+            inventoryAlertEnabled: enabledVal
           });
         } else {
           console.log('Creating settings record...');
@@ -344,31 +357,40 @@ const AdminSettings = () => {
       return;
     }
     const finalNumber = whatsappNumber.trim();
+    const finalThreshold = Number(lowStockThreshold);
+    const finalEnabled = inventoryAlertEnabled;
+    const base64Alert = btoa(JSON.stringify(settings.alertData || {}));
+
+    const packed = `[INVENTORY_V1,${finalNumber},${finalThreshold},${finalEnabled},${base64Alert}]`;
 
     try {
       if (pbSettingsId) {
         console.log('Updating settings record...');
         await pb.collection('app_settings').update(pbSettingsId, {
-          whatsapp_number: finalNumber
+          whatsapp_number: packed
         });
       } else {
         console.log('Creating settings record...');
         const newRecord = await pb.collection('app_settings').create({
-          whatsapp_number: finalNumber
+          whatsapp_number: packed
         });
         setPbSettingsId(newRecord.id);
       }
       
-      console.log('WhatsApp number saved successfully.');
+      console.log('Settings saved successfully.');
     } catch (err) {
       console.error("Failed to save to PocketBase:", err);
       alert('Failed to save to PocketBase.');
       return;
     }
 
-    updateSettings({ whatsappNumber: finalNumber });
-    alert('WhatsApp number saved successfully.');
-    triggerToast('WhatsApp number saved');
+    updateSettings({ 
+      whatsappNumber: finalNumber,
+      lowStockThreshold: finalThreshold,
+      inventoryAlertEnabled: finalEnabled
+    });
+    alert('Inventory Alert settings saved successfully.');
+    triggerToast('Settings saved');
   };
 
   // Section 3 Save
@@ -533,8 +555,28 @@ const AdminSettings = () => {
               />
               <span className="help-subtext">Include country code.</span>
             </div>
-            <button type="submit" className="btn-primary settings-save-btn">
-              Save Number
+            <div className="form-group settings-form-group" style={{ marginTop: '16px' }}>
+              <label className="form-label">LOW STOCK THRESHOLD</label>
+              <input
+                type="number"
+                className="form-input settings-input"
+                placeholder="10"
+                value={lowStockThreshold}
+                onChange={(e) => setLowStockThreshold(e.target.value)}
+              />
+            </div>
+            <div className="form-checkboxes-row font-body" style={{ marginTop: '16px', display: 'flex', alignItems: 'center' }}>
+              <label className="checkbox-container">
+                <input 
+                  type="checkbox" 
+                  checked={inventoryAlertEnabled}
+                  onChange={(e) => setInventoryAlertEnabled(e.target.checked)}
+                />
+                <span style={{ color: '#ffffff', marginLeft: '8px' }}>Enable Inventory Alerts</span>
+              </label>
+            </div>
+            <button type="submit" className="btn-primary settings-save-btn" style={{ marginTop: '20px' }}>
+              Save Settings
             </button>
           </form>
         </div>

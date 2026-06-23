@@ -17,7 +17,7 @@ function compressImage(file) {
 
 const AdminAddProduct = () => {
   const navigate = useNavigate();
-  const { refreshProducts } = useApp();
+  const { refreshProducts, settings, updateSettings, saveSettingsToPB } = useApp();
   // PocketBase: no context needed — save directly
   const [isSaving, setIsSaving] = useState(false);
 
@@ -51,6 +51,7 @@ const AdminAddProduct = () => {
   const [retailPrice, setRetailPrice] = useState('');
   const [packageNo, setPackageNo] = useState('');
   const [isLive, setIsLive] = useState(true);
+  const [stockCount, setStockCount] = useState(20);
   const [images, setImages] = useState([]); // array of { url: string, file: File }
 
   // Common sizes helper list
@@ -114,6 +115,7 @@ const AdminAddProduct = () => {
     setRetailPrice('');
     setPackageNo('');
     setIsLive(true);
+    setStockCount(20);
     setImages([]);
     setErrors({});
     setIsSuccess(false);
@@ -173,6 +175,7 @@ const AdminAddProduct = () => {
         PRODUCT_TYPE:    'wholesale',
         is_live:         finalIsLive,
         imageFile:       imageFilePayload,
+        STOCK:           Number(stockCount),
       });
 
       // Refresh global products state immediately
@@ -420,6 +423,17 @@ const AdminAddProduct = () => {
                 />
               </div>
 
+              {/* Stock Quantity */}
+              <div className="form-group">
+                <label className="form-label">STOCK QUANTITY</label>
+                <input 
+                  type="number" 
+                  className="form-input"
+                  placeholder="e.g. 20"
+                  value={stockCount}
+                  onChange={(e) => setStockCount(e.target.value)}
+                />
+              </div>
 
               {/* Live Status Checkbox */}
               <div className="form-checkboxes-row font-body" style={{ marginTop: '16px' }}>

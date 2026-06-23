@@ -286,6 +286,20 @@ const Collection = () => {
                         <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
                           {product.size}
                         </div>
+
+                        {!isRetail && (
+                          <div style={{ 
+                            marginTop: '8px', 
+                            fontSize: '12px', 
+                            fontWeight: '700', 
+                            color: product.stock <= 10 ? '#ef4444' : '#10b981',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}>
+                            {product.stock <= 10 ? '⚠️' : '✓'} Stock: {product.stock !== undefined ? product.stock : 20}
+                          </div>
+                        )}
                       </div>
 
                       <div className="pricing-row" style={{ marginTop: '16px', display: 'flex', alignItems: 'baseline', gap: '8px' }}>

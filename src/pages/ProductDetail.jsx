@@ -128,7 +128,7 @@ const ProductDetail = () => {
                 </div>
                 <span className="detail-spec-value font-body">{product.modelNumber}</span>
               </div>
-              <div className="detail-spec-row" style={{borderBottom:'none'}}>
+              <div className="detail-spec-row" style={isRetailProduct ? {borderBottom:'none'} : {}}>
                 <div className="spec-label-group">
                   <svg className="spec-svg-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="2" y="7" width="20" height="10" rx="2" ry="2"></rect>
@@ -141,6 +141,20 @@ const ProductDetail = () => {
                 </div>
                 <span className="detail-spec-value font-body">{product.size}</span>
               </div>
+              {!isRetailProduct && (
+                <div className="detail-spec-row" style={{borderBottom:'none'}}>
+                  <div className="spec-label-group">
+                    <svg className="spec-svg-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="2" y="2" width="20" height="20" rx="2" ry="2"></rect>
+                      <path d="M12 18V6M6 12h12"></path>
+                    </svg>
+                    <span className="detail-spec-label">STOCK</span>
+                  </div>
+                  <span className="detail-spec-value font-body" style={{ fontWeight: '700', color: product.stock <= 10 ? '#ef4444' : '#10b981' }}>
+                    {product.stock !== undefined ? product.stock : 20} {product.stock <= 10 && '(LOW)'}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Price Section */}

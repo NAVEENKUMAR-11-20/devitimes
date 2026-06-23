@@ -13,7 +13,10 @@ const defaultSettings = {
   websiteUrl: "http://localhost:5173", // default local dev url
   adminPassword: "lumiere@admin2024",
   retailUserId: "work001",
-  retailPassword: "naveenwork001"
+  retailPassword: "naveenwork001",
+  lowStockThreshold: 10,
+  inventoryAlertEnabled: true,
+  alertData: {}
 };
 
 // Global cache for fetched JSON galleries to avoid duplicate network requests
@@ -89,7 +92,24 @@ export const AppProvider = ({ children }) => {
         const records = await pb.collection('app_settings').getFullList();
         if (records && records.length > 0) {
           const raw = records[0].whatsapp_number;
-          if (raw && raw.startsWith('[') && raw.endsWith(']')) {
+          if (raw && raw.startsWith('[INVENTORY_V1,') && raw.endsWith(']')) {
+            const parts = raw.slice(1, -1).split(',');
+            let parsedAlertData = {};
+            if (parts[4]) {
+              try {
+                parsedAlertData = JSON.parse(atob(parts[4]));
+              } catch (e) {
+                console.error("Failed to parse alert data from PB settings:", e);
+              }
+            }
+            setSettings(prev => ({
+              ...prev,
+              whatsappNumber: parts[1] || prev.whatsappNumber,
+              lowStockThreshold: parts[2] !== undefined ? Number(parts[2]) : prev.lowStockThreshold,
+              inventoryAlertEnabled: parts[3] !== undefined ? (parts[3] === 'true') : prev.inventoryAlertEnabled,
+              alertData: Object.keys(parsedAlertData).length > 0 ? parsedAlertData : prev.alertData
+            }));
+          } else if (raw && raw.startsWith('[') && raw.endsWith(']')) {
             const parts = raw.slice(1, -1).split(',');
             setSettings(prev => ({
               ...prev,
@@ -636,6 +656,33 @@ export const AppProvider = ({ children }) => {
     }));
   };
 
+  const saveSettingsToPB = async (newSettings) => {
+    setSettings(newSettings);
+    localStorage.setItem('lumiere_settings', JSON.stringify(newSettings));
+
+    const whatsappNum = newSettings.whatsappNumber || "7358349394";
+    const threshold = newSettings.lowStockThreshold !== undefined ? newSettings.lowStockThreshold : 10;
+    const enabled = newSettings.inventoryAlertEnabled !== false;
+    const base64Alert = btoa(JSON.stringify(newSettings.alertData || {}));
+
+    const packed = `[INVENTORY_V1,${whatsappNum},${threshold},${enabled},${base64Alert}]`;
+
+    try {
+      const records = await pb.collection('app_settings').getFullList();
+      if (records.length > 0) {
+        await pb.collection('app_settings').update(records[0].id, {
+          whatsapp_number: packed
+        });
+      } else {
+        await pb.collection('app_settings').create({
+          whatsapp_number: packed
+        });
+      }
+    } catch (err) {
+      console.error("Failed to save settings to PocketBase app_settings:", err);
+    }
+  };
+
   return (
     <AppContext.Provider value={{
       products,
@@ -671,7 +718,8 @@ export const AppProvider = ({ children }) => {
       clearCart,
       loginAdmin,
       logoutAdmin,
-      updateSettings
+      updateSettings,
+      saveSettingsToPB
     }}>
       {children}
     </AppContext.Provider>

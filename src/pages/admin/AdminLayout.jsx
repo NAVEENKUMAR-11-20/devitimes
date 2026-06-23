@@ -4,7 +4,7 @@ import { useApp } from '../../context/AppContext';
 import pb from '../../lib/pocketbase';
 
 const AdminLayout = () => {
-  const { isAdminAuthenticated, logoutAdmin } = useApp();
+  const { isAdminAuthenticated, logoutAdmin, settings, updateSettings, saveSettingsToPB, products } = useApp();
 
   // Clear any regular wholesale user session synchronously to prevent API rules policy mismatch in child routes
   if (pb.authStore.isValid && !pb.authStore.isAdmin) {
@@ -16,6 +16,102 @@ const AdminLayout = () => {
   const location = useLocation();
   const [time, setTime] = useState(new Date());
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [stockAlerts, setStockAlerts] = useState([]);
+
+  const dismissAlert = (id) => {
+    setStockAlerts(prev => prev.filter(alert => alert.id !== id));
+  };
+
+  const triggerWhatsAppAlert = (alert) => {
+    const adminWhatsAppRaw = settings.whatsappNumber || '7358349394';
+    let adminWhatsApp = adminWhatsAppRaw.replace(/\D/g, '');
+    if (adminWhatsApp.length === 10) {
+      adminWhatsApp = '91' + adminWhatsApp;
+    }
+
+    const now = new Date();
+    const alertTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const alertDate = now.toLocaleDateString();
+
+    const message = `⚠️ Low Stock Alert - DeviTimes\n\nProduct: ${alert.name || 'Wall Clock'}\nModel No: ${alert.modelNumber}\nCurrent Stock: ${alert.stock}\nTime & Date: ${alertTime} on ${alertDate}\n\nPlease restock the product.`;
+
+    const whatsappUrl = `https://wa.me/${adminWhatsApp}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
+  useEffect(() => {
+    if (!settings.inventoryAlertEnabled) return;
+    if (!products || products.length === 0) return;
+
+    const threshold = settings.lowStockThreshold || 10;
+    const alertData = { ...settings.alertData };
+    let changed = false;
+
+    // Filter for wholesale products
+    const wholesaleProducts = products.filter(p => !((p.product_type === 'retail' || p.product_type === 'RETAIL') || p.retailPrice > 0));
+
+    wholesaleProducts.forEach(p => {
+      const prodStock = p.stock !== undefined ? p.stock : 20;
+      const prevAlertInfo = alertData[p.id] || { alertSent: false, lastAlertSentAt: null };
+
+      if (prodStock <= threshold) {
+        if (!prevAlertInfo.alertSent) {
+          // Trigger UI Alert
+          setStockAlerts(prev => {
+            if (prev.some(a => a.id === p.id)) return prev;
+            return [...prev, {
+              id: p.id,
+              name: p.name || 'Wall Clock',
+              modelNumber: p.modelNumber || p.id,
+              stock: prodStock
+            }];
+          });
+
+          // Open WhatsApp automatically
+          try {
+            const adminWhatsAppRaw = settings.whatsappNumber || '7358349394';
+            let adminWhatsApp = adminWhatsAppRaw.replace(/\D/g, '');
+            if (adminWhatsApp.length === 10) {
+              adminWhatsApp = '91' + adminWhatsApp;
+            }
+            const now = new Date();
+            const alertTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const alertDate = now.toLocaleDateString();
+            const message = `⚠️ Low Stock Alert - DeviTimes\n\nProduct: ${p.name || 'Wall Clock'}\nModel No: ${p.modelNumber || p.id}\nCurrent Stock: ${prodStock}\nTime & Date: ${alertTime} on ${alertDate}\n\nPlease restock the product.`;
+            const whatsappUrl = `https://wa.me/${adminWhatsApp}?text=${encodeURIComponent(message)}`;
+            window.open(whatsappUrl, '_blank');
+          } catch (e) {
+            console.warn("Failed to open WhatsApp window automatically:", e);
+          }
+
+          // Update alert state
+          alertData[p.id] = {
+            alertSent: true,
+            lastAlertSentAt: new Date().toISOString()
+          };
+          changed = true;
+        }
+      } else {
+        // If replenished, reset the alertSent flag
+        if (prevAlertInfo.alertSent) {
+          alertData[p.id] = {
+            alertSent: false,
+            lastAlertSentAt: null
+          };
+          changed = true;
+          // Also remove from active UI alerts if present
+          setStockAlerts(prev => prev.filter(a => a.id !== p.id));
+        }
+      }
+    });
+
+    if (changed) {
+      saveSettingsToPB({
+        ...settings,
+        alertData
+      });
+    }
+  }, [products, settings.alertData, settings.lowStockThreshold, settings.inventoryAlertEnabled]);
 
   // Close sidebar on route change for mobile
   useEffect(() => {
@@ -168,6 +264,31 @@ const AdminLayout = () => {
         </div>
 
       </main>
+
+      {/* Floating Low Stock Alerts Container */}
+      {stockAlerts.length > 0 && (
+        <div className="admin-stock-alerts-floating-container">
+          {stockAlerts.map(alert => (
+            <div key={alert.id} className="stock-alert-card animate-slide-in">
+              <div className="stock-alert-card-header">
+                <span className="alert-icon">⚠️</span>
+                <strong style={{ fontWeight: 600 }}>Low Stock Alert</strong>
+                <button className="close-alert-btn" onClick={() => dismissAlert(alert.id)}>×</button>
+              </div>
+              <div className="stock-alert-card-body">
+                <p>Product: <strong>{alert.name || 'Wall Clock'}</strong></p>
+                <p>Model No: <strong>{alert.modelNumber}</strong></p>
+                <p>Current Stock: <strong style={{ color: '#ef4444' }}>{alert.stock}</strong></p>
+              </div>
+              <div className="stock-alert-card-footer">
+                <button className="btn-primary open-wa-btn" onClick={() => triggerWhatsAppAlert(alert)}>
+                  Open WhatsApp Alert
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <style>{`
         .admin-layout-root {
@@ -394,6 +515,96 @@ const AdminLayout = () => {
           .admin-topbar {
             padding: 0 20px;
           }
+        }
+
+        .admin-stock-alerts-floating-container {
+          position: fixed;
+          bottom: 24px;
+          right: 24px;
+          z-index: 9999;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          max-width: 320px;
+          width: 100%;
+        }
+
+        .stock-alert-card {
+          background-color: #1e293b;
+          border-left: 4px solid #ef4444;
+          border-radius: 4px;
+          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+          border: 1px solid #334155;
+          padding: 16px;
+          color: #ffffff;
+        }
+
+        .stock-alert-card-header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 14px;
+          margin-bottom: 8px;
+          position: relative;
+        }
+
+        .alert-icon {
+          font-size: 16px;
+        }
+
+        .close-alert-btn {
+          position: absolute;
+          right: 0;
+          top: 0;
+          background: none;
+          border: none;
+          color: #94a3b8;
+          font-size: 18px;
+          cursor: pointer;
+          line-height: 1;
+        }
+
+        .close-alert-btn:hover {
+          color: #ffffff;
+        }
+
+        .stock-alert-card-body {
+          font-size: 13px;
+          color: #94a3b8;
+          margin-bottom: 12px;
+          line-height: 1.5;
+          text-align: left;
+        }
+
+        .stock-alert-card-body p {
+          margin: 4px 0;
+        }
+
+        .stock-alert-card-body strong {
+          color: #ffffff;
+        }
+
+        .stock-alert-card-footer {
+          display: flex;
+          justify-content: flex-end;
+        }
+
+        .open-wa-btn {
+          width: 100%;
+          font-size: 11px;
+          padding: 8px 12px;
+          background-color: #25d366; /* WhatsApp Green */
+          border-color: #25d366;
+          color: white;
+          border-radius: 2px;
+          cursor: pointer;
+          font-weight: 600;
+          border: 1px solid transparent;
+        }
+
+        .open-wa-btn:hover {
+          background-color: #20ba5a;
+          border-color: #20ba5a;
         }
       `}</style>
     </div>
