@@ -102,13 +102,17 @@ export const AppProvider = ({ children }) => {
                 console.error("Failed to parse alert data from PB settings:", e);
               }
             }
-            setSettings(prev => ({
-              ...prev,
-              whatsappNumber: parts[1] || prev.whatsappNumber,
-              lowStockThreshold: parts[2] !== undefined ? Number(parts[2]) : prev.lowStockThreshold,
-              inventoryAlertEnabled: parts[3] !== undefined ? (parts[3] === 'true') : prev.inventoryAlertEnabled,
-              alertData: Object.keys(parsedAlertData).length > 0 ? parsedAlertData : prev.alertData
-            }));
+            setSettings(prev => {
+              const thresholdVal = (parts[2] !== undefined && !isNaN(Number(parts[2]))) ? Number(parts[2]) : 10;
+              const enabledVal = parts[3] === 'false' ? false : true;
+              return {
+                ...prev,
+                whatsappNumber: parts[1] || prev.whatsappNumber || "7358349394",
+                lowStockThreshold: thresholdVal,
+                inventoryAlertEnabled: enabledVal,
+                alertData: Object.keys(parsedAlertData).length > 0 ? parsedAlertData : prev.alertData
+              };
+            });
           } else if (raw && raw.startsWith('[') && raw.endsWith(']')) {
             const parts = raw.slice(1, -1).split(',');
             setSettings(prev => ({
@@ -661,7 +665,7 @@ export const AppProvider = ({ children }) => {
     localStorage.setItem('lumiere_settings', JSON.stringify(newSettings));
 
     const whatsappNum = newSettings.whatsappNumber || "7358349394";
-    const threshold = newSettings.lowStockThreshold !== undefined ? newSettings.lowStockThreshold : 10;
+    const threshold = (newSettings.lowStockThreshold !== undefined && !isNaN(Number(newSettings.lowStockThreshold))) ? Number(newSettings.lowStockThreshold) : 10;
     const enabled = newSettings.inventoryAlertEnabled !== false;
     const base64Alert = btoa(JSON.stringify(newSettings.alertData || {}));
 

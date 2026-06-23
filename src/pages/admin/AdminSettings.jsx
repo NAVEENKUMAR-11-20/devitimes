@@ -290,13 +290,13 @@ const AdminSettings = () => {
           setPbSettingsId(record.id);
           
           let phoneVal = record.whatsapp_number;
-          let thresholdVal = settings.lowStockThreshold;
-          let enabledVal = settings.inventoryAlertEnabled;
+          let thresholdVal = (settings.lowStockThreshold !== undefined && !isNaN(Number(settings.lowStockThreshold))) ? Number(settings.lowStockThreshold) : 10;
+          let enabledVal = settings.inventoryAlertEnabled !== false;
           if (phoneVal && phoneVal.startsWith('[INVENTORY_V1,') && phoneVal.endsWith(']')) {
             const parts = phoneVal.slice(1, -1).split(',');
             phoneVal = parts[1] || '';
-            thresholdVal = parts[2] !== undefined ? Number(parts[2]) : 10;
-            enabledVal = parts[3] !== undefined ? (parts[3] === 'true') : true;
+            thresholdVal = (parts[2] !== undefined && !isNaN(Number(parts[2]))) ? Number(parts[2]) : 10;
+            enabledVal = parts[3] === 'false' ? false : true;
           } else if (phoneVal && phoneVal.startsWith('[') && phoneVal.endsWith(']')) {
             const parts = phoneVal.slice(1, -1).split(',');
             phoneVal = parts[0] || '';
@@ -357,8 +357,8 @@ const AdminSettings = () => {
       return;
     }
     const finalNumber = whatsappNumber.trim();
-    const finalThreshold = Number(lowStockThreshold);
-    const finalEnabled = inventoryAlertEnabled;
+    const finalThreshold = (lowStockThreshold !== undefined && !isNaN(Number(lowStockThreshold))) ? Number(lowStockThreshold) : 10;
+    const finalEnabled = inventoryAlertEnabled !== false;
     const base64Alert = btoa(JSON.stringify(settings.alertData || {}));
 
     const packed = `[INVENTORY_V1,${finalNumber},${finalThreshold},${finalEnabled},${base64Alert}]`;
