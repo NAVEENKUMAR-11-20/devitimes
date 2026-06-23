@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import pb from '../../lib/pocketbase';
@@ -17,82 +17,31 @@ const AdminLayout = () => {
   const [time, setTime] = useState(new Date());
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(window.innerWidth <= 768);
   const isFirstRender = useRef(true);
-  const [stockAlerts, setStockAlerts] = useState([]);
+  const [dismissedAlertIds, setDismissedAlertIds] = useState([]);
 
-  const dismissAlert = async (id) => {
-    setStockAlerts(prev => prev.filter(alert => alert.id !== id));
-    // Mark as sent/acknowledged in settings so it doesn't pop up again
-    const updatedAlertData = {
-      ...settings.alertData,
-      [id]: {
-        alertSent: true,
-        lastAlertSentAt: new Date().toISOString()
-      }
-    };
-    updateSettings({ alertData: updatedAlertData });
-    await saveSettingsToPB({
-      ...settings,
-      alertData: updatedAlertData
-    });
+  const dismissAlert = (id) => {
+    setDismissedAlertIds(prev => [...prev, id]);
   };
 
-
-  useEffect(() => {
-    if (settings.bannerAlertEnabled === false) return;
-    if (!products || products.length === 0) return;
-
+  // Calculate which wholesale products are low-stock and not dismissed in this session
+  const activeStockAlerts = useMemo(() => {
+    if (settings.bannerAlertEnabled === false) return [];
+    if (!products || products.length === 0) return [];
+    
     const threshold = settings.lowStockThreshold || 10;
-    const alertData = { ...settings.alertData };
-    let changed = false;
-
-    // Filter for wholesale products
     const wholesaleProducts = products.filter(p => p.product_type !== 'retail' && p.product_type !== 'RETAIL');
-
-    wholesaleProducts.forEach(p => {
-      const prodStock = p.stock !== undefined ? p.stock : 20;
-      const prevAlertInfo = alertData[p.id] || { alertSent: false, lastAlertSentAt: null };
-
-      if (prodStock <= threshold) {
-        if (!prevAlertInfo.alertSent) {
-          // Trigger UI Alert
-          setStockAlerts(prev => {
-            if (prev.some(a => a.id === p.id)) return prev;
-            return [...prev, {
-              id: p.id,
-              name: p.name || 'Wall Clock',
-              modelNumber: p.modelNumber || p.id,
-              stock: prodStock
-            }];
-          });
-
-          // Mark as sent immediately to avoid popping up again on subsequent renders
-          alertData[p.id] = {
-            alertSent: true,
-            lastAlertSentAt: new Date().toISOString()
-          };
-          changed = true;
-        }
-      } else {
-        // If replenished, reset the alertSent flag
-        if (prevAlertInfo.alertSent) {
-          alertData[p.id] = {
-            alertSent: false,
-            lastAlertSentAt: null
-          };
-          changed = true;
-          // Also remove from active UI alerts if present
-          setStockAlerts(prev => prev.filter(a => a.id !== p.id));
-        }
-      }
-    });
-
-    if (changed) {
-      saveSettingsToPB({
-        ...settings,
-        alertData
-      });
-    }
-  }, [products, settings.alertData, settings.lowStockThreshold, settings.bannerAlertEnabled]);
+    return wholesaleProducts
+      .filter(p => {
+        const prodStock = p.stock !== undefined ? p.stock : 20;
+        return prodStock <= threshold && !dismissedAlertIds.includes(p.id);
+      })
+      .map(p => ({
+        id: p.id,
+        name: p.name || 'Wall Clock',
+        modelNumber: p.modelNumber || p.id,
+        stock: p.stock !== undefined ? p.stock : 20
+      }));
+  }, [products, dismissedAlertIds, settings.lowStockThreshold, settings.bannerAlertEnabled]);
 
   // Close sidebar on route change for mobile, except on initial mount
   useEffect(() => {
@@ -257,9 +206,9 @@ const AdminLayout = () => {
       </main>
 
       {/* Floating Low Stock Alerts Container */}
-      {stockAlerts.length > 0 && (
+      {activeStockAlerts.length > 0 && (
         <div className="admin-stock-alerts-floating-container">
-          {stockAlerts.map(alert => (
+          {activeStockAlerts.map(alert => (
             <div key={alert.id} className="stock-alert-card animate-slide-in">
               <div className="stock-alert-card-header">
                 <span className="alert-icon">⚠️</span>
@@ -271,7 +220,6 @@ const AdminLayout = () => {
                 <p>Model No: <strong>{alert.modelNumber}</strong></p>
                 <p>Current Stock: <strong style={{ color: '#ef4444' }}>{alert.stock}</strong></p>
               </div>
-
             </div>
           ))}
         </div>
