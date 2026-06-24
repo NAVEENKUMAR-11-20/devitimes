@@ -586,7 +586,7 @@ const AdminSettings = () => {
                   checked={inventoryAlertEnabled}
                   onChange={(e) => setInventoryAlertEnabled(e.target.checked)}
                 />
-                <span style={{ color: '#ffffff', marginLeft: '8px' }}>Enable WhatsApp Button</span>
+                <span style={{ color: '#3b3a3a', marginLeft: '8px' }}>Enable WhatsApp Button</span>
               </label>
             </div>
             <div className="form-checkboxes-row font-body" style={{ marginTop: '12px', display: 'flex', alignItems: 'center' }}>
@@ -596,7 +596,7 @@ const AdminSettings = () => {
                   checked={bannerAlertEnabled}
                   onChange={(e) => setBannerAlertEnabled(e.target.checked)}
                 />
-                <span style={{ color: '#ffffff', marginLeft: '8px' }}>Enable Floating Notification Card</span>
+                <span style={{ color: '#393838', marginLeft: '8px' }}>Enable Floating Notification Card</span>
               </label>
             </div>
             <button type="submit" className="btn-primary settings-save-btn" style={{ marginTop: '20px' }}>
