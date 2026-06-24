@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 
 const Footer = () => {
   const { settings } = useApp();
-  const rawNumber = settings?.whatsappNumber || '7358349394';
+  const rawNumber = String(settings?.whatsappNumber || '7418956115');
   const cleanNumber = rawNumber.replace(/\D/g, '');
   const displayVal = rawNumber.includes('+') ? rawNumber : `+91 ${rawNumber.slice(0, 5)} ${rawNumber.slice(5)}`;
 
@@ -36,6 +36,7 @@ const Footer = () => {
           <div className="footer-col">
             <h4 className="footer-title">CUSTOMER SERVICES</h4>
             <ul className="footer-links-list">
+              <li><a href="#/home">Home</a></li>
               <li><a href="#/login">Client Sign In</a></li>
               <li><a href="#/cart">Shopping Cart</a></li>
             </ul>
@@ -47,7 +48,7 @@ const Footer = () => {
             <ul className="footer-links-list contact-links">
               <li>
                 <span className="contact-label">Mobile Number</span>
-                <a href="tel:+917418956115" className="contact-value">+917418956115</a>
+                <a href={`tel:+91${cleanNumber.slice(-10)}`} className="contact-value">{displayVal}</a>
               </li>
 
               <li>
