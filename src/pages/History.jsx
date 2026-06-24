@@ -13,6 +13,7 @@ const History = () => {
   const [timeFilter, setTimeFilter] = useState('3months');
   const [searchVal, setSearchVal] = useState('');
   const [activeSearch, setActiveSearch] = useState('');
+  const [mobileExpandedId, setMobileExpandedId] = useState(null);
 
   const availableYears = useMemo(() => {
     const years = new Set();
@@ -543,7 +544,10 @@ const History = () => {
       </div>
 
       <div className="container history-main-container animate-fade-in">
-        <header className="history-header">
+        
+        {/* === DESKTOP VIEW === */}
+        <div className="desktop-history-view">
+          <header className="history-header">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '16px' }}>
             <div>
               <h1 className="history-title font-heading">Order History</h1>
@@ -766,6 +770,173 @@ const History = () => {
           <Link to="/collection" className="btn-secondary">
             ← Continue Shopping
           </Link>
+        </div> {/* End of history-actions-row */}
+        </div> {/* End of desktop-history-view */}
+
+        {/* === MOBILE VIEW === */}
+        <div className="mobile-history-view">
+          <div className="mobile-header">
+            <h1 className="font-heading mobile-title">Order History</h1>
+            <p className="font-body mobile-subtitle">Track and manage your wholesale orders</p>
+          </div>
+          
+          {orders.length > 0 && (
+            <div className="mobile-controls-sticky">
+              <div className="mobile-filter-row">
+                <select 
+                  value={timeFilter} 
+                  onChange={(e) => setTimeFilter(e.target.value)} 
+                  className="mobile-filter-select font-body"
+                >
+                  <option value="30days">Last 30 days</option>
+                  <option value="3months">Past 3 months</option>
+                  <option value="6months">Past 6 months</option>
+                  {availableYears.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                  <option value="all">All orders</option>
+                </select>
+              </div>
+              <div className="mobile-search-row">
+                <div className="mobile-search-input-box">
+                  <svg className="history-search-icon" viewBox="0 0 24 24" width="16" height="16" stroke="#1e3a8a" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                  <input 
+                    type="text" 
+                    placeholder="Search orders..." 
+                    value={searchVal}
+                    onChange={(e) => setSearchVal(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') setActiveSearch(searchVal); }}
+                    className="font-body"
+                  />
+                  {searchVal && (
+                    <button onClick={() => { setSearchVal(''); setActiveSearch(''); }} className="clear-btn">&times;</button>
+                  )}
+                </div>
+                <button onClick={() => setActiveSearch(searchVal)} className="mobile-search-btn font-body">Search</button>
+              </div>
+              {activeSearch && (
+                <div className="mobile-search-active font-body">
+                  Showing results for "<strong>{activeSearch}</strong>"
+                  <button onClick={() => { setSearchVal(''); setActiveSearch(''); }}>Clear</button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {orders.length === 0 ? (
+            <div className="empty-history font-body" style={{ marginTop: '40px' }}>
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '16px' }}>
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+              <p>No orders found in your history.</p>
+              <Link to="/collection" className="btn-primary" style={{ marginTop: '20px', display: 'inline-block' }}>
+                Browse Catalog
+              </Link>
+            </div>
+          ) : (
+            <div className="mobile-orders-list">
+              {filteredOrders.length === 0 ? (
+                <div style={{ padding: '24px', textAlign: 'center', color: '#8A9BB0', fontSize: '14px' }}>No orders found.</div>
+              ) : (
+                filteredOrders.map(o => {
+                  const isExpanded = mobileExpandedId === o.id;
+                  const st = (o.status || 'Pending').toLowerCase();
+                  const isConfirmed = st === 'confirmed' || st === 'processing' || st === 'packed' || st === 'shipped' || st === 'delivered';
+                  const isPacked = st === 'packed' || st === 'shipped' || st === 'delivered';
+                  const isDelivered = st === 'delivered';
+
+                  return (
+                    <div key={o.id} className={`mobile-order-card ${isExpanded ? 'expanded' : ''}`}>
+                      <div className="mobile-card-main" onClick={() => setMobileExpandedId(isExpanded ? null : o.id)}>
+                        <div className="mobile-card-left">
+                          <div className="mobile-order-id font-heading">{o.formattedId || o.id}</div>
+                          <div className="mobile-order-date font-body">{o.timestamp.split(',')[0]}</div>
+                          <div className="mobile-order-amount font-heading">₹{o.grandTotal}</div>
+                        </div>
+                        <div className="mobile-card-right">
+                          <span className={`mobile-status-pill ${st}`}>{o.status || 'Pending'}</span>
+                        </div>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="mobile-card-expanded animate-expand">
+                          
+                          <div className="mobile-timeline">
+                            <div className="timeline-step active">
+                              <div className="step-circle">✓</div>
+                              <span>Placed</span>
+                            </div>
+                            <div className={`timeline-line ${isConfirmed ? 'active' : ''}`}></div>
+                            <div className={`timeline-step ${isConfirmed ? 'active' : ''}`}>
+                              <div className="step-circle">{isConfirmed ? '✓' : ''}</div>
+                              <span>Confirmed</span>
+                            </div>
+                            <div className={`timeline-line ${isPacked ? 'active' : ''}`}></div>
+                            <div className={`timeline-step ${isPacked ? 'active' : ''}`}>
+                              <div className="step-circle">{isPacked ? '✓' : ''}</div>
+                              <span>Packed</span>
+                            </div>
+                            <div className={`timeline-line ${isDelivered ? 'active' : ''}`}></div>
+                            <div className={`timeline-step ${isDelivered ? 'active' : ''}`}>
+                              <div className="step-circle">{isDelivered ? '✓' : ''}</div>
+                              <span>Delivered</span>
+                            </div>
+                          </div>
+
+                          <div className="mobile-items-list">
+                            {o.items.map((item, idx) => (
+                              <div key={idx} className="mobile-item-card">
+                                <div className="mobile-item-img">
+                                  {item.image ? <img src={item.image} alt="product" /> : <ClockSvg model={item.modelNumber} size={40} />}
+                                </div>
+                                <div className="mobile-item-details">
+                                  <div className="item-name font-heading">{item.productName}</div>
+                                  <div className="item-meta font-body">Model {item.modelNumber} | {item.size}</div>
+                                  <div className="item-price-row font-body">
+                                    <span>Qty: {item.quantity}</span>
+                                    <span className="item-price">₹{item.unitPrice * item.quantity}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="mobile-grand-total">
+                            <span className="font-heading">Grand Total</span>
+                            <span className="font-heading amount">₹{o.grandTotal}</span>
+                          </div>
+
+                          <button 
+                            className="mobile-invoice-btn font-body"
+                            onClick={(e) => { e.stopPropagation(); handlePrintInvoice(o); }}
+                          >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                              <polyline points="14 2 14 8 20 8"></polyline>
+                              <line x1="16" y1="13" x2="8" y2="13"></line>
+                              <line x1="16" y1="17" x2="8" y2="17"></line>
+                              <polyline points="10 9 9 9 8 9"></polyline>
+                            </svg>
+                            Download Invoice
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+
+          <div className="history-actions-row">
+            <Link to="/collection" className="mobile-continue-shopping font-body">
+              ← Continue Shopping
+            </Link>
+          </div>
         </div>
 
       </div>
@@ -1241,6 +1412,343 @@ const History = () => {
           }
           .history-main-container {
             padding: 24px;
+          }
+        }
+
+        .show-mobile-only {
+          display: none;
+        }
+
+        @media (max-width: 768px) {
+          .hide-mobile {
+            display: none !important;
+          }
+          .show-mobile-only {
+            display: block;
+          }
+
+          .history-main-container {
+            padding: 0 !important;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+          }
+
+          /* Mobile Header */
+          .mobile-header {
+            background: #ffffff;
+            padding: 24px 20px;
+            border-bottom: 1px solid var(--border-color);
+          }
+          .mobile-title {
+            font-size: 24px;
+            color: #0F172A;
+            margin: 0 0 4px 0;
+          }
+          .mobile-subtitle {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin: 0;
+          }
+
+          /* Mobile Filters & Search */
+          .mobile-controls-sticky {
+            position: sticky;
+            top: 60px; /* Adjust according to top navbar */
+            z-index: 40;
+            background: #F8FAFC;
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            border-bottom: 1px solid var(--border-color);
+          }
+          .mobile-filter-select {
+            width: 100%;
+            height: 44px;
+            border-radius: 16px;
+            border: 1px solid #1E3A8A;
+            padding: 0 16px;
+            font-size: 14px;
+            color: #0F172A;
+            background: #ffffff;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%231E3A8A' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+            background-size: 16px;
+          }
+          .mobile-search-row {
+            display: flex;
+            gap: 8px;
+          }
+          .mobile-search-input-box {
+            position: relative;
+            flex-grow: 1;
+            background: #ffffff;
+            border-radius: 16px;
+            border: 1px solid #1E3A8A;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            height: 44px;
+          }
+          .mobile-search-input-box input {
+            border: none;
+            outline: none;
+            background: transparent;
+            width: 100%;
+            height: 100%;
+            padding-left: 8px;
+            font-size: 14px;
+          }
+          .mobile-search-btn {
+            background: #1E3A8A;
+            color: #ffffff;
+            border: none;
+            border-radius: 16px;
+            padding: 0 20px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+          }
+          .mobile-search-active {
+            font-size: 13px;
+            color: var(--text-secondary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          .mobile-search-active button {
+            background: none;
+            border: none;
+            color: #2563EB;
+            font-weight: 600;
+          }
+
+          /* Mobile Orders List */
+          .mobile-orders-list {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+          }
+          .mobile-order-card {
+            background: #ffffff;
+            border-radius: 24px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            border-left: 5px solid #1E3A8A;
+            overflow: hidden;
+            transition: all 0.3s ease;
+          }
+          .mobile-card-main {
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+          }
+          .mobile-card-left {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+          }
+          .mobile-order-id {
+            font-size: 15px;
+            color: #0F172A;
+          }
+          .mobile-order-date {
+            font-size: 12px;
+            color: var(--text-secondary);
+          }
+          .mobile-order-amount {
+            font-size: 18px;
+            color: #0F172A;
+            margin-top: 4px;
+          }
+          .mobile-status-pill {
+            background: #0F172A;
+            color: #ffffff;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .mobile-status-pill.delivered { background: #059669; }
+          .mobile-status-pill.shipped { background: #2563EB; }
+          .mobile-status-pill.packed { background: #D97706; }
+          .mobile-status-pill.processing { background: #4F46E5; }
+          .mobile-status-pill.confirmed { background: #1E3A8A; }
+
+          /* Expanded Section */
+          .mobile-card-expanded {
+            padding: 0 20px 20px;
+            border-top: 1px solid #F1F5F9;
+            margin-top: 4px;
+          }
+          
+          /* Timeline */
+          .mobile-timeline {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 24px 0;
+            position: relative;
+          }
+          .timeline-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            z-index: 2;
+            width: 50px;
+          }
+          .timeline-step span {
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #94A3B8;
+          }
+          .step-circle {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #E2E8F0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: #ffffff;
+            transition: all 0.3s ease;
+          }
+          .timeline-step.active span { color: #1E3A8A; }
+          .timeline-step.active .step-circle { background: #1E3A8A; }
+          .timeline-line {
+            height: 2px;
+            background: #E2E8F0;
+            flex-grow: 1;
+            margin: 0 -15px 15px -15px;
+            z-index: 1;
+            transition: all 0.3s ease;
+          }
+          .timeline-line.active { background: #1E3A8A; }
+
+          /* Items List */
+          .mobile-items-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 20px;
+          }
+          .mobile-item-card {
+            display: flex;
+            gap: 12px;
+            background: #F8FAFC;
+            padding: 12px;
+            border-radius: 12px;
+          }
+          .mobile-item-img {
+            width: 50px;
+            height: 50px;
+            background: #ffffff;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+          }
+          .mobile-item-img img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+          }
+          .mobile-item-details {
+            flex-grow: 1;
+          }
+          .item-name {
+            font-size: 13px;
+            color: #0F172A;
+            margin-bottom: 2px;
+          }
+          .item-meta {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+          }
+          .item-price-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #0F172A;
+            font-weight: 500;
+          }
+          .item-price { font-weight: 700; }
+
+          /* Grand Total */
+          .mobile-grand-total {
+            background: #F0F4F8;
+            border-radius: 16px;
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+          }
+          .mobile-grand-total span {
+            color: #1E3A8A;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .mobile-grand-total .amount {
+            font-size: 20px;
+            font-weight: 800;
+          }
+
+          /* Invoice Button */
+          .mobile-invoice-btn {
+            width: 100%;
+            background: #0F172A;
+            color: #ffffff;
+            border: none;
+            border-radius: 16px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+          }
+          .mobile-invoice-btn:active {
+            background: #1E3A8A;
+          }
+
+          .mobile-continue-shopping {
+            display: block;
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            color: #0F172A;
+            text-align: center;
+            padding: 14px;
+            border-radius: 16px;
+            margin: 0 20px;
+            font-weight: 600;
+            text-decoration: none;
+          }
+
+          .animate-expand {
+            animation: expand 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            transform-origin: top;
+          }
+          @keyframes expand {
+            from { opacity: 0; transform: scaleY(0.95); }
+            to { opacity: 1; transform: scaleY(1); }
           }
         }
       `}</style>

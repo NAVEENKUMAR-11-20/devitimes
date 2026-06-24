@@ -634,7 +634,7 @@ const AdminPdfImport = () => {
       }
     } catch (err) {
       console.error('[PB] handleSaveSingle error:', err);
-      alert('Failed to save product to PocketBase. Make sure PocketBase is running on https://pocketbase-production-ec1e.up.railway.app');
+      alert(`Failed to save product to PocketBase. Make sure PocketBase is running on ${import.meta.env.VITE_POCKETBASE_URL}`);
     }
   };
 

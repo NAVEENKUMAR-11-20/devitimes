@@ -1,6 +1,7 @@
 (async () => {
   try {
-    const url = 'https://pocketbase-production-ec1e.up.railway.app/api/collections/User/records';
+    const pbUrl = process.env.VITE_POCKETBASE_URL || 'https://api.devitimes.in';
+    const url = `${pbUrl}/api/collections/User/records`;
     console.log('Fetching:', url);
     const res = await fetch(url);
     const data = await res.json();
