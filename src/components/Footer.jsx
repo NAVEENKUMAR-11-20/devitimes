@@ -1,11 +1,8 @@
 import React from 'react';
-import { useApp } from '../context/AppContext';
 
 const Footer = () => {
-  const { settings } = useApp();
-  const rawNumber = String(settings?.whatsappNumber || '7418956115');
-  const cleanNumber = rawNumber.replace(/\D/g, '');
-  const displayVal = rawNumber.includes('+') ? rawNumber : `+91 ${rawNumber.slice(0, 5)} ${rawNumber.slice(5)}`;
+  const cleanNumber = '7418956115';
+  const displayVal = '+91 7418 956 115';
 
   return (
     <footer className="footer-root">
