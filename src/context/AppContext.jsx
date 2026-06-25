@@ -92,44 +92,14 @@ export const AppProvider = ({ children }) => {
       try {
         const records = await pb.collection('app_settings').getFullList();
         if (records && records.length > 0) {
-          const raw = records[0].whatsapp_number;
-          let phoneVal = raw;
-          let thresholdVal = 10;
-          let enabledVal = true;
-          let bannerVal = true;
+          const record = records[0];
+          const phoneVal = record.whatsapp_number || '';
+          const thresholdVal = (record.low_stock_limt !== undefined && !isNaN(Number(record.low_stock_limt))) ? Number(record.low_stock_limt) : 10;
+          const enabledVal = record.inventory_alert !== false;
+          const bannerVal = record.banner_alert !== false;
           let parsedAlertData = {};
-
-          if (raw && raw.startsWith('[INVENTORY_V2,') && raw.endsWith(']')) {
-            const parts = raw.slice(1, -1).split(',');
-            phoneVal = parts[1] || '';
-            thresholdVal = (parts[2] !== undefined && !isNaN(Number(parts[2]))) ? Number(parts[2]) : 10;
-            enabledVal = parts[3] !== 'false';
-            bannerVal = parts[4] !== 'false';
-            if (parts[5]) {
-              try {
-                parsedAlertData = JSON.parse(atob(parts[5]));
-              } catch (e) {
-                console.error("Failed to parse alert data from PB settings V2:", e);
-              }
-            }
-          } else if (raw && raw.startsWith('[INVENTORY_V1,') && raw.endsWith(']')) {
-            const parts = raw.slice(1, -1).split(',');
-            phoneVal = parts[1] || '';
-            thresholdVal = (parts[2] !== undefined && !isNaN(Number(parts[2]))) ? Number(parts[2]) : 10;
-            enabledVal = parts[3] !== 'false';
-            bannerVal = true;
-            if (parts[4]) {
-              try {
-                parsedAlertData = JSON.parse(atob(parts[4]));
-              } catch (e) {
-                console.error("Failed to parse alert data from PB settings V1:", e);
-              }
-            }
-          } else if (raw && raw.startsWith('[') && raw.endsWith(']')) {
-            const parts = raw.slice(1, -1).split(',');
-            phoneVal = parts[0] || '';
-          } else if (raw) {
-            phoneVal = raw;
+          if (record.alert_data && typeof record.alert_data === 'object') {
+            parsedAlertData = record.alert_data;
           }
 
           setSettings(prev => ({
@@ -181,44 +151,14 @@ export const AppProvider = ({ children }) => {
           console.log('[AppContext] PocketBase settings real-time event:', e.action, e.record);
           if (!isMounted) return;
           if (e.action === 'update' || e.action === 'create') {
-            const raw = e.record.whatsapp_number;
-            let phoneVal = raw;
-            let thresholdVal = 10;
-            let enabledVal = true;
-            let bannerVal = true;
+            const rec = e.record;
+            const phoneVal = rec.whatsapp_number || '';
+            const thresholdVal = (rec.low_stock_limt !== undefined && !isNaN(Number(rec.low_stock_limt))) ? Number(rec.low_stock_limt) : 10;
+            const enabledVal = rec.inventory_alert !== false;
+            const bannerVal = rec.banner_alert !== false;
             let parsedAlertData = {};
-
-            if (raw && raw.startsWith('[INVENTORY_V2,') && raw.endsWith(']')) {
-              const parts = raw.slice(1, -1).split(',');
-              phoneVal = parts[1] || '';
-              thresholdVal = (parts[2] !== undefined && !isNaN(Number(parts[2]))) ? Number(parts[2]) : 10;
-              enabledVal = parts[3] !== 'false';
-              bannerVal = parts[4] !== 'false';
-              if (parts[5]) {
-                try {
-                  parsedAlertData = JSON.parse(atob(parts[5]));
-                } catch (err) {
-                  console.error("Failed to parse alert data from PB settings V2:", err);
-                }
-              }
-            } else if (raw && raw.startsWith('[INVENTORY_V1,') && raw.endsWith(']')) {
-              const parts = raw.slice(1, -1).split(',');
-              phoneVal = parts[1] || '';
-              thresholdVal = (parts[2] !== undefined && !isNaN(Number(parts[2]))) ? Number(parts[2]) : 10;
-              enabledVal = parts[3] !== 'false';
-              bannerVal = true;
-              if (parts[4]) {
-                try {
-                  parsedAlertData = JSON.parse(atob(parts[4]));
-                } catch (err) {
-                  console.error("Failed to parse alert data from PB settings V1:", err);
-                }
-              }
-            } else if (raw && raw.startsWith('[') && raw.endsWith(']')) {
-              const parts = raw.slice(1, -1).split(',');
-              phoneVal = parts[0] || '';
-            } else if (raw) {
-              phoneVal = raw;
+            if (rec.alert_data && typeof rec.alert_data === 'object') {
+              parsedAlertData = rec.alert_data;
             }
 
             setSettings(prev => ({
@@ -747,20 +687,22 @@ export const AppProvider = ({ children }) => {
     const threshold = (newSettings.lowStockThreshold !== undefined && !isNaN(Number(newSettings.lowStockThreshold))) ? Number(newSettings.lowStockThreshold) : 10;
     const enabled = newSettings.inventoryAlertEnabled !== false;
     const bannerEnabled = newSettings.bannerAlertEnabled !== false;
-    const base64Alert = btoa(JSON.stringify(newSettings.alertData || {}));
+    const alertData = newSettings.alertData || {};
 
-    const packed = `[INVENTORY_V2,${whatsappNum},${threshold},${enabled},${bannerEnabled},${base64Alert}]`;
+    const payload = {
+      whatsapp_number: whatsappNum,
+      low_stock_limt: threshold,
+      inventory_alert: enabled,
+      banner_alert: bannerEnabled,
+      alert_data: alertData
+    };
 
     try {
       const records = await pb.collection('app_settings').getFullList();
       if (records.length > 0) {
-        await pb.collection('app_settings').update(records[0].id, {
-          whatsapp_number: packed
-        });
+        await pb.collection('app_settings').update(records[0].id, payload);
       } else {
-        await pb.collection('app_settings').create({
-          whatsapp_number: packed
-        });
+        await pb.collection('app_settings').create(payload);
       }
     } catch (err) {
       console.error("Failed to save settings to PocketBase app_settings:", err);

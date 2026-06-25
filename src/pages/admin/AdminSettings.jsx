@@ -290,27 +290,10 @@ const AdminSettings = () => {
           console.log('Settings record found:', record);
           setPbSettingsId(record.id);
           
-          let phoneVal = record.whatsapp_number;
-          let thresholdVal = (settings.lowStockThreshold !== undefined && !isNaN(Number(settings.lowStockThreshold))) ? Number(settings.lowStockThreshold) : 10;
-          let enabledVal = settings.inventoryAlertEnabled !== false;
-          let bannerVal = settings.bannerAlertEnabled !== false;
-
-          if (phoneVal && phoneVal.startsWith('[INVENTORY_V2,') && phoneVal.endsWith(']')) {
-            const parts = phoneVal.slice(1, -1).split(',');
-            phoneVal = parts[1] || '';
-            thresholdVal = (parts[2] !== undefined && !isNaN(Number(parts[2]))) ? Number(parts[2]) : 10;
-            enabledVal = parts[3] !== 'false';
-            bannerVal = parts[4] !== 'false';
-          } else if (phoneVal && phoneVal.startsWith('[INVENTORY_V1,') && phoneVal.endsWith(']')) {
-            const parts = phoneVal.slice(1, -1).split(',');
-            phoneVal = parts[1] || '';
-            thresholdVal = (parts[2] !== undefined && !isNaN(Number(parts[2]))) ? Number(parts[2]) : 10;
-            enabledVal = parts[3] !== 'false';
-            bannerVal = true;
-          } else if (phoneVal && phoneVal.startsWith('[') && phoneVal.endsWith(']')) {
-            const parts = phoneVal.slice(1, -1).split(',');
-            phoneVal = parts[0] || '';
-          }
+          const phoneVal = record.whatsapp_number || '';
+          const thresholdVal = (record.low_stock_limt !== undefined && !isNaN(Number(record.low_stock_limt))) ? Number(record.low_stock_limt) : 10;
+          const enabledVal = record.inventory_alert !== false;
+          const bannerVal = record.banner_alert !== false;
           
           setWhatsappNumber(phoneVal);
           setLowStockThreshold(thresholdVal);
@@ -325,7 +308,11 @@ const AdminSettings = () => {
         } else {
           console.log('Creating settings record...');
           const newRecord = await pb.collection('app_settings').create({
-            whatsapp_number: settings.whatsappNumber || "+919999999999"
+            whatsapp_number: settings.whatsappNumber || "+919999999999",
+            low_stock_limt: 10,
+            inventory_alert: true,
+            banner_alert: true,
+            alert_data: {}
           });
           setPbSettingsId(newRecord.id);
           setWhatsappNumber(settings.whatsappNumber || "+919999999999");
@@ -372,9 +359,15 @@ const AdminSettings = () => {
     const finalThreshold = (lowStockThreshold !== undefined && !isNaN(Number(lowStockThreshold))) ? Number(lowStockThreshold) : 10;
     const finalEnabled = inventoryAlertEnabled !== false;
     const finalBanner = bannerAlertEnabled !== false;
-    const base64Alert = btoa(JSON.stringify(settings.alertData || {}));
+    const alertData = settings.alertData || {};
 
-    const packed = `[INVENTORY_V2,${finalNumber},${finalThreshold},${finalEnabled},${finalBanner},${base64Alert}]`;
+    const payload = {
+      whatsapp_number: finalNumber,
+      low_stock_limt: finalThreshold,
+      inventory_alert: finalEnabled,
+      banner_alert: finalBanner,
+      alert_data: alertData
+    };
 
     // Optimistically update local react context instantly
     updateSettings({ 
@@ -388,14 +381,10 @@ const AdminSettings = () => {
     try {
       if (pbSettingsId) {
         console.log('Updating settings record...');
-        await pb.collection('app_settings').update(pbSettingsId, {
-          whatsapp_number: packed
-        });
+        await pb.collection('app_settings').update(pbSettingsId, payload);
       } else {
         console.log('Creating settings record...');
-        const newRecord = await pb.collection('app_settings').create({
-          whatsapp_number: packed
-        });
+        const newRecord = await pb.collection('app_settings').create(payload);
         setPbSettingsId(newRecord.id);
       }
       
