@@ -188,6 +188,9 @@ const AdminProducts = () => {
     color: '', salePrice: 0, originalPrice: 0,
     description: '', isOnSale: false, isLive: true, images: []
   });
+  const [isBackgroundLoading, setIsBackgroundLoading] = useState(false);
+  const [showSkeleton, setShowSkeleton] = useState(false);
+  const isClickProcessingRef = useRef(false);
 
   // Cropper modal state for image gallery edit
   const [showCropModal, setShowCropModal] = useState(false);
@@ -574,34 +577,145 @@ const AdminProducts = () => {
   };
 
   // Trigger Edit Form
-  const triggerEdit = async (product) => {
-    console.log('[DEBUG] Selected product before opening edit modal:', product);
-    triggerToast('Fetching latest product details...');
-    try {
-      await ensurePbAuth();
-      const colName = 'PRODUCT_DATAS';
-      const latestProduct = await fetchProductById(product.pbId || product.id, colName);
-      console.log('[DEBUG] Fetched latest product details:', latestProduct);
-      
-      // Ensure gallery images are resolved properly
-      let productImages = latestProduct.images || [];
-      if (productImages.length === 0) {
-        const imageUrl = getProductImageUrl(latestProduct);
-        if (imageUrl && !imageUrl.toLowerCase().split('?')[0].endsWith('.json')) {
-          productImages = [imageUrl];
-        }
+  const triggerEdit = (product) => {
+    if (!product) return;
+    
+    // Prevent double-clicks
+    if (isClickProcessingRef.current) return;
+    isClickProcessingRef.current = true;
+    
+    const clickStartTime = performance.now();
+    console.log('[PERF] Edit button tap registered at:', clickStartTime);
+
+    // Initial images from the existing product
+    let initialImages = product.images || [];
+    if (initialImages.length === 0) {
+      const imageUrl = getProductImageUrl(product);
+      if (imageUrl && !imageUrl.toLowerCase().split('?')[0].endsWith('.json')) {
+        initialImages = [imageUrl];
       }
-      
-      setEditingProduct(latestProduct);
+    }
+
+    const optimisticProduct = {
+      ...product,
+      images: initialImages
+    };
+
+    // Helper to log opening and render times using requestAnimationFrame (when browser paints)
+    const logRenderPerformance = () => {
+      requestAnimationFrame(() => {
+        const tapFeedbackEnd = performance.now();
+        console.log(`[PERF] Button tap feedback time: ${(tapFeedbackEnd - clickStartTime).toFixed(2)}ms`);
+        
+        requestAnimationFrame(() => {
+          const renderEnd = performance.now();
+          console.log(`[PERF] Edit screen opening time: ${(renderEnd - clickStartTime).toFixed(2)}ms`);
+          
+          // Clear click lock
+          isClickProcessingRef.current = false;
+        });
+      });
+    };
+
+    // Check if the product is already fully loaded in cache
+    const cachedProduct = adminGalleriesCache[product.id];
+    if (cachedProduct) {
+      console.log('[DEBUG] Loading product edit modal from cache');
+      setEditingProduct(cachedProduct);
       setEditForm({
-        ...latestProduct,
-        images: productImages,
+        ...cachedProduct,
         _newImageFile: null
       });
-    } catch (err) {
-      triggerToast('Error loading product details.');
-      console.error('[ERROR] Failed to fetch latest product details:', err);
+      setIsBackgroundLoading(false);
+      setShowSkeleton(false);
+      logRenderPerformance();
+      return;
     }
+
+    // Cache miss: Load optimistically and start background fetch
+    console.log('[DEBUG] Optimistic load start for product:', product.modelNumber);
+    setEditingProduct(optimisticProduct);
+    setEditForm({
+      ...optimisticProduct,
+      _newImageFile: null
+    });
+    setIsBackgroundLoading(true);
+    setShowSkeleton(false);
+    logRenderPerformance();
+
+    // Shimmer timer: show shimmer if API takes >300ms
+    const shimmerTimer = setTimeout(() => {
+      setShowSkeleton(true);
+    }, 300);
+
+    // Background fetch
+    const apiStart = performance.now();
+    (async () => {
+      try {
+        await ensurePbAuth();
+        const colName = 'PRODUCT_DATAS';
+        const latestProduct = await fetchProductById(product.pbId || product.id, colName);
+        const apiEnd = performance.now();
+        console.log(`[PERF] API response time: ${(apiEnd - apiStart).toFixed(2)}ms`);
+
+        let productImages = latestProduct.images || [];
+        if (productImages.length === 0) {
+          const imageUrl = getProductImageUrl(latestProduct);
+          if (imageUrl && !imageUrl.toLowerCase().split('?')[0].endsWith('.json')) {
+            productImages = [imageUrl];
+          }
+        }
+
+        const resolvedProduct = {
+          ...latestProduct,
+          images: productImages
+        };
+
+        // Cache details for future visits
+        adminGalleriesCache[product.id] = resolvedProduct;
+
+        // Apply background updates if current modal is editing this product
+        setEditingProduct(prev => {
+          if (prev && prev.id === product.id) {
+            setEditForm(currentForm => {
+              // Check if form is dirty (user modified anything other than original state)
+              const hasChanged = 
+                currentForm.modelNumber !== product.modelNumber ||
+                currentForm.size !== product.size ||
+                currentForm.wholesalePrice !== product.wholesalePrice ||
+                currentForm.retailPrice !== product.retailPrice ||
+                currentForm.stock !== product.stock ||
+                currentForm.isOnSale !== product.isOnSale ||
+                currentForm.isLive !== product.isLive;
+
+              if (!hasChanged) {
+                // Not modified by user yet, overwrite safely
+                return {
+                  ...resolvedProduct,
+                  _newImageFile: null
+                };
+              } else {
+                // User started editing, merge details but preserve their changes
+                return {
+                  ...resolvedProduct,
+                  ...currentForm,
+                  images: productImages // always merge latest images list
+                };
+              }
+            });
+            return resolvedProduct;
+          }
+          return prev;
+        });
+
+      } catch (err) {
+        console.error('[ERROR] Background loading failed:', err);
+      } finally {
+        clearTimeout(shimmerTimer);
+        setShowSkeleton(false);
+        setIsBackgroundLoading(false);
+      }
+    })();
   };
 
   const handleEditSubmit = async (e) => {
@@ -742,6 +856,81 @@ const AdminProducts = () => {
     const startIdx = (currentPage - 1) * itemsPerPage;
     return sortedFilteredProducts.slice(startIdx, startIdx + itemsPerPage);
   }, [sortedFilteredProducts, currentPage]);
+
+  // Prefetch product details on hover/touchstart
+  const handlePrefetchProduct = async (product) => {
+    if (!product) return;
+    const cacheKey = product.id;
+    if (adminGalleriesCache[cacheKey]) return; // already cached
+
+    try {
+      console.log(`[PREFETCH] Prefetching details for: ${product.modelNumber}`);
+      await ensurePbAuth();
+      const colName = 'PRODUCT_DATAS';
+      const latestProduct = await fetchProductById(product.pbId || product.id, colName);
+      
+      let productImages = latestProduct.images || [];
+      if (productImages.length === 0) {
+        const imageUrl = getProductImageUrl(latestProduct);
+        if (imageUrl && !imageUrl.toLowerCase().split('?')[0].endsWith('.json')) {
+          productImages = [imageUrl];
+        }
+      }
+      
+      adminGalleriesCache[cacheKey] = {
+        ...latestProduct,
+        images: productImages
+      };
+    } catch (err) {
+      console.warn('[PREFETCH] Prefetch failed:', err);
+    }
+  };
+
+  // Preload visible products in the background
+  useEffect(() => {
+    if (!paginatedProducts || paginatedProducts.length === 0) return;
+
+    let isMounted = true;
+    const preload = async () => {
+      // Loop through each product on the page sequentially
+      for (const prod of paginatedProducts) {
+        if (!isMounted) break;
+        if (adminGalleriesCache[prod.id]) continue; // already cached
+        
+        try {
+          await ensurePbAuth();
+          const colName = 'PRODUCT_DATAS';
+          const latestProduct = await fetchProductById(prod.pbId || prod.id, colName);
+          
+          let productImages = latestProduct.images || [];
+          if (productImages.length === 0) {
+            const imageUrl = getProductImageUrl(latestProduct);
+            if (imageUrl && !imageUrl.toLowerCase().split('?')[0].endsWith('.json')) {
+              productImages = [imageUrl];
+            }
+          }
+          
+          adminGalleriesCache[prod.id] = {
+            ...latestProduct,
+            images: productImages
+          };
+          console.log(`[PRELOAD] Successfully preloaded: ${prod.modelNumber}`);
+        } catch (err) {
+          console.warn(`[PRELOAD] Failed for ${prod.modelNumber}:`, err);
+        }
+      }
+    };
+
+    // Delay preloading slightly to not interfere with initial page rendering/mount animation
+    const timer = setTimeout(() => {
+      preload();
+    }, 800);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [paginatedProducts]);
 
   const totalPages = Math.ceil(sortedFilteredProducts.length / itemsPerPage) || 1;
 
@@ -964,6 +1153,8 @@ const AdminProducts = () => {
                       <div className="table-actions-row">
                         <button 
                           onClick={() => triggerEdit(p)} 
+                          onPointerEnter={() => handlePrefetchProduct(p)}
+                          onTouchStart={() => handlePrefetchProduct(p)}
                           className="action-icon-btn edit-btn"
                           aria-label="Edit time product"
                         >
@@ -1046,7 +1237,12 @@ const AdminProducts = () => {
                   </div>
 
                   <div className="mobile-card-actions">
-                    <button onClick={() => triggerEdit(p)} className="mobile-action-btn edit">
+                    <button 
+                      onClick={() => triggerEdit(p)} 
+                      onPointerEnter={() => handlePrefetchProduct(p)}
+                      onTouchStart={() => handlePrefetchProduct(p)}
+                      className="mobile-action-btn edit"
+                    >
                       ✏️ Edit
                     </button>
                     <button onClick={() => triggerDeleteConfirm(p.id)} className="mobile-action-btn delete">
@@ -1220,6 +1416,12 @@ const AdminProducts = () => {
                       </button>
                     </div>
                   ))}
+                  
+                  {/* Shimmer skeleton for background loading */}
+                  {showSkeleton && (
+                    <div className="modal-gallery-thumb shimmer-skeleton" style={{ width: '80px', height: '80px', borderRadius: '8px' }}>
+                    </div>
+                  )}
                   
                   <label htmlFor="modal-img-upload-input" className="modal-add-thumb-btn">
                     <span>+ Add</span>
@@ -2197,6 +2399,20 @@ const AdminProducts = () => {
           background: #FFF;
           border-radius: 4px;
           box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        }
+
+        @keyframes shimmer {
+          0% {
+            background-position: -200% 0;
+          }
+          100% {
+            background-position: 200% 0;
+          }
+        }
+        .shimmer-skeleton {
+          background: linear-gradient(90deg, #f2f2f2 25%, #e6e6e6 37%, #f2f2f2 63%);
+          background-size: 200% 100%;
+          animation: shimmer 1.4s infinite linear;
         }
       `}</style>
     </div>
