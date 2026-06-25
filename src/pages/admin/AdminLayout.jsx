@@ -577,6 +577,28 @@ const AdminLayout = () => {
           gap: 16px;
           max-width: 320px;
           width: 100%;
+          max-height: calc(100vh - 80px);
+          overflow-y: auto;
+          overflow-x: hidden;
+          padding-right: 4px;
+          scroll-behavior: smooth;
+        }
+
+        .admin-stock-alerts-floating-container::-webkit-scrollbar {
+          width: 5px;
+        }
+
+        .admin-stock-alerts-floating-container::-webkit-scrollbar-track {
+          background: transparent;
+        }
+
+        .admin-stock-alerts-floating-container::-webkit-scrollbar-thumb {
+          background: #475569;
+          border-radius: 4px;
+        }
+
+        .admin-stock-alerts-floating-container::-webkit-scrollbar-thumb:hover {
+          background: #64748b;
         }
 
         .stock-alert-card {
