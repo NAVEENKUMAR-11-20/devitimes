@@ -10,10 +10,19 @@ export default defineConfig({
     // Split vendor chunks for better long-term caching
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-pocketbase': ['pocketbase'],
-          'vendor-xlsx': ['xlsx'],
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
+              return 'vendor-react';
+            }
+            if (id.includes('pocketbase')) {
+              return 'vendor-pocketbase';
+            }
+            if (id.includes('xlsx')) {
+              return 'vendor-xlsx';
+            }
+            return 'vendor';
+          }
         },
       },
     },

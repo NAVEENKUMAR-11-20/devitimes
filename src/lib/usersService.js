@@ -29,7 +29,10 @@ function mapRegistration(record) {
 
 export async function fetchAllUsers() {
   try {
-    const records = await pb.collection('User').getFullList({ sort: '-created' });
+    const records = await pb.collection('User').getFullList({
+      sort: '-created',
+      fields: 'id,User_ID,Full_Name,moblieno,mobileno,password,created'
+    });
     return records.map(mapUser);
   } catch (err) {
     console.error('[PB] fetchAllUsers error:', err);
@@ -41,7 +44,8 @@ export async function fetchPendingRegistrations() {
   try {
     const records = await pb.collection('registered_users').getFullList({
       filter: 'status = "pending"',
-      sort: '-created'
+      sort: '-created',
+      fields: 'id,user_name,mobile_no,status,created'
     });
     return records.map(mapRegistration);
   } catch (err) {

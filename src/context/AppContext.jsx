@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { fetchAllProducts, mapRecord } from '../lib/productsService';
 import { fetchAllUsers, fetchPendingRegistrations, createRegistration as pbCreateRegistration, deleteRegistration as pbDeleteRegistration, updateRegistrationStatus as pbUpdateRegistrationStatus, createUser as pbCreateUser, deleteUser as pbDeleteUser } from '../lib/usersService';
 import pb from '../lib/pocketbase';
@@ -27,6 +27,9 @@ export const AppProvider = ({ children }) => {
   // Products — fetched from PocketBase on mount
   const [products, setProducts] = useState([]);
   const [retailProducts, setRetailProducts] = useState([]);
+
+  const lastProductsFetchRef = useRef(0);
+  const lastUsersFetchRef = useRef(0);
 
   const fetchJsonGalleryIfNeeded = async (product, callback) => {
     if (!product._jsonUrl) return;
@@ -59,7 +62,13 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  const loadProducts = async () => {
+  const loadProducts = async (force = false) => {
+    const now = Date.now();
+    if (!force && products.length > 0 && now - lastProductsFetchRef.current < 15000) {
+      console.log('[AppContext] Returning cached products');
+      return;
+    }
+    lastProductsFetchRef.current = now;
     try {
       const pbProducts = await fetchAllProducts();
       setProducts(pbProducts);
@@ -238,7 +247,13 @@ export const AppProvider = ({ children }) => {
 
   // Removed ensurePbAuth as we are relying on public API rules for guest access
 
-  const loadUserData = async () => {
+  const loadUserData = async (force = false) => {
+    const now = Date.now();
+    if (!force && users.length > 0 && now - lastUsersFetchRef.current < 15000) {
+      console.log('[AppContext] Returning cached users');
+      return;
+    }
+    lastUsersFetchRef.current = now;
     try {
       const pbUsers = await fetchAllUsers();
       setUsers(pbUsers);

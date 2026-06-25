@@ -121,7 +121,7 @@ const enhanceAndUpscaleImage = (canvas, targetMinSize = 1200) => {
 const adminGalleriesCache = {};
 
 const AdminProducts = () => {
-  const { refreshProducts, settings, updateSettings, saveSettingsToPB, checkAndTriggerLowStockAlert } = useApp();
+  const { products: contextProducts, refreshProducts, settings, updateSettings, saveSettingsToPB, checkAndTriggerLowStockAlert } = useApp();
 
   const ensurePbAuth = async () => {
     // Clear regular user session to prevent API rules policy mismatch on public collections
@@ -132,90 +132,34 @@ const AdminProducts = () => {
   };
   // ── PocketBase state ──────────────────────────────────────────────────────
   const [products, setProducts]   = useState([]);
-  const [pbLoading, setPbLoading] = useState(true);
+  const [pbLoading, setPbLoading] = useState(false);
   const [pbError,   setPbError]   = useState('');
   const [productType, setProductType] = useState('wholesale'); // 'wholesale' or 'retail'
+  const [isSaving, setIsSaving]   = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const loadProducts = async () => {
-    try {
-      setPbLoading(true);
-      setPbError('');
-      await ensurePbAuth();
-      const allData = await fetchAllProducts();
-      let data = allData;
-      if (productType === 'retail') {
-        data = allData.filter(p => p.product_type === 'retail' || p.product_type === 'RETAIL' || p.retailPrice > 0);
-      } else {
-        data = allData.filter(p => p.product_type !== 'retail' && p.product_type !== 'RETAIL');
-      }
-      console.log(`[PB] Fetched ${productType} products for AdminProducts:`, data);
-      setProducts(data || []);
-    } catch (err) {
-      setPbError(`Failed to load ${productType} products from PocketBase.`);
-      console.error(err);
-      setProducts([]);
-    } finally {
-      setPbLoading(false);
-    }
-  };
-
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { loadProducts(); }, [productType]);
-
-  // Fetch JSON galleries in the background for products that have them
+  // Sync products with contextProducts and apply filtering
   useEffect(() => {
-    let isMounted = true;
-    products.forEach(prod => {
-      if (!prod._jsonUrl || prod._jsonFetched) return;
-
-      const cacheKey = prod._jsonUrl + '?' + (prod.updatedAt || '');
-      const cacheVal = adminGalleriesCache[cacheKey];
-      
-      // Case 1: Already loaded and cached
-      if (Array.isArray(cacheVal)) {
-        setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, images: cacheVal, _jsonFetched: true } : p));
-        return;
+    if (contextProducts) {
+      let filtered = contextProducts;
+      if (productType === 'retail') {
+        filtered = contextProducts.filter(p => p.product_type === 'retail' || p.product_type === 'RETAIL' || p.retailPrice > 0);
+      } else {
+        filtered = contextProducts.filter(p => p.product_type !== 'retail' && p.product_type !== 'RETAIL');
       }
+      setProducts(filtered);
+    }
+  }, [contextProducts, productType]);
 
-      // Case 2: Currently fetching
-      if (cacheVal === 'fetching') {
-        return;
-      }
-
-      // Case 3: Failed/empty
-      if (cacheVal === 'failed') {
-        setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, _jsonFetched: true } : p));
-        return;
-      }
-
-      // Case 4: Not started yet
-      adminGalleriesCache[cacheKey] = 'fetching';
-      const fetchUrl = prod._jsonUrl + (prod._jsonUrl.includes('?') ? '&' : '?') + 't=' + (prod.updatedAt ? encodeURIComponent(prod.updatedAt) : getCacheBuster());
-      fetch(fetchUrl, { cache: 'no-store' })
-        .then(res => res.ok ? res.json() : null)
-        .then(data => {
-          if (Array.isArray(data)) {
-            adminGalleriesCache[cacheKey] = data;
-            if (isMounted) {
-              setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, images: data, _jsonFetched: true } : p));
-            }
-          } else {
-            adminGalleriesCache[cacheKey] = 'failed';
-            if (isMounted) {
-              setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, _jsonFetched: true } : p));
-            }
-          }
-        })
-        .catch(err => {
-          console.error('Error loading gallery for admin:', prod.id, err);
-          adminGalleriesCache[cacheKey] = 'failed';
-          if (isMounted) {
-            setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, _jsonFetched: true } : p));
-          }
-        });
-    });
-    return () => { isMounted = false; };
-  }, [products]);
+  // Load products on mount if not loaded already, and handle loading states
+  useEffect(() => {
+    if (!contextProducts || contextProducts.length === 0) {
+      setPbLoading(true);
+      refreshProducts()
+        .catch(err => setPbError('Failed to load products from PocketBase.'))
+        .finally(() => setPbLoading(false));
+    }
+  }, [contextProducts, refreshProducts]);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -512,8 +456,7 @@ const AdminProducts = () => {
         setFailedIds(failed); // Trigger the retry modal
       } else {
         triggerToast(`${successCountTracker + successCount} products deleted successfully!`);
-        await loadProducts();
-        await refreshProducts();
+        await refreshProducts(true);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     } catch (err) {
@@ -558,8 +501,7 @@ const AdminProducts = () => {
   const cancelRetryDelete = async () => {
     triggerToast(`Completed with ${failedIds.length} errors.`);
     setFailedIds([]);
-    await loadProducts();
-    await refreshProducts();
+    await refreshProducts(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -590,7 +532,7 @@ const AdminProducts = () => {
     try {
       await ensurePbAuth();
       await pbUpdateProduct(product.pbId || id, { is_live: !currentStatus }, 'PRODUCT_DATAS');
-      await refreshProducts();
+      await refreshProducts(true);
     } catch (err) {
       // Revert on error
       setProducts(prev => prev.map(p => p.id === id ? { ...p, isLive: currentStatus } : p));
@@ -608,7 +550,8 @@ const AdminProducts = () => {
     if (!deletingProductId) return;
     const idToDelete = deletingProductId;
     const product = products.find(p => p.id === idToDelete);
-    setDeletingProductId(null);
+    
+    setIsDeleting(true);
     
     // Optimistic update
     setProducts(prev => prev.filter(p => p.id !== idToDelete));
@@ -617,13 +560,16 @@ const AdminProducts = () => {
     try {
       await ensurePbAuth();
       await pb.collection('PRODUCT_DATAS').delete(product?.pbId || idToDelete, { requestKey: null });
+      setDeletingProductId(null);
       triggerToast('Product deleted successfully');
-      await refreshProducts();
+      await refreshProducts(true);
     } catch (err) {
       // Revert on error at exact position if possible
       if (product) setProducts(prev => [product, ...prev]);
       triggerToast(`Error deleting product: ${err.message || 'Unknown error'}`);
       console.error(err);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -675,6 +621,7 @@ const AdminProducts = () => {
     const wholesaleP = editForm.wholesalePrice !== undefined ? editForm.wholesalePrice : editForm.salePrice;
     const retailP = editForm.retailPrice;
 
+    setIsSaving(true);
     try {
       await ensurePbAuth();
       const pbId = editForm.pbId || editForm.id;
@@ -722,11 +669,12 @@ const AdminProducts = () => {
 
       setEditingProduct(null);
       triggerToast('Product updated successfully');
-      await loadProducts();
-      await refreshProducts();
+      await refreshProducts(true);
     } catch (err) {
       triggerToast('Error saving product');
       console.error('[ERROR] Error updating product:', err);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -1280,8 +1228,8 @@ const AdminProducts = () => {
               </div>
 
               <div className="modal-actions-row" style={{ marginTop: '24px' }}>
-                <button type="submit" className="btn-primary modal-btn">
-                  SAVE CHANGES
+                <button type="submit" className="btn-primary modal-btn" disabled={isSaving}>
+                  {isSaving ? 'SAVING...' : 'SAVE CHANGES'}
                 </button>
                 <button 
                   type="button" 
@@ -1312,8 +1260,8 @@ const AdminProducts = () => {
             <p className="modal-desc font-body">Are you sure you want to delete this timepiece? This action cannot be undone.</p>
             
             <div className="modal-actions-row">
-              <button onClick={handleConfirmDelete} className="btn-primary modal-btn" style={{ backgroundColor: '#EF4444' }}>
-                DELETE
+              <button onClick={handleConfirmDelete} className="btn-primary modal-btn" style={{ backgroundColor: '#EF4444' }} disabled={isDeleting}>
+                {isDeleting ? 'DELETING...' : 'DELETE'}
               </button>
               <button onClick={() => setDeletingProductId(null)} className="btn-secondary modal-btn">
                 CANCEL

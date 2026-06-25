@@ -15,13 +15,8 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
     settings 
   } = useApp();
 
-  // Navigation Subtabs: 'USERS' (Active clients), 'PENDING' (Self registrations)
-  const [activeSubtab, setActiveSubtab] = useState(initialTab);
-
-  // Sync active tab whenever routing prop shifts
-  React.useEffect(() => {
-    setActiveSubtab(initialTab);
-  }, [initialTab]);
+  // Navigation Subtabs: 'USERS' only (Self registrations tab is removed)
+  const activeSubtab = 'USERS';
 
   // Reveal password list tracker
   const [revealedPasswords, setRevealedPasswords] = useState({}); // userId -> boolean
@@ -48,6 +43,12 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
   // Retail users state
   const [retailUsers, setRetailUsers] = useState([]);
   const [loadingRetail, setLoadingRetail] = useState(false);
+
+  // Processing state for feedback / disabling buttons
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [updatingUserId, setUpdatingUserId] = useState(null);
+  const [deletingUserId, setDeletingUserId] = useState(null);
+  const [processingRegId, setProcessingRegId] = useState(null);
 
   // Fetch retail users
   const fetchRetailUsers = async () => {
@@ -78,10 +79,10 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
   };
 
   // Load Wholesale & Retail data
-  const loadAllData = React.useCallback(async () => {
+  const loadAllData = React.useCallback(async (force = false) => {
     setLoadingRetail(true);
     try {
-      await refreshUsers();
+      await refreshUsers(force);
       const ru = await fetchRetailUsers();
       setRetailUsers(ru);
     } catch (err) {
@@ -92,7 +93,7 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
   }, [refreshUsers]);
 
   React.useEffect(() => {
-    loadAllData();
+    loadAllData(false);
   }, [loadAllData]);
 
   // Combine Wholesale & Retail
@@ -128,36 +129,46 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
   // Status toggle switch (unified)
   const handleToggleStatus = async (user) => {
     const newStatus = user.status === 'active' ? 'suspended' : 'active';
-    if (user.userType === 'Retail') {
-      try {
+    const targetId = user.userId || user.id;
+    setUpdatingUserId(targetId);
+    setIsProcessing(true);
+    try {
+      if (user.userType === 'Retail') {
         await pb.collection('retail_users').update(user.pbId, {
           active: newStatus === 'active'
         });
-        await loadAllData();
-      } catch (err) {
-        console.error('[AdminUsers] Failed to update retail status:', err);
-        alert('Failed to update status in PocketBase');
+      } else {
+        await updateUserStatus(user.userId, newStatus);
       }
-    } else {
-      await updateUserStatus(user.userId, newStatus);
-      await loadAllData();
+      await loadAllData(true);
+    } catch (err) {
+      console.error('[AdminUsers] Failed to update status:', err);
+      alert('Failed to update status in PocketBase');
+    } finally {
+      setIsProcessing(false);
+      setUpdatingUserId(null);
     }
   };
 
   // Delete user (unified)
   const handleDeleteUser = async (user) => {
     if (confirm(`Delete account for ${user.name}? This will remove their history.`)) {
-      if (user.userType === 'Retail') {
-        try {
+      const targetId = user.userId || user.id;
+      setDeletingUserId(targetId);
+      setIsProcessing(true);
+      try {
+        if (user.userType === 'Retail') {
           await pb.collection('retail_users').delete(user.pbId);
-          await loadAllData();
-        } catch (err) {
-          console.error('[AdminUsers] Failed to delete retail user:', err);
-          alert('Failed to delete user in PocketBase');
+        } else {
+          await deleteUser(user.userId);
         }
-      } else {
-        await deleteUser(user.userId);
-        await loadAllData();
+        await loadAllData(true);
+      } catch (err) {
+        console.error('[AdminUsers] Failed to delete user:', err);
+        alert('Failed to delete user in PocketBase');
+      } finally {
+        setIsProcessing(false);
+        setDeletingUserId(null);
       }
     }
   };
@@ -259,6 +270,7 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
       return;
     }
 
+    setIsProcessing(true);
     try {
       if (pendingRegIdToApprove) {
         // Approve from self registration request
@@ -284,12 +296,14 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
         }
       }
 
-      await loadAllData();
+      await loadAllData(true);
       setShowUserModal(false);
       alert('Client account created successfully!');
     } catch (err) {
       console.error('[AdminUsers] Failed to submit form:', err);
       alert('Failed to save user. Please check if fields are valid.');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -343,7 +357,7 @@ Login at: ${settings.websiteUrl}/#/${user.userType === 'Retail' ? 'retail-login'
         <div>
           <h1 className="dashboard-heading font-heading">User Management</h1>
           <p className="stats-indicator font-body">
-            Manage clients, generate sign-in passwords, and approve incoming registrations.
+            Manage clients and generate sign-in passwords.
           </p>
         </div>
         <button onClick={handleOpenCreateModal} className="btn-primary" style={{ height: '40px', padding: '0 20px', fontSize: '12px' }}>
@@ -351,41 +365,28 @@ Login at: ${settings.websiteUrl}/#/${user.userType === 'Retail' ? 'retail-login'
         </button>
       </div>
 
-      {/* Tabs list (Registered users & Pending) */}
+      {/* Tabs list (Registered users) */}
       <div className="users-tabs-bar">
         
         <div className="subtabs-group">
           <span 
-            className={`subtab-btn uppercase-label ${activeSubtab === 'USERS' ? 'active-subtab' : ''}`}
-            onClick={() => setActiveSubtab('USERS')}
-            style={{ cursor: 'pointer' }}
+            className="subtab-btn uppercase-label active-subtab"
+            style={{ cursor: 'default' }}
           >
             Registered Users ({allUsers.length})
-          </span>
-          <span 
-            className={`subtab-btn uppercase-label ${activeSubtab === 'PENDING' ? 'active-subtab' : ''}`}
-            onClick={() => setActiveSubtab('PENDING')}
-            style={{ cursor: 'pointer' }}
-          >
-            Pending Registrations ({pendingRegistrations.length})
-            {pendingRegistrations.length > 0 && (
-              <span className="pending-badge-count">{pendingRegistrations.length}</span>
-            )}
           </span>
         </div>
 
         {/* Search bar */}
-        {activeSubtab === 'USERS' && (
-          <div className="search-users-wrapper">
-            <input 
-              type="text" 
-              placeholder="Search by name, ID or mobile..." 
-              className="form-input search-users-input"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-        )}
+        <div className="search-users-wrapper">
+          <input 
+            type="text" 
+            placeholder="Search by name, ID or mobile..." 
+            className="form-input search-users-input"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
 
       </div>
 
@@ -441,11 +442,22 @@ Login at: ${settings.websiteUrl}/#/${user.userType === 'Retail' ? 'retail-login'
                         {/* Account Status Switch */}
                         <button
                           onClick={() => handleToggleStatus(u)}
+                          disabled={isProcessing}
                           className={`status-toggle-switch ${u.status === 'active' ? 'live-switch' : 'hidden-switch'}`}
+                          style={{ opacity: isProcessing ? 0.7 : 1, cursor: isProcessing ? 'not-allowed' : 'pointer' }}
                         >
-                          <span className="toggle-slider"></span>
+                          {updatingUserId === (u.userId || u.id) ? (
+                            <span className="loading-spinner" style={{ 
+                              width: '12px', height: '12px', border: '2px solid rgba(255,255,255,0.3)', 
+                              borderTop: '2px solid #ffffff', borderRadius: '50%', 
+                              display: 'inline-block', marginRight: '6px', animation: 'spin 0.6s linear infinite',
+                              verticalAlign: 'middle'
+                            }}></span>
+                          ) : (
+                            <span className="toggle-slider"></span>
+                          )}
                           <span className="toggle-label-text">
-                            {u.status === 'active' ? 'ACTIVE' : 'SUSPENDED'}
+                            {updatingUserId === (u.userId || u.id) ? 'SAVING...' : (u.status === 'active' ? 'ACTIVE' : 'SUSPENDED')}
                           </span>
                         </button>
                       </td>
@@ -455,15 +467,31 @@ Login at: ${settings.websiteUrl}/#/${user.userType === 'Retail' ? 'retail-login'
                             onClick={() => handleShareCredentials(u)}
                             className="btn-secondary"
                             style={{ padding: '4px 8px', fontSize: '10px', height: '28px', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+                            disabled={isProcessing}
                           >
                             Share via WA 📱
                           </button>
                           <button 
                             onClick={() => handleDeleteUser(u)}
+                            disabled={isProcessing}
                             className="action-icon-btn delete-btn"
-                            style={{ width: '28px', height: '28px' }}
+                            style={{ 
+                              width: '28px', 
+                              height: '28px', 
+                              opacity: isProcessing ? 0.7 : 1, 
+                              cursor: isProcessing ? 'not-allowed' : 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
                           >
-                            🗑️
+                            {deletingUserId === (u.userId || u.id) ? (
+                              <span className="loading-spinner" style={{ 
+                                width: '12px', height: '12px', border: '2px solid #FECACA', 
+                                borderTop: '2px solid #B91C1C', borderRadius: '50%', 
+                                display: 'inline-block', animation: 'spin 0.6s linear infinite'
+                              }}></span>
+                            ) : '🗑️'}
                           </button>
                         </div>
                       </td>
@@ -476,62 +504,7 @@ Login at: ${settings.websiteUrl}/#/${user.userType === 'Retail' ? 'retail-login'
         </div>
       )}
 
-      {/* SUBTAB 2: PENDING REGISTRATION LIST */}
-      {activeSubtab === 'PENDING' && (
-        <div className="table-container-card">
-          {pendingRegistrations.length === 0 ? (
-            <div className="empty-table-state font-body">
-              No pending registrations found.
-            </div>
-          ) : (
-            <table className="admin-table pending-regs-table">
-              <thead>
-                <tr>
-                  <th>Full Name</th>
-                  <th>Mobile Number</th>
-                  <th>Requested Date</th>
-                  <th>Status</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendingRegistrations.map(reg => (
-                  <tr key={reg.id}>
-                    <td><strong style={{ color: 'var(--text-primary)' }}>{reg.name}</strong></td>
-                    <td>{reg.mobile}</td>
-                    <td>{new Date(reg.registeredAt).toLocaleDateString()}</td>
-                    <td>
-                      <span className="pending-badge">Pending</span>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <div className="table-actions-row">
-                        <button 
-                          onClick={() => handleApprovePendingClick(reg)}
-                          className="btn-primary"
-                          style={{ padding: '4px 8px', fontSize: '10px', height: '28px', textTransform: 'uppercase', letterSpacing: '0.05em' }}
-                        >
-                          Approve ✅
-                        </button>
-                        <button 
-                          onClick={async () => {
-                            if (confirm(`Reject/Delete registration request for ${reg.name}?`)) {
-                              await deleteRegistrationRequest(reg.id);
-                            }
-                          }}
-                          className="action-icon-btn delete-btn"
-                          style={{ width: '28px', height: '28px' }}
-                        >
-                          🗑️
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
+      {/* Pending registrations table content removed */}
 
       {/* --- CREATE USER MODAL OVERLAY --- */}
       {showUserModal && (
@@ -552,7 +525,7 @@ Login at: ${settings.websiteUrl}/#/${user.userType === 'Retail' ? 'retail-login'
                   className="form-input"
                   value={modalForm.userType}
                   onChange={(e) => setModalForm(prev => ({ ...prev, userType: e.target.value }))}
-                  disabled={!!pendingRegIdToApprove}
+                  disabled={isProcessing || !!pendingRegIdToApprove}
                 >
                   <option value="Wholesale">Wholesale</option>
                 </select>
@@ -566,6 +539,7 @@ Login at: ${settings.websiteUrl}/#/${user.userType === 'Retail' ? 'retail-login'
                   className="form-input"
                   value={modalForm.userId}
                   onChange={(e) => setModalForm(prev => ({ ...prev, userId: e.target.value }))}
+                  disabled={isProcessing}
                 />
                 <span className="help-subtext font-body">Common User ID format LUM-XXX</span>
               </div>
@@ -578,7 +552,7 @@ Login at: ${settings.websiteUrl}/#/${user.userType === 'Retail' ? 'retail-login'
                   className="form-input"
                   value={modalForm.name}
                   onChange={(e) => setModalForm(prev => ({ ...prev, name: e.target.value }))}
-                  disabled={!!pendingRegIdToApprove}
+                  disabled={isProcessing || !!pendingRegIdToApprove}
                 />
               </div>
 
@@ -590,7 +564,7 @@ Login at: ${settings.websiteUrl}/#/${user.userType === 'Retail' ? 'retail-login'
                   className="form-input"
                   value={modalForm.mobile}
                   onChange={(e) => setModalForm(prev => ({ ...prev, mobile: e.target.value }))}
-                  disabled={!!pendingRegIdToApprove}
+                  disabled={isProcessing || !!pendingRegIdToApprove}
                 />
               </div>
 
@@ -604,12 +578,14 @@ Login at: ${settings.websiteUrl}/#/${user.userType === 'Retail' ? 'retail-login'
                     value={modalForm.password}
                     onChange={(e) => setModalForm(prev => ({ ...prev, password: e.target.value, confirmPassword: e.target.value }))}
                     style={{ flex: 1 }}
+                    disabled={isProcessing}
                   />
                   <button 
                     type="button" 
                     onClick={handleGeneratePassword} 
                     className="btn-secondary"
                     style={{ height: '44px', fontSize: '11px', padding: '0 12px', flexShrink: 0 }}
+                    disabled={isProcessing}
                   >
                     Auto-Gen
                   </button>
@@ -623,6 +599,7 @@ Login at: ${settings.websiteUrl}/#/${user.userType === 'Retail' ? 'retail-login'
                   className="form-input"
                   value={modalForm.confirmPassword}
                   onChange={(e) => setModalForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                  disabled={isProcessing}
                 />
               </div>
 
@@ -633,6 +610,7 @@ Login at: ${settings.websiteUrl}/#/${user.userType === 'Retail' ? 'retail-login'
                   className="form-input"
                   value={modalForm.status}
                   onChange={(e) => setModalForm(prev => ({ ...prev, status: e.target.value }))}
+                  disabled={isProcessing}
                 >
                   <option value="active">Active</option>
                   <option value="suspended">Inactive</option>
@@ -646,13 +624,24 @@ Login at: ${settings.websiteUrl}/#/${user.userType === 'Retail' ? 'retail-login'
 
               {/* Actions */}
               <div className="modal-actions-row">
-                <button type="submit" className="btn-primary modal-btn">
-                  CREATE USER
+                <button type="submit" className="btn-primary modal-btn" disabled={isProcessing}>
+                  {isProcessing ? (
+                    <>
+                      <span className="loading-spinner" style={{ 
+                        width: '12px', height: '12px', border: '2px solid rgba(255,255,255,0.3)', 
+                        borderTop: '2px solid #ffffff', borderRadius: '50%', 
+                        display: 'inline-block', marginRight: '6px', animation: 'spin 0.6s linear infinite',
+                        verticalAlign: 'middle'
+                      }}></span>
+                      SAVING...
+                    </>
+                  ) : 'CREATE USER'}
                 </button>
                 <button 
                   type="button" 
                   className="btn-secondary modal-btn"
                   onClick={() => setShowUserModal(false)}
+                  disabled={isProcessing}
                 >
                   CANCEL
                 </button>
@@ -1020,12 +1009,63 @@ Login at: ${settings.websiteUrl}/#/${user.userType === 'Retail' ? 'retail-login'
             font-size: 16px !important;
           }
 
+          .modal-overlay {
+            padding: 16px !important;
+            box-sizing: border-box;
+          }
           .modal-card {
             width: 95vw !important;
-            padding: 20px;
+            max-width: 440px !important;
+            padding: 24px 20px !important;
+            max-height: 85vh !important;
+            overflow-y: auto !important;
+            display: flex;
+            flex-direction: column;
+            border-radius: 12px !important;
+            box-sizing: border-box;
           }
-          .form-group input, .form-group .form-input {
-            width: 100%;
+          .modal-card h3 {
+            padding-right: 40px !important;
+            box-sizing: border-box;
+          }
+          .modal-close-btn {
+            top: 16px !important;
+            right: 16px !important;
+            z-index: 20 !important;
+          }
+          .form-group input, 
+          .form-group select,
+          .form-group .form-input {
+            width: 100% !important;
+            box-sizing: border-box;
+          }
+          .form-group div {
+            display: flex !important;
+            gap: 8px !important;
+            width: 100% !important;
+            box-sizing: border-box;
+          }
+          .form-group div input.form-input {
+            width: 0 !important;
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
+          }
+          .form-group div button.btn-secondary {
+            flex: 0 0 auto !important;
+            width: auto !important;
+          }
+          .modal-actions-row {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 10px !important;
+            margin-top: 24px !important;
+            width: 100% !important;
+            box-sizing: border-box;
+          }
+          .modal-actions-row button {
+            width: 100% !important;
+            height: 44px !important;
+            margin: 0 !important;
           }
         }
       `}</style>

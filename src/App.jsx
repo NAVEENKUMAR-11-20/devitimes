@@ -108,7 +108,7 @@ function App() {
             <Route path="add-product" element={<AdminAddProduct />} />
             <Route path="add-via-pdf" element={<AdminPdfImport />} />
             <Route path="users" element={<AdminUsers initialTab="USERS" />} />
-            <Route path="registrations" element={<AdminUsers initialTab="PENDING" />} />
+            <Route path="registrations" element={<Navigate to="/admin/users" replace />} />
             <Route path="settings" element={<AdminSettings />} />
           </Route>
 

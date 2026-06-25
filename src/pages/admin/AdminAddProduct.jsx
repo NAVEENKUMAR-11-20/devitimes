@@ -179,7 +179,7 @@ const AdminAddProduct = () => {
       });
 
       // Refresh global products state immediately
-      await refreshProducts();
+      await refreshProducts(true);
 
       setSuccessProductName(modelNumber.trim());
       setShowConfirmModal(false);

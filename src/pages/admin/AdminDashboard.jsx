@@ -17,6 +17,7 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(() => {
     return products.length === 0 && users.length === 0;
   });
+  const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
   const [errorDetails, setErrorDetails] = useState(null);
 
   // Load data from PocketBase
@@ -24,6 +25,8 @@ const AdminDashboard = () => {
     try {
       if (products.length === 0 && users.length === 0) {
         setLoading(true);
+      } else {
+        setIsBackgroundRefreshing(true);
       }
       setErrorDetails(null);
       await Promise.all([
@@ -63,6 +66,7 @@ const AdminDashboard = () => {
       setErrorDetails(details);
     } finally {
       setLoading(false);
+      setIsBackgroundRefreshing(false);
     }
   };
 
@@ -125,7 +129,24 @@ const AdminDashboard = () => {
     .slice(0, 5);
 
   if (loading) {
-    return <div style={{ padding: '40px', textAlign: 'center' }}>Loading dashboard...</div>;
+    return (
+      <div style={{ 
+        padding: '80px 40px', 
+        textAlign: 'center', 
+        display: 'flex', 
+        flexDirection: 'column', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        gap: '16px' 
+      }}>
+        <div className="loading-spinner" style={{ 
+          width: '36px', height: '36px', border: '3px solid #E2E8F0', 
+          borderTop: '3px solid var(--accent-blue)', borderRadius: '50%', 
+          animation: 'spin 1s linear infinite' 
+        }}></div>
+        <p className="font-body" style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Loading dashboard...</p>
+      </div>
+    );
   }
   
   if (errorDetails) {
@@ -148,9 +169,20 @@ const AdminDashboard = () => {
     <div className="dashboard-view-wrapper">
       
       {/* Page Title */}
-      <div className="dashboard-title-row">
-        <h1 className="dashboard-heading font-heading">Dashboard Overview</h1>
-        <p className="dashboard-desc font-body">Real-time statistics and quick controls for DEVI TIMES e-commerce.</p>
+      <div className="dashboard-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h1 className="dashboard-heading font-heading" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            Dashboard Overview
+            {isBackgroundRefreshing && (
+              <span className="loading-spinner" style={{ 
+                width: '18px', height: '18px', border: '2px solid #E2E8F0', 
+                borderTop: '2px solid var(--accent-blue)', borderRadius: '50%', 
+                display: 'inline-block', animation: 'spin 0.6s linear infinite' 
+              }}></span>
+            )}
+          </h1>
+          <p className="dashboard-desc font-body">Real-time statistics and quick controls for DEVI TIMES e-commerce.</p>
+        </div>
       </div>
 
       {/* Persistent Low Stock Alerts Section */}

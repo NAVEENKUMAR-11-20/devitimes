@@ -101,6 +101,7 @@ export async function fetchAllProducts() {
     const records = await pb.collection('PRODUCT_DATAS').getFullList({
       sort: '-created',
       requestKey: null,
+      fields: 'id,collectionId,collectionName,PRODUCT_IMAGE,MODEL_NO,SIZE_DM,PACKAGE_NO,WHOLESALE_PRICE,RETAIL_PRICE,PRODUCT_TYPE,original_price,is_on_sale,is_live,description,created,updated,STOCK'
     });
     return records.map(mapRecord);
   } catch (err) {
