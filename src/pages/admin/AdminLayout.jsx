@@ -49,7 +49,7 @@ const AdminLayout = () => {
       .map(p => {
         const rawTime = settings.alertData?.[p.id]?.lastAlertSentAt;
         const timeObj = rawTime ? new Date(rawTime) : new Date();
-        const alertTimeStr = timeObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' on ' + timeObj.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        const alertTimeStr = timeObj.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }) + ' on ' + timeObj.toLocaleDateString([], { month: 'short', day: 'numeric' });
         
         return {
           id: p.id,

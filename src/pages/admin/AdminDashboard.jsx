@@ -195,7 +195,7 @@ const AdminDashboard = () => {
                           <div className="spec-item full-width">
                             <span className="spec-label">Last Alert:</span>
                             <span className="spec-val" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                              {new Date(lastAlert).toLocaleString()}
+                              {new Date(lastAlert).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
                             </span>
                           </div>
                         )}
