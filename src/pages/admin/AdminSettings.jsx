@@ -79,17 +79,21 @@ const AdminSettings = () => {
           active: true
         });
       }
+      // Re-fetch to confirm saved values
+      const confirmed = await pb.collection('retail_users').getFullList();
+      if (confirmed.length > 0) {
+        setRetailUserId(confirmed[0].username);
+        setRetailPassword(confirmed[0].password);
+        updateSettings({
+          retailUserId: confirmed[0].username,
+          retailPassword: confirmed[0].password
+        });
+      }
+      triggerToast('Retail credentials saved');
     } catch (err) {
       console.error("Failed to save retail credentials to PocketBase:", err);
-      alert('Failed to save to PocketBase.');
-      return;
+      alert('Failed to save to PocketBase. Please check your connection.');
     }
-
-    updateSettings({
-      retailUserId: finalId,
-      retailPassword: finalPass
-    });
-    triggerToast('Retail credentials saved');
   };
 
   // ── Homepage Image Management ──────────────────────────────────────────────
@@ -369,30 +373,47 @@ const AdminSettings = () => {
       alert_data: alertData
     };
 
-    // Optimistically update local react context instantly
-    updateSettings({ 
-      whatsappNumber: finalNumber,
-      lowStockThreshold: finalThreshold,
-      inventoryAlertEnabled: finalEnabled,
-      bannerAlertEnabled: finalBanner
-    });
-    triggerToast('Settings updated');
-
     try {
-      if (pbSettingsId) {
-        console.log('Updating settings record...');
-        await pb.collection('app_settings').update(pbSettingsId, payload);
+      let recordId = pbSettingsId;
+      if (recordId) {
+        // Always UPDATE the existing record
+        await pb.collection('app_settings').update(recordId, payload);
       } else {
-        console.log('Creating settings record...');
-        const newRecord = await pb.collection('app_settings').create(payload);
-        setPbSettingsId(newRecord.id);
+        // Only CREATE if absolutely no record exists yet
+        const existing = await pb.collection('app_settings').getFullList();
+        if (existing.length > 0) {
+          recordId = existing[0].id;
+          setPbSettingsId(recordId);
+          await pb.collection('app_settings').update(recordId, payload);
+        } else {
+          const newRecord = await pb.collection('app_settings').create(payload);
+          recordId = newRecord.id;
+          setPbSettingsId(recordId);
+        }
       }
-      
-      console.log('Settings saved successfully.');
+
+      // Re-fetch to confirm saved values from backend
+      const confirmed = await pb.collection('app_settings').getOne(recordId);
+      const confirmedPhone = confirmed.whatsapp_number || finalNumber;
+      const confirmedThreshold = (confirmed.low_stock_limt !== undefined && !isNaN(Number(confirmed.low_stock_limt))) ? Number(confirmed.low_stock_limt) : finalThreshold;
+      const confirmedEnabled = confirmed.inventory_alert !== false;
+      const confirmedBanner = confirmed.banner_alert !== false;
+
+      setWhatsappNumber(confirmedPhone);
+      setLowStockThreshold(confirmedThreshold);
+      setInventoryAlertEnabled(confirmedEnabled);
+      setBannerAlertEnabled(confirmedBanner);
+      updateSettings({
+        whatsappNumber: confirmedPhone,
+        lowStockThreshold: confirmedThreshold,
+        inventoryAlertEnabled: confirmedEnabled,
+        bannerAlertEnabled: confirmedBanner
+      });
+
+      triggerToast('Settings updated');
     } catch (err) {
       console.error("Failed to save to PocketBase:", err);
       alert('Failed to save settings to database. Please check your connection.');
-      return;
     }
   };
 
@@ -420,22 +441,23 @@ const AdminSettings = () => {
         });
       } else {
         await pb.collection('admin_password').create({
-          username: 'admin', // default fallback username if missing
+          username: 'admin',
           password: newPassword.trim()
         });
       }
+      // Re-fetch to confirm password was saved
+      const confirmed = await pb.collection('admin_password').getFullList();
+      const savedPassword = confirmed.length > 0 ? confirmed[0].password : newPassword.trim();
+      setActualAdminPassword(savedPassword);
+      updateSettings({ adminPassword: savedPassword });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      triggerToast('Password updated successfully');
     } catch (err) {
       console.error("Failed to save admin password to PocketBase:", err);
-      alert('Failed to update password.');
-      return;
+      alert('Failed to update password. Please check your connection.');
     }
-
-    alert('Password updated successfully.');
-    setActualAdminPassword(newPassword.trim());
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    triggerToast('Password updated successfully');
   };
 
   // Section 4 actions — Excel export
