@@ -11,6 +11,24 @@ import {
   LIST_KEYS, collectionImageKey, posterImageKey,
 } from '../../lib/homepageImagesDb';
 
+/**
+ * Executes a PocketBase write (update/create) with proper error handling.
+ * PocketBase collections require auth for writes — this ensures requests go through.
+ */
+async function pbWrite(fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    // If it's a 403/401, the collection API rules are blocking the request.
+    // Log the exact error so it's easy to diagnose.
+    const status = err?.status || err?.response?.code || '';
+    if (status === 403 || status === 401) {
+      console.error('[PB] Write blocked by API rules (403/401). Open PocketBase Admin → Collections → app_settings → API Rules → set Update rule to empty (allow all).');
+    }
+    throw err;
+  }
+}
+
 // ─── Default Collection list (mirrors Home.jsx) ────────────────────────────
 const DEFAULT_COLLECTIONS = [
   { id: 'col_0', name: 'Premium Wall Clocks',    defaultImage: '/collection_images/premium wall clock.jpg' },
@@ -65,20 +83,22 @@ const AdminSettings = () => {
     const finalPass = retailPassword.trim();
 
     try {
-      const retailRecords = await pb.collection('retail_users').getFullList();
-      if (retailRecords.length > 0) {
-        await pb.collection('retail_users').update(retailRecords[0].id, {
-          username: finalId,
-          password: finalPass
-        });
-      } else {
-        await pb.collection('retail_users').create({
-          name: 'naveen',
-          username: finalId,
-          password: finalPass,
-          active: true
-        });
-      }
+      await pbWrite(async () => {
+        const retailRecords = await pb.collection('retail_users').getFullList();
+        if (retailRecords.length > 0) {
+          await pb.collection('retail_users').update(retailRecords[0].id, {
+            username: finalId,
+            password: finalPass
+          });
+        } else {
+          await pb.collection('retail_users').create({
+            name: 'naveen',
+            username: finalId,
+            password: finalPass,
+            active: true
+          });
+        }
+      });
       // Re-fetch to confirm saved values
       const confirmed = await pb.collection('retail_users').getFullList();
       if (confirmed.length > 0) {
@@ -92,7 +112,8 @@ const AdminSettings = () => {
       triggerToast('Retail credentials saved');
     } catch (err) {
       console.error("Failed to save retail credentials to PocketBase:", err);
-      alert('Failed to save to PocketBase. Please check your connection.');
+      const msg = err?.message || err?.data?.message || 'Unknown error';
+      alert(`Failed to save retail credentials: ${msg}\n\nCheck PocketBase API Rules for retail_users collection.`);
     }
   };
 
@@ -375,22 +396,22 @@ const AdminSettings = () => {
 
     try {
       let recordId = pbSettingsId;
-      if (recordId) {
-        // Always UPDATE the existing record
-        await pb.collection('app_settings').update(recordId, payload);
-      } else {
-        // Only CREATE if absolutely no record exists yet
-        const existing = await pb.collection('app_settings').getFullList();
-        if (existing.length > 0) {
-          recordId = existing[0].id;
-          setPbSettingsId(recordId);
+      await pbWrite(async () => {
+        if (recordId) {
           await pb.collection('app_settings').update(recordId, payload);
         } else {
-          const newRecord = await pb.collection('app_settings').create(payload);
-          recordId = newRecord.id;
-          setPbSettingsId(recordId);
+          const existing = await pb.collection('app_settings').getFullList();
+          if (existing.length > 0) {
+            recordId = existing[0].id;
+            setPbSettingsId(recordId);
+            await pb.collection('app_settings').update(recordId, payload);
+          } else {
+            const newRecord = await pb.collection('app_settings').create(payload);
+            recordId = newRecord.id;
+            setPbSettingsId(recordId);
+          }
         }
-      }
+      });
 
       // Re-fetch to confirm saved values from backend
       const confirmed = await pb.collection('app_settings').getOne(recordId);
@@ -413,7 +434,8 @@ const AdminSettings = () => {
       triggerToast('Settings updated');
     } catch (err) {
       console.error("Failed to save to PocketBase:", err);
-      alert('Failed to save settings to database. Please check your connection.');
+      const msg = err?.message || err?.data?.message || 'Unknown error';
+      alert(`Failed to save settings: ${msg}\n\nCheck PocketBase API Rules for app_settings collection (Update rule must be empty).`);
     }
   };
 
@@ -434,17 +456,19 @@ const AdminSettings = () => {
     }
 
     try {
-      const adminPassRecords = await pb.collection('admin_password').getFullList();
-      if (adminPassRecords.length > 0) {
-        await pb.collection('admin_password').update(adminPassRecords[0].id, {
-          password: newPassword.trim()
-        });
-      } else {
-        await pb.collection('admin_password').create({
-          username: 'admin',
-          password: newPassword.trim()
-        });
-      }
+      await pbWrite(async () => {
+        const adminPassRecords = await pb.collection('admin_password').getFullList();
+        if (adminPassRecords.length > 0) {
+          await pb.collection('admin_password').update(adminPassRecords[0].id, {
+            password: newPassword.trim()
+          });
+        } else {
+          await pb.collection('admin_password').create({
+            username: 'admin',
+            password: newPassword.trim()
+          });
+        }
+      });
       // Re-fetch to confirm password was saved
       const confirmed = await pb.collection('admin_password').getFullList();
       const savedPassword = confirmed.length > 0 ? confirmed[0].password : newPassword.trim();
@@ -456,7 +480,8 @@ const AdminSettings = () => {
       triggerToast('Password updated successfully');
     } catch (err) {
       console.error("Failed to save admin password to PocketBase:", err);
-      alert('Failed to update password. Please check your connection.');
+      const msg = err?.message || err?.data?.message || 'Unknown error';
+      alert(`Failed to update password: ${msg}\n\nCheck PocketBase API Rules for admin_password collection.`);
     }
   };
 
