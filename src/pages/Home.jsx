@@ -992,8 +992,8 @@ const Home = () => {
 
         @media (max-width: 768px) {
           .hero-section {
-            min-height: 100vh;
-            padding: 100px 16px 60px 16px;
+            min-height: auto;
+            padding: 24px 16px 40px 16px;
           }
 
           .hero-section::after {
@@ -1009,9 +1009,18 @@ const Home = () => {
             flex-direction: column;
             text-align: center;
             padding-top: 0;
-            gap: 40px;
+            gap: 16px;
           }
           .hero-left-content { align-items: center; }
+
+          .wholesale-badge {
+            margin-top: 0 !important;
+            margin-bottom: 12px !important;
+          }
+
+          .hero-tag-label {
+            margin-bottom: 10px !important;
+          }
 
           .hero-text-blob {
             top: 40%;
@@ -1023,11 +1032,13 @@ const Home = () => {
             opacity: 0.15;
           }
 
-          .hero-right-content { justify-content: center; margin-right: 0; width: 100%; }
-          .hero-heading { font-size: 38px; line-height: 1.2; margin-bottom: 16px; }
-          .hero-description { font-size: 15px; max-width: 100%; margin-bottom: 0; }
-          .hero-clock-frame { width: 280px; height: 280px; margin: 0 auto; }
-          .hero-cta-group { justify-content: center; align-items: center; }
+          .hero-right-content { justify-content: center; margin-right: 0; width: 100%; gap: 16px !important; }
+          .hero-heading { font-size: 28px; line-height: 1.2; margin-bottom: 10px; }
+          .hero-heading .italic-accent { margin-top: 6px !important; }
+          .hero-description { font-size: 14px; max-width: 100%; margin-bottom: 12px; line-height: 1.5; color: rgba(255, 255, 255, 0.7); }
+          .hero-clock-frame { width: 200px; height: 200px; margin: 0 auto; }
+          .hero-cta-group { justify-content: center; align-items: center; gap: 8px !important; }
+          .hero-cta-btn { width: 100%; max-width: 320px; }
 
           .hero-decorative-leaf {
             bottom: -5%;
