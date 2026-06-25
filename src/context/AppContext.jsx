@@ -42,8 +42,8 @@ export const AppProvider = ({ children }) => {
 
     fetchedGalleriesCache[cacheKey] = 'fetching';
     try {
-      const fetchUrl = product._jsonUrl + (product._jsonUrl.includes('?') ? '&' : '?') + 't=' + (product.updatedAt ? encodeURIComponent(product.updatedAt) : Date.now());
-      const res = await fetch(fetchUrl, { cache: 'no-store' });
+      const fetchUrl = product._jsonUrl + (product._jsonUrl.includes('?') ? '&' : '?') + 't=' + (product.updatedAt ? encodeURIComponent(product.updatedAt) : '');
+      const res = await fetch(fetchUrl, { cache: 'force-cache' }); // use browser cache for galleries
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -132,10 +132,8 @@ export const AppProvider = ({ children }) => {
     const subscribeToProducts = async () => {
       try {
         await pb.collection('PRODUCT_DATAS').subscribe('*', (e) => {
-          console.log('[AppContext] PocketBase real-time event:', e.action, e.record);
           if (!isMounted) return;
           if (e.action === 'create' || e.action === 'update' || e.action === 'delete') {
-            // Simplified real-time update: reload products on any change
             loadProducts();
           }
         });
@@ -183,7 +181,7 @@ export const AppProvider = ({ children }) => {
     pollIntervalId = setInterval(() => {
       loadProducts();
       loadGlobalSettings();
-    }, 3000);
+    }, 30000); // Poll every 30s as fallback; real-time subscriptions handle live updates
 
     return () => {
       isMounted = false;

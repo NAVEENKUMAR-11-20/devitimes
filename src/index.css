@@ -428,3 +428,73 @@ button {
   outline: none;
   box-shadow: 0 0 0 3px rgba(45,93,161,0.3);
 }
+
+/* ── Performance Optimizations ──────────────────────────────────── */
+
+/* GPU-accelerate scroll-heavy marquee animations */
+.marquee-track,
+.marquee-content {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* GPU-accelerate animated elements */
+.hero-animated-clock,
+.hero-orb,
+.loading-spinner {
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* Prevent layout shift: reserve space for images before they load */
+.card-image-area img,
+.collection-card-img,
+.wholesale-card-image {
+  background-color: var(--border-color);
+  min-height: 1px; /* ensure element exists in layout */
+}
+
+/* Placeholder shimmer for product card images while loading */
+.card-image-area {
+  background: linear-gradient(90deg, #e8edf4 25%, #f0f3f7 50%, #e8edf4 75%);
+  background-size: 200% 100%;
+}
+
+/* Smooth GPU-accelerated hover transforms */
+.card-product,
+.collection-card-item {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Optimize scroll performance */
+html {
+  scroll-behavior: smooth;
+  overscroll-behavior-y: contain;
+}
+
+/* Respect user preference for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track,
+  .marquee-content {
+    animation: none !important;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/* Image rendering optimization */
+img {
+  image-rendering: auto;
+  content-visibility: auto;
+}
+
+/* Below-fold sections: defer layout paint */
+.wholesale-banner-section,
+.featured-products-section {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 500px;
+}

@@ -281,8 +281,8 @@ const Home = () => {
         <div className="hero-orb hero-orb-2" aria-hidden="true" />
 
         {/* Decorative Plants & Vases */}
-        <img src="/left_leaf.png" className="hero-decorative-leaf" alt="" aria-hidden="true" />
-        <img src="/vase_books.png" className="hero-decorative-vase" alt="" aria-hidden="true" />
+        <img src="/left_leaf.png" className="hero-decorative-leaf" alt="" aria-hidden="true" loading="eager" decoding="async" fetchPriority="low" />
+        <img src="/vase_books.png" className="hero-decorative-vase" alt="" aria-hidden="true" loading="eager" decoding="async" fetchPriority="low" />
 
         <div className="container hero-container">
 
@@ -373,6 +373,8 @@ const Home = () => {
                       src={collImgMap[col.id] || col.defaultImage || col.image || ''}
                       alt={col.name}
                       className="collection-card-img"
+                      loading="lazy"
+                      decoding="async"
                     />
                     <div className="collection-card-overlay"></div>
                   </div>
@@ -406,6 +408,8 @@ const Home = () => {
                 src={posterSrc}
                 alt={activePoster?.name || 'Premium Wall Clock Showroom'} 
                 className="wholesale-card-image"
+                loading="lazy"
+                decoding="async"
               />
             </div>
           )}
