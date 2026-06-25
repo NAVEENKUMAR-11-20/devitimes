@@ -160,49 +160,51 @@ const AdminDashboard = () => {
             <span className="section-icon">⚠️</span>
             <h2 className="dashboard-section-title font-heading">Low Stock Alerts</h2>
           </div>
-          <div className="low-stock-cards-grid">
-            {lowStockProducts.map(p => {
-              const lastAlert = settings.alertData?.[p.id]?.lastAlertSentAt;
-              return (
-                <div className="low-stock-alert-card animate-fade-in" key={p.id}>
-                  <div className="low-stock-card-thumb">
-                    {p.images && p.images.length > 0 ? (
-                      <img 
-                        src={p.images[0]} 
-                        alt={p.modelNumber} 
-                        onError={(e) => { e.target.onerror = null; e.target.src = "/placeholder.svg"; }}
-                      />
-                    ) : (
-                      <div className="fallback-clock-thumb">⏰</div>
-                    )}
-                  </div>
-                  <div className="low-stock-card-content">
-                    <div className="low-stock-header-row">
-                      <h4 className="low-stock-product-name font-heading">Model {p.modelNumber}</h4>
-                      <span className="low-stock-badge">LOW STOCK</span>
-                    </div>
-                    <div className="low-stock-specs font-body">
-                      <div className="spec-item">
-                        <span className="spec-label">Current Stock:</span>
-                        <span className="spec-val" style={{ color: 'var(--accent-red)', fontWeight: '700' }}>{p.stock !== undefined ? p.stock : 20}</span>
-                      </div>
-                      <div className="spec-item">
-                        <span className="spec-label">Threshold:</span>
-                        <span className="spec-val">{threshold}</span>
-                      </div>
-                      {lastAlert && (
-                        <div className="spec-item full-width">
-                          <span className="spec-label">Last Alert:</span>
-                          <span className="spec-val" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                            {new Date(lastAlert).toLocaleString()}
-                          </span>
-                        </div>
+          <div className="low-stock-scroll-wrapper">
+            <div className="low-stock-cards-grid">
+              {lowStockProducts.map(p => {
+                const lastAlert = settings.alertData?.[p.id]?.lastAlertSentAt;
+                return (
+                  <div className="low-stock-alert-card animate-fade-in" key={p.id}>
+                    <div className="low-stock-card-thumb">
+                      {p.images && p.images.length > 0 ? (
+                        <img 
+                          src={p.images[0]} 
+                          alt={p.modelNumber} 
+                          onError={(e) => { e.target.onerror = null; e.target.src = "/placeholder.svg"; }}
+                        />
+                      ) : (
+                        <div className="fallback-clock-thumb">⏰</div>
                       )}
                     </div>
+                    <div className="low-stock-card-content">
+                      <div className="low-stock-header-row">
+                        <h4 className="low-stock-product-name font-heading">Model {p.modelNumber}</h4>
+                        <span className="low-stock-badge">LOW STOCK</span>
+                      </div>
+                      <div className="low-stock-specs font-body">
+                        <div className="spec-item">
+                          <span className="spec-label">Current Stock:</span>
+                          <span className="spec-val" style={{ color: 'var(--accent-red)', fontWeight: '700' }}>{p.stock !== undefined ? p.stock : 20}</span>
+                        </div>
+                        <div className="spec-item">
+                          <span className="spec-label">Threshold:</span>
+                          <span className="spec-val">{threshold}</span>
+                        </div>
+                        {lastAlert && (
+                          <div className="spec-item full-width">
+                            <span className="spec-label">Last Alert:</span>
+                            <span className="spec-val" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                              {new Date(lastAlert).toLocaleString()}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
@@ -561,6 +563,32 @@ const AdminDashboard = () => {
           font-weight: 700;
           color: var(--text-primary);
           margin: 0;
+        }
+
+        .low-stock-scroll-wrapper {
+          max-height: 420px;
+          overflow-y: auto;
+          overflow-x: hidden;
+          scroll-behavior: smooth;
+          padding-right: 6px;
+        }
+
+        .low-stock-scroll-wrapper::-webkit-scrollbar {
+          width: 6px;
+        }
+
+        .low-stock-scroll-wrapper::-webkit-scrollbar-track {
+          background: #f1f5f9;
+          border-radius: 4px;
+        }
+
+        .low-stock-scroll-wrapper::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 4px;
+        }
+
+        .low-stock-scroll-wrapper::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
         }
 
         .low-stock-cards-grid {
