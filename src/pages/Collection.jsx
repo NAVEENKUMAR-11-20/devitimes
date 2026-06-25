@@ -89,10 +89,14 @@ const Collection = () => {
   const filteredProducts = useMemo(() => {
     return (liveProducts || []).filter((product) => {
       if (!product) return false;
+      // Accept both boolean true and string 'true' from PocketBase
+      const live = product.isLive === true || product.isLive === 'true' || product.isLive === undefined;
+      if (!live) return false;
       if (isRetail) {
-        return !!product.isLive && ((product.product_type === 'retail' || product.product_type === 'RETAIL') || product.retailPrice > 0);
+        return (product.product_type === 'retail' || product.product_type === 'RETAIL') || product.retailPrice > 0;
       }
-      return !!product.isLive && ((product.product_type !== 'retail' && product.product_type !== 'RETAIL') || product.wholesalePrice > 0);
+      // Wholesale: show all live products that are NOT retail-only
+      return product.product_type !== 'retail' && product.product_type !== 'RETAIL';
     });
   }, [liveProducts, isRetail]);
 
