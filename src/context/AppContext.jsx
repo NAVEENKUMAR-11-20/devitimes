@@ -143,7 +143,7 @@ export const AppProvider = ({ children }) => {
         await pb.collection('PRODUCT_DATAS').subscribe('*', (e) => {
           if (!isMounted) return;
           if (e.action === 'create' || e.action === 'update' || e.action === 'delete') {
-            loadProducts();
+            loadProducts(true);
           }
         });
         console.log('[AppContext] Successfully subscribed to PRODUCT_DATAS collection.');

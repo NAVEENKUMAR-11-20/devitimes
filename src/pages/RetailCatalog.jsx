@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import ClockSvg from '../components/ClockSvg';
-import { getProductImageUrl, fetchAllProducts } from '../lib/productsService';
+import { getProductImageUrl, getProductImageUrls, fetchAllProducts } from '../lib/productsService';
 
 const RetailCatalog = () => {
   const { currentRetailUser, logoutRetailUser } = useApp();
@@ -16,12 +16,19 @@ const RetailCatalog = () => {
   }, [currentRetailUser, navigate]);
 
   const getProductDisplayImage = (product) => {
-    if (product?.images && product.images.length > 0) {
+    if (!product) return "/placeholder.svg";
+    if (product.images && product.images.length > 0 && product.images[0]) {
       return product.images[0];
     }
     const imageUrl = getProductImageUrl(product);
     if (imageUrl && !imageUrl.toLowerCase().split('?')[0].endsWith('.json')) {
       return imageUrl;
+    }
+    // Check other possible fields for mismatch correction
+    const fallbackImage = product.PRODUCT_IMAGE || product.product_image || product.PRODUCT_IMAGES || product.product_images || product.image;
+    if (fallbackImage) {
+      const urls = getProductImageUrls(product);
+      if (urls.length > 0) return urls[0];
     }
     return "/placeholder.svg";
   };

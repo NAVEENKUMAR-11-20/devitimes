@@ -262,7 +262,14 @@ TOTAL: ₹${grandTotal}
                       {/* Thumbnail Image */}
                       <div className="cart-thumbnail-wrapper">
                         {item.image ? (
-                          <img src={item.image} alt={item.modelNumber} className="cart-item-thumbnail" loading="lazy" decoding="async" />
+                          <img 
+                            src={item.image} 
+                            alt={item.modelNumber} 
+                            className="cart-item-thumbnail" 
+                            onError={(e) => { e.target.onerror = null; e.target.src = "/placeholder.svg"; }}
+                            loading="lazy" 
+                            decoding="async" 
+                          />
                         ) : (
                           <ClockSvg model={item.modelNumber} size={60} />
                         )}

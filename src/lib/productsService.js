@@ -2,27 +2,73 @@ import pb from './pocketbase';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+export function getProductImageUrls(record) {
+  if (!record) return [];
+  
+  // Find where the product images might be stored
+  let prodimages = 
+    record.PRODUCT_IMAGE || 
+    record.product_image || 
+    record.PRODUCT_IMAGES || 
+    record.product_images || 
+    record.images || 
+    record.image || 
+    record._rawImageName;
+  
+  if (!prodimages) return [];
+  
+  // If it's a string, try to parse it if it looks like a JSON array, otherwise treat as single filename or URL
+  if (typeof prodimages === 'string') {
+    const trimmed = prodimages.trim();
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        prodimages = JSON.parse(trimmed);
+      } catch {
+        prodimages = [trimmed];
+      }
+    } else if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) {
+      return [trimmed];
+    } else {
+      prodimages = [trimmed];
+    }
+  }
+  
+  // If it is an array
+  if (Array.isArray(prodimages)) {
+    const pbUrl = (import.meta.env.VITE_POCKETBASE_URL || '').replace(/\/$/, '');
+    const collectionName = record.collectionName || record.collectionId || 'PRODUCT_DATAS';
+    const recordId = record.id || record.pbId;
+    
+    // Return URLs for elements that are valid strings (not empty, not placeholders)
+    return prodimages
+      .filter(item => typeof item === 'string' && item.trim().length > 0)
+      .map(filename => {
+        if (filename.startsWith('http://') || filename.startsWith('https://') || filename.startsWith('data:')) {
+          return filename;
+        }
+        // Build URL using PocketBase file URL logic with VITE_POCKETBASE_URL
+        return `${pbUrl}/api/files/${collectionName}/${recordId}/${filename}`;
+      });
+  }
+  
+  return [];
+}
+
 /**
  * Build a full image URL for a PocketBase file record.
  * Returns null if the record has no image.
  */
 export function getProductImageUrl(record) {
-  if (!record) return null;
-  const prodimage = record.PRODUCT_IMAGE || record._rawImageName || record.images;
-  if (!prodimage) return null;
-  const pbRecord = {
-    id: record.id || record.pbId,
-    collectionId: record.collectionId,
-    collectionName: record.collectionName,
-  };
-  return pb.files.getURL(pbRecord, prodimage);
+  const urls = getProductImageUrls(record);
+  return urls.length > 0 ? urls[0] : null;
 }
 
 /**
  * Map a raw PocketBase product record → app product shape
  */
 export function mapRecord(record) {
-  const imageUrl = getProductImageUrl(record);
+  const imageUrls = getProductImageUrls(record);
+  const imageUrl = imageUrls.length > 0 ? imageUrls[0] : null;
   const isJson = imageUrl && imageUrl.toLowerCase().split('?')[0].endsWith('.json');
   const wholesalePrice = Number(record.WHOLESALE_PRICE) || 0;
   const retailPrice = Number(record.RETAIL_PRICE) || 0;
@@ -43,7 +89,7 @@ export function mapRecord(record) {
     originalPrice: record.original_price !== undefined && record.original_price !== null ? Number(record.original_price) : null,
     isOnSale: record.is_on_sale !== undefined ? (String(record.is_on_sale) === 'true') : false,
     isLive: record.is_live !== undefined ? (String(record.is_live) === 'true') : true,
-    images: imageUrl ? (isJson ? [] : [imageUrl]) : [],
+    images: imageUrls,
     _jsonUrl: isJson ? imageUrl : null,
     _rawImageName: record.PRODUCT_IMAGE || '',    // original filename for updates
     name: record.MODEL_NO !== undefined ? String(record.MODEL_NO) : record.id,   // fallback display name
@@ -143,7 +189,11 @@ export async function createProduct(data) {
     formData.append('STOCK', String(data.STOCK));
   }
 
-  if (data.imageFile) {
+  if (data.imageFiles && data.imageFiles.length > 0) {
+    data.imageFiles.forEach(file => {
+      formData.append('PRODUCT_IMAGE', file);
+    });
+  } else if (data.imageFile) {
     formData.append('PRODUCT_IMAGE', data.imageFile);
   }
 
@@ -168,8 +218,23 @@ export async function updateProduct(pbId, data, collectionName = 'PRODUCT_DATAS'
   if (data.RETAIL_PRICE !== undefined) formData.append('RETAIL_PRICE', String(data.RETAIL_PRICE));
   if (data.PRODUCT_TYPE !== undefined) formData.append('PRODUCT_TYPE', data.PRODUCT_TYPE);
   
-  if (data.imageFile !== undefined) {
-    formData.append('PRODUCT_IMAGE', data.imageFile === null ? '' : data.imageFile);
+  // Handle file deletions using the minus modifier
+  if (data.deletedImageNames && data.deletedImageNames.length > 0) {
+    data.deletedImageNames.forEach(name => {
+      formData.append('PRODUCT_IMAGE-', name);
+    });
+  }
+
+  // Handle new file additions using the plus modifier
+  if (data.newImageFiles && data.newImageFiles.length > 0) {
+    data.newImageFiles.forEach(file => {
+      formData.append('PRODUCT_IMAGE+', file);
+    });
+  }
+
+  // Fallback for single file updates if still used elsewhere (ensures we don't clear with null unless explicitly desired)
+  if (data.imageFile !== undefined && data.imageFile !== null) {
+    formData.append('PRODUCT_IMAGE+', data.imageFile);
   }
 
   if (data.is_live !== undefined) formData.append('is_live', String(data.is_live));

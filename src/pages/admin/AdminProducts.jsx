@@ -754,29 +754,65 @@ const AdminProducts = () => {
         STOCK:           newStockVal,
       };
 
-      if (editForm.images.length === 0) {
-        payload.imageFile = null;
-      } else if (editForm.images.length === 1) {
-        const singleImg = editForm.images[0];
-        if (singleImg.startsWith('data:')) {
-          payload.imageFile = base64ToFile(singleImg, `product_${modelNumStr}.jpg`);
-        } else {
-          if (editingProduct._jsonUrl) {
-            const jsonString = JSON.stringify(editForm.images);
-            const jsonFile = new File([jsonString], 'gallery.json', { type: 'application/json' });
-            payload.imageFile = jsonFile;
+      // 1. Identify raw filenames of original images in PocketBase
+      let originalFilenames = [];
+      const rawVal = editingProduct?.prodimage || editingProduct?._rawImageName;
+      if (Array.isArray(rawVal)) {
+        originalFilenames = rawVal;
+      } else if (typeof rawVal === 'string' && rawVal.trim().length > 0) {
+        if (rawVal.trim().startsWith('[') && rawVal.trim().endsWith(']')) {
+          try {
+            originalFilenames = JSON.parse(rawVal);
+          } catch {
+            originalFilenames = [rawVal];
           }
+        } else {
+          originalFilenames = [rawVal];
         }
-      } else {
-        const jsonString = JSON.stringify(editForm.images);
-        const jsonFile = new File([jsonString], 'gallery.json', { type: 'application/json' });
-        payload.imageFile = jsonFile;
       }
+      originalFilenames = originalFilenames.filter(Boolean);
+
+      // Helper to extract filename from PocketBase file URL
+      const getFilenameFromUrl = (url) => {
+        if (!url) return null;
+        try {
+          const pathPart = url.split('?')[0];
+          const parts = pathPart.split('/');
+          return parts[parts.length - 1];
+        } catch {
+          return null;
+        }
+      };
+
+      // 2. Identify remaining filenames in the edited images list
+      const remainingFilenames = editForm.images
+        .filter(img => typeof img === 'string' && !img.startsWith('data:'))
+        .map(getFilenameFromUrl)
+        .filter(Boolean);
+
+      // 3. Find deleted filenames
+      const deletedImageNames = originalFilenames.filter(fn => !remainingFilenames.includes(fn));
+
+      // 4. Find new images (base64) to upload
+      const newImageFiles = editForm.images
+        .filter(img => typeof img === 'string' && img.startsWith('data:'))
+        .map((b64, idx) => base64ToFile(b64, `product_${modelNumStr}_${Date.now()}_${idx}.jpg`));
+
+      payload.newImageFiles = newImageFiles;
+      payload.deletedImageNames = deletedImageNames;
 
       console.log('[DEBUG] updated payload before saving:', payload);
 
       const response = await pbUpdateProduct(pbId, payload, 'PRODUCT_DATAS');
       console.log('[DEBUG] PocketBase update response:', response);
+
+      // Explicitly refetch the updated product from PocketBase
+      try {
+        const refetched = await fetchProductById(pbId, 'PRODUCT_DATAS');
+        console.log('[DEBUG] Refetched product after edit save:', refetched);
+      } catch (err) {
+        console.error('[ERROR] Failed to refetch product after save:', err);
+      }
 
       // Trigger shared low stock alert checker
       await checkAndTriggerLowStockAlert(editingProduct, newStockVal);
