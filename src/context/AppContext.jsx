@@ -231,8 +231,20 @@ export const AppProvider = ({ children }) => {
     if (savedToken) {
       try {
         const parsed = JSON.parse(savedToken);
-        if (parsed.isAuthenticated) {
+        const isPbSuperuserOrAdmin = pb.authStore.isValid && (
+          pb.authStore.isAdmin ||
+          pb.authStore.isSuperuser ||
+          pb.authStore.model?.collectionName === '_superusers' ||
+          pb.authStore.record?.collectionName === '_superusers' ||
+          pb.authStore.model?.collectionName === 'admins' ||
+          pb.authStore.record?.collectionName === 'admins'
+        );
+        if (parsed.isAuthenticated && isPbSuperuserOrAdmin) {
           return true;
+        } else if (parsed.isAuthenticated && !isPbSuperuserOrAdmin) {
+          console.warn("[AppContext] Stale admin localStorage found without valid PB superuser authStore. Requiring re-login.");
+          localStorage.removeItem('lumiere_admin_auth_token');
+          return false;
         }
       } catch (e) {
         console.error("Admin auth parsing error:", e);

@@ -125,7 +125,15 @@ const AdminProducts = () => {
 
   const ensurePbAuth = async () => {
     // Clear regular user session to prevent API rules policy mismatch on public collections
-    if (pb.authStore.isValid && !pb.authStore.isAdmin) {
+    const isPbSuperuserOrAdmin = pb.authStore.isValid && (
+      pb.authStore.isAdmin ||
+      pb.authStore.isSuperuser ||
+      pb.authStore.model?.collectionName === '_superusers' ||
+      pb.authStore.record?.collectionName === '_superusers' ||
+      pb.authStore.model?.collectionName === 'admins' ||
+      pb.authStore.record?.collectionName === 'admins'
+    );
+    if (pb.authStore.isValid && !isPbSuperuserOrAdmin) {
       console.log('[PB] Clearing regular user session from authStore for admin operations');
       pb.authStore.clear();
     }

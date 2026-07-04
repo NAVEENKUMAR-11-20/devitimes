@@ -431,7 +431,7 @@ const AdminSettings = () => {
     }
 
     try {
-      const adminId = pb.authStore.model?.id;
+      const adminId = pb.authStore.model?.id || pb.authStore.record?.id;
       if (adminId) {
         try {
           await pb.collection('_superusers').update(adminId, {
@@ -454,8 +454,9 @@ const AdminSettings = () => {
         // If authStore model is not present, re-authenticate first to verify current password
         try {
           await pb.collection('_superusers').authWithPassword('admin', currentPassword);
-          if (pb.authStore.model?.id) {
-            await pb.collection('_superusers').update(pb.authStore.model.id, {
+          const reAuthId = pb.authStore.model?.id || pb.authStore.record?.id;
+          if (reAuthId) {
+            await pb.collection('_superusers').update(reAuthId, {
               oldPassword: currentPassword,
               password: newPassword.trim(),
               passwordConfirm: confirmPassword.trim()
@@ -464,8 +465,9 @@ const AdminSettings = () => {
         } catch (err) {
           if (pb.admins && typeof pb.admins.authWithPassword === 'function') {
             await pb.admins.authWithPassword('admin', currentPassword);
-            if (pb.authStore.model?.id) {
-              await pb.admins.update(pb.authStore.model.id, {
+            const reAuthId = pb.authStore.model?.id || pb.authStore.record?.id;
+            if (reAuthId) {
+              await pb.admins.update(reAuthId, {
                 oldPassword: currentPassword,
                 password: newPassword.trim(),
                 passwordConfirm: confirmPassword.trim()
