@@ -1,0 +1,802 @@
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { fetchAllProducts, mapRecord } from '../lib/productsService';
+import { fetchAllUsers, fetchPendingRegistrations, createRegistration as pbCreateRegistration, deleteRegistration as pbDeleteRegistration, updateRegistrationStatus as pbUpdateRegistrationStatus, createUser as pbCreateUser, deleteUser as pbDeleteUser } from '../lib/usersService';
+import pb from '../lib/pocketbase';
+
+const AppContext = createContext();
+
+// Default admin settings
+const defaultSettings = {
+  whatsappNumber: "7358349394",
+  storeName: "DEVI TIMES",
+  currency: "₹",
+  websiteUrl: "http://localhost:5173", // default local dev url
+  lowStockThreshold: 10,
+  inventoryAlertEnabled: true,
+  bannerAlertEnabled: true,
+  alertData: {}
+};
+
+// Global cache for fetched JSON galleries to avoid duplicate network requests
+const fetchedGalleriesCache = {};
+
+export const AppProvider = ({ children }) => {
+  // Products — fetched from PocketBase on mount
+  const [products, setProducts] = useState([]);
+  const [retailProducts, setRetailProducts] = useState([]);
+
+  const lastProductsFetchRef = useRef(0);
+  const lastUsersFetchRef = useRef(0);
+
+  const fetchJsonGalleryIfNeeded = async (product, callback) => {
+    if (!product._jsonUrl) return;
+    const cacheKey = product._jsonUrl + '?' + (product.updatedAt || '');
+    const cacheVal = fetchedGalleriesCache[cacheKey];
+    if (Array.isArray(cacheVal)) {
+      callback(product.id, cacheVal);
+      return;
+    }
+    if (cacheVal === 'fetching' || cacheVal === 'failed') {
+      return;
+    }
+
+    fetchedGalleriesCache[cacheKey] = 'fetching';
+    try {
+      const fetchUrl = product._jsonUrl + (product._jsonUrl.includes('?') ? '&' : '?') + 't=' + (product.updatedAt ? encodeURIComponent(product.updatedAt) : '');
+      const res = await fetch(fetchUrl, { cache: 'force-cache' }); // use browser cache for galleries
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          fetchedGalleriesCache[cacheKey] = data;
+          callback(product.id, data);
+          return;
+        }
+      }
+      fetchedGalleriesCache[cacheKey] = 'failed';
+    } catch (err) {
+      console.error('Failed to fetch JSON gallery for product:', product.id, err);
+      fetchedGalleriesCache[cacheKey] = 'failed';
+    }
+  };
+
+  const loadProducts = async (force = false) => {
+    const now = Date.now();
+    if (!force && products.length > 0 && now - lastProductsFetchRef.current < 15000) {
+      console.log('[AppContext] Returning cached products');
+      return;
+    }
+    lastProductsFetchRef.current = now;
+    try {
+      const pbProducts = await fetchAllProducts();
+      setProducts(pbProducts);
+
+      const rProducts = pbProducts
+        .filter(p => (p.product_type === 'retail' || p.product_type === 'RETAIL') || p.retailPrice > 0)
+        .map(p => ({ ...p, salePrice: p.retailPrice, originalPrice: null, isOnSale: false }));
+      setRetailProducts(rProducts);
+
+      // Fetch JSON galleries in the background
+      pbProducts.forEach(prod => {
+        if (prod._jsonUrl) {
+          fetchJsonGalleryIfNeeded(prod, (id, images) => {
+            setProducts(prev => prev.map(p => p.id === id ? { ...p, images } : p));
+            setRetailProducts(prev => prev.map(p => p.id === id ? { ...p, images } : p));
+          });
+        }
+      });
+    } catch (err) {
+      console.error('[AppContext] Failed to fetch products from PocketBase:', err);
+      throw err;
+    }
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    let pollIntervalId = null;
+
+    const loadGlobalSettings = async () => {
+      try {
+        const records = await pb.collection('app_settings').getFullList();
+        if (records && records.length > 0) {
+          const record = records[0];
+          const phoneVal = record.whatsapp_number || '';
+          const thresholdVal = (record.low_stock_limt !== undefined && !isNaN(Number(record.low_stock_limt))) ? Number(record.low_stock_limt) : 10;
+          const enabledVal = record.inventory_alert !== false;
+          const bannerVal = record.banner_alert !== false;
+          let parsedAlertData = {};
+          if (record.alert_data && typeof record.alert_data === 'object') {
+            parsedAlertData = record.alert_data;
+          }
+
+          setSettings(prev => ({
+            ...prev,
+            whatsappNumber: phoneVal || prev.whatsappNumber || "7358349394",
+            lowStockThreshold: thresholdVal,
+            inventoryAlertEnabled: enabledVal,
+            bannerAlertEnabled: bannerVal,
+            alertData: Object.keys(parsedAlertData).length > 0 ? parsedAlertData : prev.alertData
+          }));
+        }
+
+        const retailRecords = await pb.collection('retail_users').getFullList();
+        if (retailRecords && retailRecords.length > 0) {
+          const rRecord = retailRecords[0];
+          setSettings(prev => ({
+            ...prev,
+            retailUserId: rRecord.username,
+            retailPassword: rRecord.password
+          }));
+        }
+      } catch (err) {
+        console.warn('[AppContext] Failed to load settings from PB:', err);
+      }
+    };
+
+    loadProducts();
+    loadGlobalSettings();
+
+    const subscribeToProducts = async () => {
+      try {
+        await pb.collection('PRODUCT_DATAS').subscribe('*', (e) => {
+          if (!isMounted) return;
+          if (e.action === 'create' || e.action === 'update' || e.action === 'delete') {
+            loadProducts(true);
+          }
+        });
+        console.log('[AppContext] Successfully subscribed to PRODUCT_DATAS collection.');
+      } catch (err) {
+        console.warn('[AppContext] PocketBase real-time subscription failed:', err);
+      }
+    };
+
+    const subscribeToSettings = async () => {
+      try {
+        await pb.collection('app_settings').subscribe('*', (e) => {
+          console.log('[AppContext] PocketBase settings real-time event:', e.action, e.record);
+          if (!isMounted) return;
+          if (e.action === 'update' || e.action === 'create') {
+            const rec = e.record;
+            const phoneVal = rec.whatsapp_number || '';
+            const thresholdVal = (rec.low_stock_limt !== undefined && !isNaN(Number(rec.low_stock_limt))) ? Number(rec.low_stock_limt) : 10;
+            const enabledVal = rec.inventory_alert !== false;
+            const bannerVal = rec.banner_alert !== false;
+            let parsedAlertData = {};
+            if (rec.alert_data && typeof rec.alert_data === 'object') {
+              parsedAlertData = rec.alert_data;
+            }
+
+            setSettings(prev => ({
+              ...prev,
+              whatsappNumber: phoneVal || prev.whatsappNumber || "7358349394",
+              lowStockThreshold: thresholdVal,
+              inventoryAlertEnabled: enabledVal,
+              bannerAlertEnabled: bannerVal,
+              alertData: Object.keys(parsedAlertData).length > 0 ? parsedAlertData : prev.alertData
+            }));
+          }
+        });
+        console.log('[AppContext] Successfully subscribed to app_settings collection.');
+      } catch (err) {
+        console.warn('[AppContext] PocketBase settings subscription failed:', err);
+      }
+    };
+
+    subscribeToProducts();
+    subscribeToSettings();
+
+    pollIntervalId = setInterval(() => {
+      loadProducts();
+      loadGlobalSettings();
+    }, 30000); // Poll every 30s as fallback; real-time subscriptions handle live updates
+
+    return () => {
+      isMounted = false;
+      if (pollIntervalId) {
+        clearInterval(pollIntervalId);
+      }
+      pb.collection('PRODUCT_DATAS').unsubscribe('*').catch(err => {});
+      pb.collection('app_settings').unsubscribe('*').catch(err => {});
+    };
+  }, []);
+
+  const [users, setUsers] = useState([]);
+  const [pendingRegistrations, setPendingRegistrations] = useState([]);
+
+  const [settings, setSettings] = useState(() => {
+    const saved = localStorage.getItem('lumiere_settings');
+    let parsedSettings = saved ? JSON.parse(saved) : defaultSettings;
+    
+    return parsedSettings;
+  });
+
+  // User Session (sessionStorage and localStorage)
+  const [currentUser, setCurrentUser] = useState(() => {
+    const savedSession = sessionStorage.getItem('lumiere_current_user');
+    const savedLocal = localStorage.getItem('lumiere_current_user');
+    const saved = savedSession || savedLocal;
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  // Retail User Session (sessionStorage and localStorage)
+  const [currentRetailUser, setCurrentRetailUser] = useState(() => {
+    const savedSession = sessionStorage.getItem('lumiere_retail_user');
+    const savedLocal = localStorage.getItem('lumiere_retail_user');
+    const saved = savedSession || savedLocal;
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  // Admin Session (persisted in localStorage)
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() => {
+    const savedToken = localStorage.getItem('lumiere_admin_auth_token');
+    if (savedToken) {
+      try {
+        const parsed = JSON.parse(savedToken);
+        if (parsed.isAuthenticated) {
+          return true;
+        }
+      } catch (e) {
+        console.error("Admin auth parsing error:", e);
+        localStorage.removeItem('lumiere_admin_auth_token');
+      }
+    }
+    return false;
+  });
+
+  // Removed ensurePbAuth as we are relying on public API rules for guest access
+
+  const loadUserData = async (force = false) => {
+    const now = Date.now();
+    if (!force && users.length > 0 && now - lastUsersFetchRef.current < 15000) {
+      console.log('[AppContext] Returning cached users');
+      return;
+    }
+    lastUsersFetchRef.current = now;
+    try {
+      const pbUsers = await fetchAllUsers();
+      setUsers(pbUsers);
+      const pbRegs = await fetchPendingRegistrations();
+      setPendingRegistrations(pbRegs);
+    } catch (err) {
+      console.error('[AppContext] Failed to load user data from PocketBase:', err);
+      throw err;
+    }
+  };
+
+  useEffect(() => {
+    if (isAdminAuthenticated) {
+      loadUserData().catch(err => {
+        // Will be caught by AdminDashboard if triggered there, but here we just log
+        console.error("Background loadUserData failed:", err);
+      });
+    } else {
+      setUsers([]);
+      setPendingRegistrations([]);
+    }
+  }, [isAdminAuthenticated]);
+
+  // Cart state, keyed by logged in user id. If no user, empty array
+  const [cart, setCart] = useState([]);
+
+  // Load and save cart when user shifts
+  useEffect(() => {
+    if (currentUser) {
+      const savedCart = localStorage.getItem(`lumiere_cart_${currentUser.userId}`);
+      setCart(savedCart ? JSON.parse(savedCart) : []);
+    } else {
+      setCart([]);
+    }
+  }, [currentUser]);
+
+  // Synchronize admin auth states across tabs in real-time
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'lumiere_admin_auth_token') {
+        if (!e.newValue) {
+          setIsAdminAuthenticated(false);
+        } else {
+          try {
+            const parsedToken = JSON.parse(e.newValue);
+            if (parsedToken.isAuthenticated) {
+              setIsAdminAuthenticated(true);
+            } else {
+              setIsAdminAuthenticated(false);
+            }
+          } catch (err) {
+            setIsAdminAuthenticated(false);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Products are now fetched from PocketBase — no localStorage sync needed
+
+  // Products and Users are fetched from PocketBase — no localStorage sync needed
+
+  useEffect(() => {
+    localStorage.setItem('lumiere_settings', JSON.stringify(settings));
+  }, [settings]);
+
+  // Save Cart to LocalStorage whenever it changes for active user
+  const saveCartForUser = (newCart) => {
+    setCart(newCart);
+    if (currentUser) {
+      localStorage.setItem(`lumiere_cart_${currentUser.userId}`, JSON.stringify(newCart));
+    }
+  };
+
+  // --- Product Management Actions ---
+  const addProduct = (prod) => {
+    const newProduct = {
+      ...prod,
+      id: prod.id || `prod_${Date.now()}`,
+      createdAt: new Date().toISOString()
+    };
+    setProducts(prev => [newProduct, ...prev]);
+  };
+
+  const updateProduct = (updatedProd) => {
+    setProducts(prev => prev.map(p => p.id === updatedProd.id ? updatedProd : p));
+  };
+
+  const deleteProduct = (id) => {
+    setProducts(prev => prev.filter(p => p.id !== id));
+  };
+
+  const toggleProductLive = (id) => {
+    setProducts(prev => prev.map(p => {
+      if (p.id === id) {
+        return { ...p, isLive: !p.isLive };
+      }
+      return p;
+    }));
+  };
+
+  // --- Registration / User Management Actions ---
+  const registerUser = async (name, mobile) => {
+    try {
+      const newReg = await pbCreateRegistration(name, mobile);
+      setPendingRegistrations(prev => [newReg, ...prev]);
+      return newReg;
+    } catch (err) {
+      console.error('Failed to register user in PocketBase:', err);
+      throw err;
+    }
+  };
+
+  const approveRegistration = async (regId, customUserId, password) => {
+    const reg = pendingRegistrations.find(r => r.id === regId);
+    if (!reg) return null;
+
+    try {
+      const newUser = await pbCreateUser({
+        userId: customUserId,
+        name: reg.name,
+        mobile: reg.mobile,
+        password: password
+      });
+
+      await pbUpdateRegistrationStatus(regId, "approved");
+
+      setUsers(prev => [newUser, ...prev]);
+      setPendingRegistrations(prev => prev.filter(r => r.id !== regId));
+      return newUser;
+    } catch (err) {
+      console.error('Failed to approve registration:', err);
+      alert('Failed to approve registration via PocketBase');
+      return null;
+    }
+  };
+
+  const deleteRegistrationRequest = async (regId) => {
+    try {
+      await pbDeleteRegistration(regId);
+      setPendingRegistrations(prev => prev.filter(r => r.id !== regId));
+    } catch (err) {
+      console.error('Failed to delete registration request:', err);
+      alert('Failed to delete registration from PocketBase');
+    }
+  };
+
+  const createUser = async (user) => {
+    try {
+      const newUser = await pbCreateUser(user);
+      setUsers(prev => [newUser, ...prev]);
+    } catch (err) {
+      console.error('Failed to create user:', err);
+      alert('Failed to create user in PocketBase');
+    }
+  };
+
+  const updateUserStatus = async (userId, status) => {
+    try {
+      const user = users.find(u => u.userId === userId);
+      if (user && user.pbId) {
+        let newName = user.name;
+        if (status === 'suspended') {
+          if (!newName.endsWith(' [SUSPENDED]')) {
+            newName = newName + ' [SUSPENDED]';
+          }
+        } else {
+          newName = newName.replace(' [SUSPENDED]', '');
+        }
+        await pb.collection('User').update(user.pbId, { Full_Name: newName });
+      }
+      setUsers(prev => prev.map(u => u.userId === userId ? { ...u, status } : u));
+    } catch (err) {
+      console.error('Failed to update user status:', err);
+      alert('Failed to update user status in PocketBase');
+    }
+  };
+
+  const deleteUser = async (userId) => {
+    try {
+      const user = users.find(u => u.userId === userId);
+      if (user && user.pbId) {
+        await pbDeleteUser(user.pbId);
+      }
+      setUsers(prev => prev.filter(u => u.userId !== userId));
+    } catch (err) {
+      console.error('Failed to delete user:', err);
+      alert('Failed to delete user from PocketBase');
+    }
+  };
+
+  // --- User Authentication Actions ---
+  const loginUser = async (userId, password) => {
+    try {
+      const trimmedId = userId.trim();
+      const trimmedPass = password.trim();
+
+      // Check if it is a retail user
+      const targetUserId = (settings.retailUserId || '').trim();
+      const targetPassword = (settings.retailPassword || '').trim();
+
+      if (targetUserId && targetPassword && trimmedId === targetUserId && trimmedPass === targetPassword) {
+        const sessionObj = {
+          userId: trimmedId,
+          name: 'Retailer',
+          mobile: '',
+          isRetail: true
+        };
+        sessionStorage.setItem('lumiere_current_user', JSON.stringify(sessionObj));
+        localStorage.setItem('lumiere_current_user', JSON.stringify(sessionObj));
+        setCurrentUser(sessionObj);
+        return { success: true, isRetail: true };
+      }
+
+      // 1. Search in PocketBase User collection
+      const records = await pb.collection('User').getFullList({
+        filter: `User_ID = "${trimmedId}"`
+      });
+
+      if (records.length > 0) {
+        const matchedUser = records[0];
+        if (String(matchedUser.password).trim() === String(password).trim()) {
+          const isSuspended = matchedUser.Full_Name && matchedUser.Full_Name.endsWith(' [SUSPENDED]');
+          if (isSuspended) {
+            return { success: false, message: "Your account is suspended. Please contact admin." };
+          }
+          
+          const sessionObj = {
+            userId: matchedUser.User_ID || matchedUser.id,
+            id: matchedUser.id,
+            name: matchedUser.Full_Name || 'Valued Customer',
+            mobile: matchedUser.moblieno || matchedUser.mobileno || '',
+            isRetail: false
+          };
+          sessionStorage.setItem('lumiere_current_user', JSON.stringify(sessionObj));
+          localStorage.setItem('lumiere_current_user', JSON.stringify(sessionObj));
+          setCurrentUser(sessionObj);
+          return { success: true, isRetail: false };
+        } else {
+          return { success: false, message: "Invalid username or password. Please contact admin." };
+        }
+      }
+
+      // 2. Check if there's a pending registration request with matching name/mobile
+      const pendingRegs = await pb.collection('registered_users').getFullList({
+        filter: `status = "pending" && (user_name = "${userId.trim()}" || mobile_no = "${userId.trim()}")`
+      });
+
+      if (pendingRegs.length > 0) {
+        return { success: false, message: "Your account is not approved yet. Please contact admin." };
+      }
+
+      return { success: false, message: "Invalid username or password. Please contact admin." };
+    } catch (err) {
+      console.error('[AppContext] loginUser error:', err);
+      return { success: false, message: "Invalid username or password. Please contact admin." };
+    }
+  };
+
+  const logoutUser = () => {
+    sessionStorage.removeItem('lumiere_current_user');
+    localStorage.removeItem('lumiere_current_user');
+    sessionStorage.removeItem('lumiere_retail_user');
+    localStorage.removeItem('lumiere_retail_user');
+    localStorage.removeItem('pocketbase_auth');
+    pb.authStore.clear();
+    setCurrentUser(null);
+    setCurrentRetailUser(null);
+    setCart([]);
+  };
+
+  const loginRetailUser = async (username, password) => {
+    try {
+      const records = await pb.collection('retail_users').getFullList({
+        filter: `username = "${username.trim()}"`
+      });
+
+      if (records.length > 0) {
+        const matchedUser = records[0];
+        if (String(matchedUser.password).trim() === String(password).trim()) {
+          if (!matchedUser.active) {
+            return { success: false, message: "Your account is not active. Please contact admin." };
+          }
+          
+          const sessionObj = {
+            id: matchedUser.id,
+            username: matchedUser.username
+          };
+          sessionStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
+          localStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
+          setCurrentRetailUser(sessionObj);
+          return { success: true };
+        }
+      }
+      return { success: false, message: "Invalid username or password." };
+    } catch (err) {
+      console.error('[AppContext] loginRetailUser error:', err);
+      return { success: false, message: "Authentication failed. Please check connection." };
+    }
+  };
+
+  const logoutRetailUser = () => {
+    sessionStorage.removeItem('lumiere_current_user');
+    localStorage.removeItem('lumiere_current_user');
+    sessionStorage.removeItem('lumiere_retail_user');
+    localStorage.removeItem('lumiere_retail_user');
+    localStorage.removeItem('pocketbase_auth');
+    pb.authStore.clear();
+    setCurrentUser(null);
+    setCurrentRetailUser(null);
+    setCart([]);
+  };
+
+  const checkCurrentUserStatus = async () => {
+    if (!currentUser) return true;
+    if (currentUser.isRetail) return true;
+    try {
+      const records = await pb.collection('User').getFullList({
+        filter: `User_ID = "${currentUser.userId}"`
+      });
+      if (records.length > 0) {
+        const matchedUser = records[0];
+        const isSuspended = matchedUser.Full_Name && matchedUser.Full_Name.endsWith(' [SUSPENDED]');
+        if (isSuspended) {
+          logoutUser();
+          alert('Your account is suspended. Please contact admin.');
+          window.location.hash = '/login';
+          return false;
+        }
+
+        // If the session object doesn't have the database record ID, update it
+        if (!currentUser.id) {
+          const updatedSession = {
+            ...currentUser,
+            id: matchedUser.id
+          };
+          sessionStorage.setItem('lumiere_current_user', JSON.stringify(updatedSession));
+          localStorage.setItem('lumiere_current_user', JSON.stringify(updatedSession));
+          setCurrentUser(updatedSession);
+        }
+      } else {
+        logoutUser();
+        window.location.hash = '/login';
+        return false;
+      }
+    } catch (err) {
+      console.error('[AppContext] Error checking user status:', err);
+    }
+    return true;
+  };
+
+  // Recheck current user status on app mount / load
+  useEffect(() => {
+    checkCurrentUserStatus();
+  }, []);
+
+  // --- Cart Actions ---
+  const addToCart = (product, qty = 1) => {
+    const existingIndex = cart.findIndex(item => item.productId === product.id);
+    let newCart = [...cart];
+
+    if (existingIndex > -1) {
+      const newQty = newCart[existingIndex].quantity + qty;
+      newCart[existingIndex].quantity = newQty;
+    } else {
+      newCart.push({
+        productId: product.id,
+        productName: product.name,
+        modelNumber: product.modelNumber,
+        category: product.category,
+        size: product.size,
+        color: product.color,
+        unitPrice: product.salePrice,
+        quantity: qty,
+        image: product.images && product.images.length > 0 ? product.images[0] : null
+      });
+    }
+    saveCartForUser(newCart);
+  };
+
+  const removeFromCart = (productId) => {
+    const newCart = cart.filter(item => item.productId !== productId);
+    saveCartForUser(newCart);
+  };
+
+  const updateCartQuantity = (productId, quantity) => {
+    const finalQty = Math.max(1, quantity);
+    const newCart = cart.map(item => {
+      if (item.productId === productId) {
+        return { ...item, quantity: finalQty };
+      }
+      return item;
+    });
+    saveCartForUser(newCart);
+  };
+
+  const clearCart = () => {
+    saveCartForUser([]);
+  };
+
+  const loginAdmin = async (username, password) => {
+    try {
+      try {
+        await pb.collection('_superusers').authWithPassword(username, password);
+      } catch (err) {
+        if (pb.admins && typeof pb.admins.authWithPassword === 'function') {
+          await pb.admins.authWithPassword(username, password);
+        } else {
+          throw err;
+        }
+      }
+      const token = {
+        isAuthenticated: true,
+        timestamp: Date.now()
+      };
+      localStorage.setItem('lumiere_admin_auth_token', JSON.stringify(token));
+      setIsAdminAuthenticated(true);
+      return true;
+    } catch (err) {
+      console.error("Admin authentication failed:", err);
+    }
+    return false;
+  };
+
+  const logoutAdmin = () => {
+    localStorage.removeItem('lumiere_admin_auth_token');
+    setIsAdminAuthenticated(false);
+    pb.authStore.clear();
+  };
+
+  const updateSettings = (newSettings) => {
+    setSettings(prev => ({
+      ...prev,
+      ...newSettings
+    }));
+  };
+
+  const saveSettingsToPB = async (newSettings) => {
+    setSettings(newSettings);
+    localStorage.setItem('lumiere_settings', JSON.stringify(newSettings));
+
+    const whatsappNum = newSettings.whatsappNumber || "7358349394";
+    const threshold = (newSettings.lowStockThreshold !== undefined && !isNaN(Number(newSettings.lowStockThreshold))) ? Number(newSettings.lowStockThreshold) : 10;
+    const enabled = newSettings.inventoryAlertEnabled !== false;
+    const bannerEnabled = newSettings.bannerAlertEnabled !== false;
+    const alertData = newSettings.alertData || {};
+
+    const payload = {
+      whatsapp_number: whatsappNum,
+      low_stock_limt: threshold,
+      inventory_alert: enabled,
+      banner_alert: bannerEnabled,
+      alert_data: alertData
+    };
+
+    try {
+      const records = await pb.collection('app_settings').getFullList();
+      if (records.length > 0) {
+        await pb.collection('app_settings').update(records[0].id, payload);
+      } else {
+        await pb.collection('app_settings').create(payload);
+      }
+    } catch (err) {
+      console.error("Failed to save settings to PocketBase app_settings:", err);
+    }
+  };
+
+  const checkAndTriggerLowStockAlert = async (product, newStockVal) => {
+    const threshold = settings.lowStockThreshold || 10;
+    
+    if (newStockVal <= threshold) {
+      const updatedAlertData = { ...settings.alertData };
+      const prevAlertInfo = updatedAlertData[product.id] || { alertSent: false };
+      
+      if (!prevAlertInfo.alertSent) {
+        updatedAlertData[product.id] = {
+          alertSent: true,
+          lastAlertSentAt: new Date().toISOString()
+        };
+        updateSettings({ alertData: updatedAlertData });
+        await saveSettingsToPB({
+          ...settings,
+          alertData: updatedAlertData
+        });
+      }
+    } else {
+      const updatedAlertData = { ...settings.alertData };
+      if (updatedAlertData[product.id]) {
+        updatedAlertData[product.id] = {
+          ...updatedAlertData[product.id],
+          alertSent: false
+        };
+        updateSettings({ alertData: updatedAlertData });
+        await saveSettingsToPB({
+          ...settings,
+          alertData: updatedAlertData
+        });
+      }
+    }
+  };
+
+  return (
+    <AppContext.Provider value={{
+      products,
+      retailProducts,
+      users,
+      pendingRegistrations,
+      settings,
+      currentUser,
+      currentRetailUser,
+      isAdminAuthenticated,
+      cart,
+      refreshProducts: loadProducts,
+      refreshUsers: loadUserData,
+      addProduct,
+      updateProduct,
+      deleteProduct,
+      toggleProductLive,
+      registerUser,
+      approveRegistration,
+      deleteRegistrationRequest,
+      createUser,
+      updateUserStatus,
+      deleteUser,
+      loginUser,
+      logoutUser,
+      loginRetailUser,
+      logoutRetailUser,
+      checkCurrentUserStatus,
+      updateUserStatus,
+      addToCart,
+      removeFromCart,
+      updateCartQuantity,
+      clearCart,
+      loginAdmin,
+      logoutAdmin,
+      updateSettings,
+      saveSettingsToPB,
+      checkAndTriggerLowStockAlert
+    }}>
+      {children}
+    </AppContext.Provider>
+  );
+};
+
+export const useApp = () => useContext(AppContext);
