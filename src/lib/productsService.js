@@ -72,9 +72,13 @@ export function mapRecord(record) {
   const isJson = imageUrl && imageUrl.toLowerCase().split('?')[0].endsWith('.json');
   const wholesalePrice = Number(record.WHOLESALE_PRICE) || 0;
   const retailPrice = Number(record.RETAIL_PRICE) || 0;
-  const isLiveVal = record.is_live !== undefined ? (String(record.is_live) === 'true' || record.is_live === true) :
-                    (record.isLive !== undefined ? (String(record.isLive) === 'true' || record.isLive === true) :
-                    (record.status !== undefined ? (record.status === 'LIVE' || record.status === 'live') : true));
+  let isLiveVal = true;
+  if (record.is_live !== undefined && record.is_live !== null) isLiveVal = (String(record.is_live) === 'true' || record.is_live === true || record.is_live === 1);
+  else if (record.isLive !== undefined && record.isLive !== null) isLiveVal = (String(record.isLive) === 'true' || record.isLive === true || record.isLive === 1);
+  else if (record.live !== undefined && record.live !== null) isLiveVal = (String(record.live) === 'true' || record.live === true || record.live === 1);
+  else if (record.active !== undefined && record.active !== null) isLiveVal = (String(record.active) === 'true' || record.active === true || record.active === 1);
+  else if (record.hidden !== undefined && record.hidden !== null) isLiveVal = !(String(record.hidden) === 'true' || record.hidden === true || record.hidden === 1);
+  else if (record.status !== undefined && record.status !== null) isLiveVal = (record.status === 'LIVE' || record.status === 'live' || record.status === 'active');
   return {
     id: record.id,
     status: record.status || (isLiveVal ? 'LIVE' : 'HIDDEN'),
@@ -150,7 +154,6 @@ export async function fetchAllProducts() {
     const records = await pb.collection('PRODUCT_DATAS').getFullList({
       sort: '-created',
       requestKey: null,
-      fields: 'id,collectionId,collectionName,PRODUCT_IMAGE,MODEL_NO,SIZE_DM,PACKAGE_NO,WHOLESALE_PRICE,RETAIL_PRICE,PRODUCT_TYPE,original_price,is_on_sale,is_live,description,created,updated,STOCK'
     });
     return records.map(mapRecord);
   } catch (err) {
@@ -218,11 +221,65 @@ export async function createProduct(data) {
  */
 export async function updateProduct(pbId, data, collectionName = 'PRODUCT_DATAS') {
   console.log('[PB] updateProduct called with pbId:', pbId, 'data:', data, 'collection:', collectionName);
+
+  const hasFiles = (data.deletedImageNames && data.deletedImageNames.length > 0) ||
+                   (data.newImageFiles && data.newImageFiles.length > 0) ||
+                   (data.imageFile !== undefined && data.imageFile !== null) ||
+                   (data.imageFiles && data.imageFiles.length > 0);
+
+  let isLiveVal = undefined;
+  if (data.is_live !== undefined) isLiveVal = (data.is_live === true || String(data.is_live) === 'true' || data.is_live === 1);
+  else if (data.isLive !== undefined) isLiveVal = (data.isLive === true || String(data.isLive) === 'true' || data.isLive === 1);
+  else if (data.live !== undefined) isLiveVal = (data.live === true || String(data.live) === 'true' || data.live === 1);
+  else if (data.active !== undefined) isLiveVal = (data.active === true || String(data.active) === 'true' || data.active === 1);
+  else if (data.hidden !== undefined) isLiveVal = !(data.hidden === true || String(data.hidden) === 'true' || data.hidden === 1);
+  else if (data.status !== undefined) isLiveVal = (data.status === 'LIVE' || data.status === 'live');
+
+  if (!hasFiles) {
+    const payload = {};
+    if (data.MODEL_NO !== undefined) payload.MODEL_NO = data.MODEL_NO !== null ? String(data.MODEL_NO).trim() : '';
+    if (data.SIZE_DM !== undefined) payload.SIZE_DM = data.SIZE_DM !== null ? String(data.SIZE_DM).trim() : '';
+    if (data.PACKAGE_NO !== undefined && data.PACKAGE_NO !== null) {
+      payload.PACKAGE_NO = data.PACKAGE_NO === '' ? 0 : (Number(data.PACKAGE_NO) || 0);
+    }
+    if (data.WHOLESALE_PRICE !== undefined && data.WHOLESALE_PRICE !== null && data.WHOLESALE_PRICE !== '') {
+      payload.WHOLESALE_PRICE = Number(data.WHOLESALE_PRICE) || 0;
+    }
+    if (data.RETAIL_PRICE !== undefined && data.RETAIL_PRICE !== null && data.RETAIL_PRICE !== '') {
+      payload.RETAIL_PRICE = Number(data.RETAIL_PRICE) || 0;
+    }
+    if (data.PRODUCT_TYPE !== undefined || data.product_type !== undefined) {
+      payload.PRODUCT_TYPE = data.PRODUCT_TYPE || data.product_type || '';
+    }
+    if (isLiveVal !== undefined) {
+      payload.is_live = Boolean(isLiveVal);
+    }
+    if (data.stock !== undefined && data.stock !== null && data.stock !== '') {
+      payload.STOCK = Number(data.stock) || 0;
+    } else if (data.STOCK !== undefined && data.STOCK !== null && data.STOCK !== '') {
+      payload.STOCK = Number(data.STOCK) || 0;
+    }
+    if (data.original_price !== undefined) {
+      payload.original_price = data.original_price !== null && data.original_price !== '' ? Number(data.original_price) : null;
+    }
+    if (data.is_on_sale !== undefined && data.is_on_sale !== null) {
+      payload.is_on_sale = Boolean(data.is_on_sale);
+    }
+    if (data.description !== undefined && data.description !== null) payload.description = data.description || '';
+
+    try {
+      const record = await pb.collection('PRODUCT_DATAS').update(pbId, payload, { requestKey: null });
+      console.log('[PB] PocketBase update response raw record (JSON):', record);
+      return mapRecord(record);
+    } catch (err) {
+      console.error('[PB] PocketBase update error (JSON):', err);
+      throw err;
+    }
+  }
+
   const formData = new FormData();
-  
   if (data.MODEL_NO !== undefined) formData.append('MODEL_NO', data.MODEL_NO !== null ? String(data.MODEL_NO).trim() : '');
   if (data.SIZE_DM !== undefined) formData.append('SIZE_DM', data.SIZE_DM !== null ? String(data.SIZE_DM).trim() : '');
-  
   if (data.PACKAGE_NO !== undefined && data.PACKAGE_NO !== null) {
     if (data.PACKAGE_NO === '') {
       formData.append('PACKAGE_NO', '0');
@@ -240,45 +297,27 @@ export async function updateProduct(pbId, data, collectionName = 'PRODUCT_DATAS'
   if (data.PRODUCT_TYPE !== undefined || data.product_type !== undefined) {
     formData.append('PRODUCT_TYPE', data.PRODUCT_TYPE || data.product_type || '');
   }
-  
-  // Handle file deletions using the minus modifier
   if (data.deletedImageNames && data.deletedImageNames.length > 0) {
     data.deletedImageNames.forEach(name => {
       formData.append('PRODUCT_IMAGE-', name);
     });
   }
-
-  // Handle new file additions using the plus modifier
   if (data.newImageFiles && data.newImageFiles.length > 0) {
     data.newImageFiles.forEach(file => {
       formData.append('PRODUCT_IMAGE+', file);
     });
   }
-
-  // Fallback for single file updates if still used elsewhere (ensures we don't clear with null unless explicitly desired)
   if (data.imageFile !== undefined && data.imageFile !== null) {
     formData.append('PRODUCT_IMAGE+', data.imageFile);
   }
-
-  let isLiveVal = undefined;
-  if (data.is_live !== undefined) isLiveVal = (data.is_live === true || String(data.is_live) === 'true');
-  else if (data.isLive !== undefined) isLiveVal = (data.isLive === true || String(data.isLive) === 'true');
-  else if (data.live !== undefined) isLiveVal = (data.live === true || String(data.live) === 'true');
-  else if (data.active !== undefined) isLiveVal = (data.active === true || String(data.active) === 'true');
-  else if (data.hidden !== undefined) isLiveVal = !(data.hidden === true || String(data.hidden) === 'true');
-  else if (data.status !== undefined) isLiveVal = (data.status === 'LIVE' || data.status === 'live');
-
   if (isLiveVal !== undefined) {
     formData.append('is_live', String(isLiveVal));
   }
-
   if (data.stock !== undefined && data.stock !== null && data.stock !== '') {
     formData.append('STOCK', String(Number(data.stock) || 0));
   } else if (data.STOCK !== undefined && data.STOCK !== null && data.STOCK !== '') {
     formData.append('STOCK', String(Number(data.STOCK) || 0));
   }
-  
-  // Support other fields if they exist in schema
   if (data.original_price !== undefined) {
     formData.append('original_price', data.original_price !== null && data.original_price !== '' ? String(Number(data.original_price)) : '');
   }
