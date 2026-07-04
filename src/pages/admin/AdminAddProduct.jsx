@@ -158,12 +158,11 @@ const AdminAddProduct = () => {
     setIsSaving(true);
     try {
       let imageFilePayload = null;
+      let imageFilesPayload = null;
       if (images.length === 1) {
         imageFilePayload = images[0].file;
       } else if (images.length > 1) {
-        const base64List = await Promise.all(images.map(img => compressImage(img.file)));
-        const jsonString = JSON.stringify(base64List);
-        imageFilePayload = new File([jsonString], 'gallery.json', { type: 'application/json' });
+        imageFilesPayload = images.map(img => img.file);
       }
 
       await createProduct({
@@ -176,6 +175,7 @@ const AdminAddProduct = () => {
         STATUS:          finalIsLive ? 'live' : 'hidden',
         is_live:         finalIsLive,
         imageFile:       imageFilePayload,
+        imageFiles:      imageFilesPayload,
         STOCK:           Number(stockCount),
       });
 

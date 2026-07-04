@@ -6,6 +6,7 @@ import {
   updateProduct as pbUpdateProduct,
   fetchProductById,
   getProductImageUrl,
+  getProductImageUrls,
 } from '../../lib/productsService';
 import pb from '../../lib/pocketbase';
 import { useApp } from '../../context/AppContext';
@@ -621,9 +622,9 @@ const AdminProducts = () => {
     // Initial images from the existing product
     let initialImages = product.images || [];
     if (initialImages.length === 0) {
-      const imageUrl = getProductImageUrl(product);
-      if (imageUrl && !imageUrl.toLowerCase().split('?')[0].endsWith('.json')) {
-        initialImages = [imageUrl];
+      const urls = getProductImageUrls(product);
+      if (urls.length > 0 && !urls[0].toLowerCase().split('?')[0].endsWith('.json')) {
+        initialImages = urls;
       }
     }
 
@@ -650,46 +651,34 @@ const AdminProducts = () => {
 
     // Check if the product is already fully loaded in cache
     const cachedProduct = adminGalleriesCache[product.id];
+    const initialData = cachedProduct || optimisticProduct;
     if (cachedProduct) {
       console.log('[DEBUG] Loading product edit modal from cache');
-      setEditingProduct(cachedProduct);
-      const modelVal = cachedProduct.MODEL_NO !== undefined && cachedProduct.MODEL_NO !== null && cachedProduct.MODEL_NO !== '' ? String(cachedProduct.MODEL_NO) : (cachedProduct.modelNumber || '');
-      const sizeVal = cachedProduct.SIZE_DM !== undefined && cachedProduct.SIZE_DM !== null && cachedProduct.SIZE_DM !== '' ? String(cachedProduct.SIZE_DM) : (cachedProduct.size || '300 × 300 MM');
-      setEditForm({
-        ...cachedProduct,
-        MODEL_NO: modelVal,
-        modelNumber: modelVal,
-        SIZE_DM: sizeVal,
-        size: sizeVal,
-        _newImageFile: null
-      });
-      setIsBackgroundLoading(false);
-      setShowSkeleton(false);
-      logRenderPerformance();
-      return;
+    } else {
+      console.log('[DEBUG] Optimistic load start for product:', product.modelNumber);
     }
-
-    // Cache miss: Load optimistically and start background fetch
-    console.log('[DEBUG] Optimistic load start for product:', product.modelNumber);
-    setEditingProduct(optimisticProduct);
-    const optModelVal = optimisticProduct.MODEL_NO !== undefined && optimisticProduct.MODEL_NO !== null && optimisticProduct.MODEL_NO !== '' ? String(optimisticProduct.MODEL_NO) : (optimisticProduct.modelNumber || '');
-    const optSizeVal = optimisticProduct.SIZE_DM !== undefined && optimisticProduct.SIZE_DM !== null && optimisticProduct.SIZE_DM !== '' ? String(optimisticProduct.SIZE_DM) : (optimisticProduct.size || '300 × 300 MM');
+    setEditingProduct(initialData);
+    const modelVal = initialData.MODEL_NO !== undefined && initialData.MODEL_NO !== null && initialData.MODEL_NO !== '' ? String(initialData.MODEL_NO) : (initialData.modelNumber || '');
+    const sizeVal = initialData.SIZE_DM !== undefined && initialData.SIZE_DM !== null && initialData.SIZE_DM !== '' ? String(initialData.SIZE_DM) : (initialData.size || '300 × 300 MM');
     setEditForm({
-      ...optimisticProduct,
-      MODEL_NO: optModelVal,
-      modelNumber: optModelVal,
-      SIZE_DM: optSizeVal,
-      size: optSizeVal,
+      ...initialData,
+      MODEL_NO: modelVal,
+      modelNumber: modelVal,
+      SIZE_DM: sizeVal,
+      size: sizeVal,
       _newImageFile: null
     });
-    setIsBackgroundLoading(true);
+    setIsBackgroundLoading(!cachedProduct);
     setShowSkeleton(false);
     logRenderPerformance();
 
-    // Shimmer timer: show shimmer if API takes >300ms
-    const shimmerTimer = setTimeout(() => {
-      setShowSkeleton(true);
-    }, 300);
+    // Shimmer timer: show shimmer if API takes >300ms (only if not cached)
+    let shimmerTimer = null;
+    if (!cachedProduct) {
+      shimmerTimer = setTimeout(() => {
+        setShowSkeleton(true);
+      }, 300);
+    }
 
     // Background fetch
     const apiStart = performance.now();
@@ -703,9 +692,9 @@ const AdminProducts = () => {
 
         let productImages = latestProduct.images || [];
         if (productImages.length === 0) {
-          const imageUrl = getProductImageUrl(latestProduct);
-          if (imageUrl && !imageUrl.toLowerCase().split('?')[0].endsWith('.json')) {
-            productImages = [imageUrl];
+          const urls = getProductImageUrls(latestProduct);
+          if (urls.length > 0 && !urls[0].toLowerCase().split('?')[0].endsWith('.json')) {
+            productImages = urls;
           }
         }
 
@@ -984,9 +973,9 @@ const AdminProducts = () => {
       
       let productImages = latestProduct.images || [];
       if (productImages.length === 0) {
-        const imageUrl = getProductImageUrl(latestProduct);
-        if (imageUrl && !imageUrl.toLowerCase().split('?')[0].endsWith('.json')) {
-          productImages = [imageUrl];
+        const urls = getProductImageUrls(latestProduct);
+        if (urls.length > 0 && !urls[0].toLowerCase().split('?')[0].endsWith('.json')) {
+          productImages = urls;
         }
       }
       
@@ -1017,9 +1006,9 @@ const AdminProducts = () => {
           
           let productImages = latestProduct.images || [];
           if (productImages.length === 0) {
-            const imageUrl = getProductImageUrl(latestProduct);
-            if (imageUrl && !imageUrl.toLowerCase().split('?')[0].endsWith('.json')) {
-              productImages = [imageUrl];
+            const urls = getProductImageUrls(latestProduct);
+            if (urls.length > 0 && !urls[0].toLowerCase().split('?')[0].endsWith('.json')) {
+              productImages = urls;
             }
           }
           

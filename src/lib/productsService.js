@@ -326,7 +326,11 @@ export async function updateProduct(pbId, data, collectionName = 'PRODUCT_DATAS'
       formData.append('PRODUCT_IMAGE+', file);
     });
   }
-  if (data.imageFile !== undefined && data.imageFile !== null) {
+  if (data.imageFiles && data.imageFiles.length > 0) {
+    data.imageFiles.forEach(file => {
+      formData.append('PRODUCT_IMAGE+', file);
+    });
+  } else if (data.imageFile !== undefined && data.imageFile !== null) {
     formData.append('PRODUCT_IMAGE+', data.imageFile);
   }
   if (isLiveVal !== undefined) {
