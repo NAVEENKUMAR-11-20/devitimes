@@ -9,7 +9,7 @@ import {
   getProductImageUrl,
   getProductImageUrls,
 } from '../../lib/productsService';
-import pb from '../../lib/pocketbase';
+import { apiPatch } from '../../lib/apiClient';
 import { useApp } from '../../context/AppContext';
 
 const getCacheBuster = () => Date.now();
@@ -544,16 +544,17 @@ const AdminProducts = () => {
     const targetId = product.pbId || (typeof product.id === 'string' && product.id.length >= 10 ? product.id : id);
     
     try {
-      console.log(`[PB] Toggling live status for product ${targetId} to ${targetStatusStr}`);
-      const updatedRecord = await pb.collection('PRODUCT_DATAS').update(targetId, { 
+      console.log(`[API] Toggling live status for product ${targetId} to ${targetStatusStr}`);
+      const res = await apiPatch(`/api/admin/products/${targetId}/status`, { 
         STATUS: targetStatus ? 'live' : 'hidden'
-      }, { requestKey: null });
+      });
       
-      console.log('[PB] Toggle response:', updatedRecord);
+      const updatedRecord = res.record || res;
+      console.log('[API] Toggle response:', updatedRecord);
       
       const isLiveResult = String(updatedRecord.STATUS || updatedRecord.status || '').toLowerCase() === 'live' || updatedRecord.isLive === true;
       if (updatedRecord && (updatedRecord.STATUS !== undefined || updatedRecord.status !== undefined || updatedRecord.isLive !== undefined) && isLiveResult !== targetStatus) {
-        throw new Error(`PocketBase did not update status to ${targetStatusStr}.`);
+        throw new Error(`API did not update status to ${targetStatusStr}.`);
       }
 
       // Update local state immediately after confirmed PB success

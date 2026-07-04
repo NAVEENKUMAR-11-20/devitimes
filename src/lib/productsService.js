@@ -1,4 +1,4 @@
-import pb from './pocketbase';
+import { apiGet, apiPost, apiPut, apiDelete, apiPatch } from './apiClient';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -129,20 +129,21 @@ export function mapRecord(record) {
  * Fetch a single product by ID.
  */
 export async function fetchProductById(pbId, collectionName = 'PRODUCT_DATAS') {
-  console.log('[PB] Fetching product by ID:', pbId, 'from collection:', collectionName);
+  console.log('[API] Fetching product by ID:', pbId);
   try {
-    const record = await pb.collection(collectionName).getOne(pbId, {
-      requestKey: null,
-    });
+    const data = await apiGet('/api/admin/products');
+    const record = (data.records || []).find(r => r.id === pbId);
+    if (!record) return null;
+    
     const mapped = mapRecord(record);
     if (mapped._jsonUrl) {
       try {
         const fetchUrl = mapped._jsonUrl + (mapped._jsonUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
         const res = await fetch(fetchUrl, { cache: 'no-store' });
         if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data)) {
-            mapped.images = data;
+          const jsData = await res.json();
+          if (Array.isArray(jsData)) {
+            mapped.images = jsData;
           }
         }
       } catch (e) {
@@ -151,7 +152,7 @@ export async function fetchProductById(pbId, collectionName = 'PRODUCT_DATAS') {
     }
     return mapped;
   } catch (err) {
-    console.error('[PB] fetchProductById error:', err);
+    console.error('[API] fetchProductById error:', err);
     throw err;
   }
 }
@@ -164,15 +165,12 @@ export async function fetchProductById(pbId, collectionName = 'PRODUCT_DATAS') {
  * Falls back to [] on error so the UI never breaks.
  */
 export async function fetchAllProducts() {
-  console.log('[PB] Fetching all products');
+  console.log('[API] Fetching all products');
   try {
-    const records = await pb.collection('PRODUCT_DATAS').getFullList({
-      sort: '-created',
-      requestKey: null,
-    });
-    return records.map(mapRecord);
+    const data = await apiGet('/api/admin/products');
+    return (data.records || []).map(mapRecord);
   } catch (err) {
-    console.error('[PB] fetchAllProducts error:', err);
+    console.error('[API] fetchAllProducts error:', err);
     throw err;
   }
 }
@@ -217,9 +215,9 @@ export async function createProduct(data) {
     formData.append('PRODUCT_IMAGE', data.imageFile);
   }
 
-  const record = await pb.collection('PRODUCT_DATAS').create(formData, { requestKey: null });
-  console.log('[PB] Saved product response:', record);
-  return mapRecord(record);
+  const resData = await apiPost('/api/admin/products', formData);
+  console.log('[API] Saved product response:', resData);
+  return mapRecord(resData.record || resData);
 }
 
 /**
@@ -268,11 +266,11 @@ export async function updateProduct(pbId, data, collectionName = 'PRODUCT_DATAS'
     }
 
     try {
-      const record = await pb.collection('PRODUCT_DATAS').update(pbId, payload, { requestKey: null });
-      console.log('[PB] PocketBase update response raw record (JSON):', record);
-      return mapRecord(record);
+      const resData = await apiPut(`/api/admin/products/${pbId}`, payload);
+      console.log('[API] PocketBase update response raw record (JSON):', resData);
+      return mapRecord(resData.record || resData);
     } catch (err) {
-      console.error('[PB] PocketBase update error (JSON):', err);
+      console.error('[API] PocketBase update error (JSON):', err);
       throw err;
     }
   }
@@ -324,11 +322,11 @@ export async function updateProduct(pbId, data, collectionName = 'PRODUCT_DATAS'
   }
 
   try {
-    const record = await pb.collection('PRODUCT_DATAS').update(pbId, formData, { requestKey: null });
-    console.log('[PB] PocketBase update response raw record:', record);
-    return mapRecord(record);
+    const resData = await apiPut(`/api/admin/products/${pbId}`, formData);
+    console.log('[API] PocketBase update response raw record:', resData);
+    return mapRecord(resData.record || resData);
   } catch (err) {
-    console.error('[PB] PocketBase update error:', err);
+    console.error('[API] PocketBase update error:', err);
     throw err;
   }
 }
@@ -337,6 +335,6 @@ export async function updateProduct(pbId, data, collectionName = 'PRODUCT_DATAS'
  * Delete a product by PocketBase record id.
  */
 export async function deleteProduct(pbId, collectionName = 'PRODUCT_DATAS') {
-  await pb.collection(collectionName).delete(pbId, { requestKey: null });
+  await apiDelete(`/api/admin/products/${pbId}`);
 }
 
