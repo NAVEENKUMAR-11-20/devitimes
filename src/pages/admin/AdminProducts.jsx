@@ -543,9 +543,7 @@ const AdminProducts = () => {
       await ensurePbAuth();
       console.log(`[PB] Toggling live status for product ${id} to ${targetStatusStr}`);
       const updatedRecord = await pbUpdateProduct(product.pbId || id, { 
-        is_live: targetStatus,
-        isLive: targetStatus,
-        status: targetStatusStr
+        is_live: targetStatus
       }, 'PRODUCT_DATAS');
       
       console.log('[PB] Toggle response:', updatedRecord);
@@ -775,8 +773,6 @@ const AdminProducts = () => {
         WHOLESALE_PRICE: Number(wholesaleP || 0),
         RETAIL_PRICE:    Number(retailP || 0),
         is_live:         Boolean(editForm.isLive),
-        isLive:          Boolean(editForm.isLive),
-        status:          editForm.isLive ? 'LIVE' : 'HIDDEN',
         STOCK:           Number(newStockVal || 0),
       };
 

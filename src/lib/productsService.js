@@ -185,9 +185,7 @@ export async function createProduct(data) {
                     (data.isLive !== undefined ? (data.isLive === true || String(data.isLive) === 'true') :
                     (data.status !== undefined ? (data.status === 'LIVE' || data.status === 'live') : true));
   
-  formData.append('status',          isLiveVal ? 'LIVE' : 'HIDDEN');
   formData.append('is_live',         String(isLiveVal));
-  formData.append('isLive',          String(isLiveVal));
   
   if (data.original_price !== undefined && data.original_price !== null && data.original_price !== '') {
     formData.append('original_price', String(Number(data.original_price)));
@@ -272,8 +270,6 @@ export async function updateProduct(pbId, data, collectionName = 'PRODUCT_DATAS'
 
   if (isLiveVal !== undefined) {
     formData.append('is_live', String(isLiveVal));
-    formData.append('isLive', String(isLiveVal));
-    formData.append('status', isLiveVal ? 'LIVE' : 'HIDDEN');
   }
 
   if (data.stock !== undefined && data.stock !== null && data.stock !== '') {
