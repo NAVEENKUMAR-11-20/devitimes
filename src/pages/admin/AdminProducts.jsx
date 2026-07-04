@@ -648,8 +648,14 @@ const AdminProducts = () => {
     if (cachedProduct) {
       console.log('[DEBUG] Loading product edit modal from cache');
       setEditingProduct(cachedProduct);
+      const modelVal = cachedProduct.MODEL_NO !== undefined && cachedProduct.MODEL_NO !== null && cachedProduct.MODEL_NO !== '' ? String(cachedProduct.MODEL_NO) : (cachedProduct.modelNumber || '');
+      const sizeVal = cachedProduct.SIZE_DM !== undefined && cachedProduct.SIZE_DM !== null && cachedProduct.SIZE_DM !== '' ? String(cachedProduct.SIZE_DM) : (cachedProduct.size || '300 × 300 MM');
       setEditForm({
         ...cachedProduct,
+        MODEL_NO: modelVal,
+        modelNumber: modelVal,
+        SIZE_DM: sizeVal,
+        size: sizeVal,
         _newImageFile: null
       });
       setIsBackgroundLoading(false);
@@ -661,8 +667,14 @@ const AdminProducts = () => {
     // Cache miss: Load optimistically and start background fetch
     console.log('[DEBUG] Optimistic load start for product:', product.modelNumber);
     setEditingProduct(optimisticProduct);
+    const optModelVal = optimisticProduct.MODEL_NO !== undefined && optimisticProduct.MODEL_NO !== null && optimisticProduct.MODEL_NO !== '' ? String(optimisticProduct.MODEL_NO) : (optimisticProduct.modelNumber || '');
+    const optSizeVal = optimisticProduct.SIZE_DM !== undefined && optimisticProduct.SIZE_DM !== null && optimisticProduct.SIZE_DM !== '' ? String(optimisticProduct.SIZE_DM) : (optimisticProduct.size || '300 × 300 MM');
     setEditForm({
       ...optimisticProduct,
+      MODEL_NO: optModelVal,
+      modelNumber: optModelVal,
+      SIZE_DM: optSizeVal,
+      size: optSizeVal,
       _newImageFile: null
     });
     setIsBackgroundLoading(true);
@@ -716,8 +728,14 @@ const AdminProducts = () => {
 
               if (!hasChanged) {
                 // Not modified by user yet, overwrite safely
+                const resModelVal = resolvedProduct.MODEL_NO !== undefined && resolvedProduct.MODEL_NO !== null && resolvedProduct.MODEL_NO !== '' ? String(resolvedProduct.MODEL_NO) : (resolvedProduct.modelNumber || '');
+                const resSizeVal = resolvedProduct.SIZE_DM !== undefined && resolvedProduct.SIZE_DM !== null && resolvedProduct.SIZE_DM !== '' ? String(resolvedProduct.SIZE_DM) : (resolvedProduct.size || '300 × 300 MM');
                 return {
                   ...resolvedProduct,
+                  MODEL_NO: resModelVal,
+                  modelNumber: resModelVal,
+                  SIZE_DM: resSizeVal,
+                  size: resSizeVal,
                   _newImageFile: null
                 };
               } else {
@@ -1380,8 +1398,8 @@ const AdminProducts = () => {
                   <input 
                     type="text" 
                     className="form-input"
-                    value={editForm.modelNumber}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, modelNumber: e.target.value }))}
+                    value={editForm.MODEL_NO !== undefined && editForm.MODEL_NO !== null && editForm.MODEL_NO !== '' ? editForm.MODEL_NO : (editForm.modelNumber || '')}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, MODEL_NO: e.target.value, modelNumber: e.target.value }))}
                   />
                 </div>
 
@@ -1389,8 +1407,8 @@ const AdminProducts = () => {
                   <label className="form-label">SIZE *</label>
                   <select 
                     className="form-input"
-                    value={editForm.size}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, size: e.target.value }))}
+                    value={editForm.SIZE_DM !== undefined && editForm.SIZE_DM !== null && editForm.SIZE_DM !== '' ? editForm.SIZE_DM : (editForm.size || '')}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, SIZE_DM: e.target.value, size: e.target.value }))}
                   >
                     <option value="">Select Size</option>
                     <option value="300 × 300 MM">300 × 300 MM</option>
@@ -1398,9 +1416,12 @@ const AdminProducts = () => {
                     <option value="400 × 400 MM">400 × 400 MM</option>
                     <option value="450 × 450 MM">450 × 450 MM</option>
                     <option value="500 × 500 MM">500 × 500 MM</option>
-                    {editForm.size && !["300 × 300 MM", "350 × 350 MM", "400 × 400 MM", "450 × 450 MM", "500 × 500 MM"].includes(editForm.size) && (
-                      <option value={editForm.size}>{editForm.size}</option>
-                    )}
+                    {(() => {
+                      const val = editForm.SIZE_DM !== undefined && editForm.SIZE_DM !== null && editForm.SIZE_DM !== '' ? editForm.SIZE_DM : (editForm.size || '');
+                      return val && !["300 × 300 MM", "350 × 350 MM", "400 × 400 MM", "450 × 450 MM", "500 × 500 MM"].includes(val) ? (
+                        <option value={val}>{val}</option>
+                      ) : null;
+                    })()}
                   </select>
                 </div>
 

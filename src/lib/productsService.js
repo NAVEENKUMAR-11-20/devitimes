@@ -79,15 +79,26 @@ export function mapRecord(record) {
   else if (record.active !== undefined && record.active !== null) isLiveVal = (String(record.active) === 'true' || record.active === true || record.active === 1);
   else if (record.hidden !== undefined && record.hidden !== null) isLiveVal = !(String(record.hidden) === 'true' || record.hidden === true || record.hidden === 1);
   else if (record.status !== undefined && record.status !== null) isLiveVal = (record.status === 'LIVE' || record.status === 'live' || record.status === 'active');
+  
+  const modelNoStr = record.MODEL_NO !== undefined && record.MODEL_NO !== null ? String(record.MODEL_NO) :
+                     (record.modelNumber !== undefined && record.modelNumber !== null ? String(record.modelNumber) :
+                     (record.model_no !== undefined && record.model_no !== null ? String(record.model_no) : ''));
+  const sizeDmStr = record.SIZE_DM !== undefined && record.SIZE_DM !== null ? String(record.SIZE_DM) :
+                    (record.size !== undefined && record.size !== null ? String(record.size) :
+                    (record.sizeDM !== undefined && record.sizeDM !== null ? String(record.sizeDM) : '300 × 300 MM'));
+
   return {
+    ...record,
     id: record.id,
     status: record.status || (isLiveVal ? 'LIVE' : 'HIDDEN'),
     pbId: record.id,                          // keep PB id separate
     collectionId: record.collectionId || '',  // add for compatibility
     collectionName: record.collectionName || '', // add for compatibility
     prodimage: record.PRODUCT_IMAGE || '',    // new schema field
-    modelNumber: record.MODEL_NO !== undefined && record.MODEL_NO !== null ? String(record.MODEL_NO) : '',
-    size: record.SIZE_DM !== undefined && record.SIZE_DM !== null ? String(record.SIZE_DM) : '300 × 300 MM',
+    MODEL_NO: modelNoStr,
+    modelNumber: modelNoStr,
+    SIZE_DM: sizeDmStr,
+    size: sizeDmStr,
     packageNo: record.PACKAGE_NO !== undefined && record.PACKAGE_NO !== null ? String(record.PACKAGE_NO) : '',
     wholesalePrice: wholesalePrice,
     retailPrice: retailPrice,
