@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import pb from '../lib/pocketbase';
+import { apiGet, apiPost } from '../lib/apiClient';
 import { formatOrderId } from '../lib/usersService';
 import ClockSvg from '../components/ClockSvg';
 
@@ -53,12 +54,12 @@ const Cart = () => {
 
     let finalPhone = settings.whatsappNumber;
     try {
-      const records = await pb.collection('app_settings').getFullList({ requestKey: null });
-      if (records && records.length > 0) {
-        finalPhone = records[0].whatsapp_number || finalPhone;
+      const res = await apiGet('/api/settings');
+      if (res && res.settings) {
+        finalPhone = res.settings.whatsapp_number || finalPhone;
       }
     } catch (err) {
-      console.error("Failed to fetch WhatsApp number from PocketBase:", err);
+      console.error("Failed to fetch WhatsApp number from backend:", err);
     }
 
     // Use the User record ID directly for the User relation in orders
@@ -84,12 +85,10 @@ const Cart = () => {
     const todayStr = `${yyyy}${mm}${dd}`;
     let nextSeq = 1;
     try {
-      const prefix = `dvt${todayStr}`;
-      const orders = await pb.collection('orders').getFullList({
-        filter: `id >= "${prefix}" && id < "${prefix}~"`,
-        requestKey: null
-      });
-      nextSeq = (orders?.length || 0) + 1;
+      const res = await apiGet(`/api/orders/today-count?prefix=dvt${todayStr}`);
+      if (res && typeof res.count === 'number') {
+        nextSeq = res.count + 1;
+      }
     } catch (err) {
       console.error("[Cart] Failed to query today's orders count:", err);
       nextSeq = Math.floor(1000 + Math.random() * 9000);
@@ -197,18 +196,14 @@ TOTAL: ₹${grandTotal}
     // Decrement STOCK for ordered wholesale products via secure backend API
     if (pbOrderId) {
       try {
-        for (const item of cart) {
-          try {
-            const record = await pb.collection('PRODUCT_DATAS').getOne(item.productId, { requestKey: null });
-            const currentStock = Number(record.STOCK || 0);
-            const newStock = Math.max(0, currentStock - item.quantity);
-            await pb.collection('PRODUCT_DATAS').update(item.productId, { STOCK: newStock }, { requestKey: null });
-          } catch (e) {
-            console.warn(`[Cart] Failed to decrement stock for product ${item.productId}:`, e);
-          }
-        }
+        await apiPost('/api/orders/decrement-stock', {
+          items: cart.map(item => ({
+            productId: item.productId,
+            quantity: item.quantity
+          }))
+        });
       } catch (err) {
-        console.error("[Cart] Failed to decrement stock:", err);
+        console.error("[Cart] Failed to decrement stock via backend:", err);
       }
     }
 
