@@ -417,10 +417,32 @@ const AdminSettings = () => {
       await pb.collection('admin_password').update(adminRecord.id, {
         password: newPassword
       });
+      
+      // Keep real PocketBase _superusers in sync if currently authenticated
+      if (pb.authStore.isValid && pb.authStore.model && pb.authStore.model.collectionName === '_superusers') {
+        try {
+          await pb.collection('_superusers').update(pb.authStore.model.id, {
+            password: newPassword,
+            passwordConfirm: newPassword,
+            oldPassword: currentPassword
+          });
+        } catch (e) {
+          console.warn("Failed to sync _superusers password:", e);
+        }
+      }
+
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      triggerToast('Password updated successfully');
+      triggerToast('Password updated successfully. Please login again.');
+      
+      // Clear cache and force re-login
+      setTimeout(() => {
+        localStorage.removeItem('lumiere_admin_auth_token');
+        pb.authStore.clear();
+        window.location.hash = '/admin-login';
+        window.location.reload();
+      }, 1500);
     } catch (err) {
       const msg = err?.message || err?.data?.message || err?.error || 'Failed to update record.';
       alert(`Failed to update password: ${msg}`);

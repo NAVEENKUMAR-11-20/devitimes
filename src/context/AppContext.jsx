@@ -433,12 +433,16 @@ export const AppProvider = ({ children }) => {
 
       // Check if it is a retail user
       try {
-        const retailRecords = await pb.collection('retail_users').getFullList();
+        const retailRecords = await pb.collection('retail_users').getFullList({ requestKey: null });
         const match = retailRecords.find(r => r.username === trimmedId && r.password === trimmedPass);
         if (match) {
+          if (!match.active) {
+            return { success: false, message: "Your account is not active. Please contact admin." };
+          }
           const sessionObj = {
             userId: trimmedId,
-            name: 'Retailer',
+            id: match.id,
+            name: match.name || 'Retailer',
             mobile: '',
             isRetail: true
           };
@@ -513,19 +517,23 @@ export const AppProvider = ({ children }) => {
 
   const loginRetailUser = async (username, password) => {
     try {
-      const records = await pb.collection('retail_users').getFullList({
-        filter: `username = "${username.trim()}"`
-      });
+      const records = await pb.collection('retail_users').getFullList({ requestKey: null });
+      const matchedUser = records.find(r => r.username === username.trim());
 
-      if (records.length > 0) {
-        const matchedUser = records[0];
+      if (matchedUser) {
         if (String(matchedUser.password).trim() === String(password).trim()) {
           if (!matchedUser.active) {
             return { success: false, message: "Your account is not active. Please contact admin." };
           }
+          
+          // Clear any old auth state
+          sessionStorage.removeItem('lumiere_retail_user');
+          localStorage.removeItem('lumiere_retail_user');
+          
           const sessionObj = {
             id: matchedUser.id,
-            username: matchedUser.username
+            username: matchedUser.username,
+            name: matchedUser.name
           };
           sessionStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
           localStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
@@ -666,26 +674,7 @@ export const AppProvider = ({ children }) => {
 
       // 2. Check admin_password collection
       try {
-        let records = [];
-        try {
-          records = await pb.collection('admin_password').getFullList();
-        } catch (readErr) {
-          for (const u of possibleUsers) {
-            try {
-              await pb.collection('_superusers').authWithPassword(u, password);
-              records = await pb.collection('admin_password').getFullList();
-              break;
-            } catch (e) {
-              if (pb.admins && typeof pb.admins.authWithPassword === 'function') {
-                try {
-                  await pb.admins.authWithPassword(u, password);
-                  records = await pb.collection('admin_password').getFullList();
-                  break;
-                } catch (e2) { /* ignore */ }
-              }
-            }
-          }
-        }
+        let records = await pb.collection('admin_password').getFullList({ requestKey: null });
 
         if (records && records.length > 0) {
           const match = records.find(r =>
