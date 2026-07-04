@@ -12,6 +12,7 @@ import pb from '../../lib/pocketbase';
 import { useApp } from '../../context/AppContext';
 
 const getCacheBuster = () => Date.now();
+const STANDARD_SIZES = ['200 × 200 MM', '250 × 250 MM', '300 × 300 MM', '350 × 350 MM', '400 × 400 MM', '450 × 450 MM', '500 × 500 MM'];
 
 // Helper to read file as base64 without losing quality (formerly compressImage)
 function compressImage(file) {
@@ -1404,24 +1405,61 @@ const AdminProducts = () => {
 
                 <div className="form-group">
                   <label className="form-label">SIZE *</label>
-                  <select 
-                    className="form-input"
-                    value={editForm.SIZE_DM !== undefined && editForm.SIZE_DM !== null && editForm.SIZE_DM !== '' ? editForm.SIZE_DM : (editForm.size || '')}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, SIZE_DM: e.target.value, size: e.target.value }))}
-                  >
-                    <option value="">Select Size</option>
-                    <option value="300 × 300 MM">300 × 300 MM</option>
-                    <option value="350 × 350 MM">350 × 350 MM</option>
-                    <option value="400 × 400 MM">400 × 400 MM</option>
-                    <option value="450 × 450 MM">450 × 450 MM</option>
-                    <option value="500 × 500 MM">500 × 500 MM</option>
-                    {(() => {
-                      const val = editForm.SIZE_DM !== undefined && editForm.SIZE_DM !== null && editForm.SIZE_DM !== '' ? editForm.SIZE_DM : (editForm.size || '');
-                      return val && !["300 × 300 MM", "350 × 350 MM", "400 × 400 MM", "450 × 450 MM", "500 × 500 MM"].includes(val) ? (
-                        <option value={val}>{val}</option>
-                      ) : null;
-                    })()}
-                  </select>
+                  <div style={{ display: 'flex', gap: '16px' }}>
+                    <select 
+                      className="form-input"
+                      value={editForm.sizeType !== undefined ? editForm.sizeType : (STANDARD_SIZES.includes(editForm.SIZE_DM || editForm.size) ? (editForm.SIZE_DM || editForm.size) : ((editForm.SIZE_DM || editForm.size) ? 'Custom' : ''))}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === 'Custom') {
+                          setEditForm(prev => ({
+                            ...prev,
+                            sizeType: 'Custom',
+                            customSize: prev.customSize || (STANDARD_SIZES.includes(prev.SIZE_DM || prev.size) ? '' : (prev.SIZE_DM || prev.size || '')),
+                            SIZE_DM: prev.customSize || (STANDARD_SIZES.includes(prev.SIZE_DM || prev.size) ? '' : (prev.SIZE_DM || prev.size || '')),
+                            size: prev.customSize || (STANDARD_SIZES.includes(prev.SIZE_DM || prev.size) ? '' : (prev.SIZE_DM || prev.size || ''))
+                          }));
+                        } else {
+                          setEditForm(prev => ({
+                            ...prev,
+                            sizeType: val,
+                            SIZE_DM: val,
+                            size: val
+                          }));
+                        }
+                      }}
+                      style={{ flex: 1 }}
+                    >
+                      <option value="">Select Size</option>
+                      <option value="200 × 200 MM">200 × 200 MM</option>
+                      <option value="250 × 250 MM">250 × 250 MM</option>
+                      <option value="300 × 300 MM">300 × 300 MM</option>
+                      <option value="350 × 350 MM">350 × 350 MM</option>
+                      <option value="400 × 400 MM">400 × 400 MM</option>
+                      <option value="450 × 450 MM">450 × 450 MM</option>
+                      <option value="500 × 500 MM">500 × 500 MM</option>
+                      <option value="Custom">Custom</option>
+                    </select>
+
+                    {((editForm.sizeType === 'Custom') || (editForm.sizeType === undefined && (editForm.SIZE_DM || editForm.size) && !STANDARD_SIZES.includes(editForm.SIZE_DM || editForm.size))) && (
+                      <input 
+                        type="text" 
+                        className="form-input"
+                        placeholder="e.g. 300 × 300 MM"
+                        value={editForm.customSize !== undefined ? editForm.customSize : (editForm.SIZE_DM || editForm.size || '')}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEditForm(prev => ({
+                            ...prev,
+                            customSize: val,
+                            SIZE_DM: val,
+                            size: val
+                          }));
+                        }}
+                        style={{ flex: 1 }}
+                      />
+                    )}
+                  </div>
                 </div>
 
               </div>

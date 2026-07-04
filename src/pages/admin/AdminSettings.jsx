@@ -429,62 +429,90 @@ const AdminSettings = () => {
       alert('Passwords do not match.');
       return;
     }
+    if (!newPassword.trim()) {
+      alert('New password cannot be empty.');
+      return;
+    }
 
     try {
+      // 1. Fetch existing records from admin_password collection
+      let records = [];
+      try {
+        records = await pb.collection('admin_password').getFullList();
+      } catch (err) {
+        // If API rules require Superuser auth and authStore expired/invalid, try re-authenticating as superuser
+        try {
+          await pb.collection('_superusers').authWithPassword('admin', currentPassword);
+          records = await pb.collection('admin_password').getFullList();
+        } catch (authErr) {
+          if (pb.admins && typeof pb.admins.authWithPassword === 'function') {
+            try {
+              await pb.admins.authWithPassword('admin', currentPassword);
+              records = await pb.collection('admin_password').getFullList();
+            } catch (e) {
+              // Ignore
+            }
+          }
+        }
+      }
+
+      if (!records || records.length === 0) {
+        throw new Error('Admin record not found in database.');
+      }
+
+      // Find the existing admin record
+      const adminRecord = records.find(r => r.username === 'admin' || r.password === currentPassword) || records[0];
+
+      // 2. Validate current password matches backend password
+      if (adminRecord.password !== currentPassword) {
+        throw new Error('Current password is incorrect.');
+      }
+
+      // 3. Update ONLY the password field of the existing record in admin_password collection
+      try {
+        await pb.collection('admin_password').update(adminRecord.id, {
+          password: newPassword.trim()
+        });
+      } catch (updateErr) {
+        // If update failed due to permissions, try authenticating as superuser first
+        try {
+          await pb.collection('_superusers').authWithPassword('admin', currentPassword);
+          await pb.collection('admin_password').update(adminRecord.id, {
+            password: newPassword.trim()
+          });
+        } catch (authErr) {
+          if (pb.admins && typeof pb.admins.authWithPassword === 'function') {
+            await pb.admins.authWithPassword('admin', currentPassword);
+            await pb.collection('admin_password').update(adminRecord.id, {
+              password: newPassword.trim()
+            });
+          } else {
+            throw updateErr;
+          }
+        }
+      }
+
+      // Also attempt to update superuser password if authStore is authenticated as superuser, to keep both in sync
       const adminId = pb.authStore.model?.id || pb.authStore.record?.id;
-      if (adminId) {
+      if (adminId && (pb.authStore.isSuperuser || pb.authStore.isAdmin || pb.authStore.model?.collectionName === '_superusers')) {
         try {
           await pb.collection('_superusers').update(adminId, {
             oldPassword: currentPassword,
             password: newPassword.trim(),
             passwordConfirm: confirmPassword.trim()
           });
-        } catch (err) {
-          if (pb.admins && typeof pb.admins.update === 'function') {
-            await pb.admins.update(adminId, {
-              oldPassword: currentPassword,
-              password: newPassword.trim(),
-              passwordConfirm: confirmPassword.trim()
-            });
-          } else {
-            throw err;
-          }
-        }
-      } else {
-        // If authStore model is not present, re-authenticate first to verify current password
-        try {
-          await pb.collection('_superusers').authWithPassword('admin', currentPassword);
-          const reAuthId = pb.authStore.model?.id || pb.authStore.record?.id;
-          if (reAuthId) {
-            await pb.collection('_superusers').update(reAuthId, {
-              oldPassword: currentPassword,
-              password: newPassword.trim(),
-              passwordConfirm: confirmPassword.trim()
-            });
-          }
-        } catch (err) {
-          if (pb.admins && typeof pb.admins.authWithPassword === 'function') {
-            await pb.admins.authWithPassword('admin', currentPassword);
-            const reAuthId = pb.authStore.model?.id || pb.authStore.record?.id;
-            if (reAuthId) {
-              await pb.admins.update(reAuthId, {
-                oldPassword: currentPassword,
-                password: newPassword.trim(),
-                passwordConfirm: confirmPassword.trim()
-              });
-            }
-          } else {
-            throw new Error('Current password is incorrect or authentication failed.');
-          }
+        } catch (e) {
+          // Ignore superuser sync error if admin_password collection update succeeded
         }
       }
+
+      // 4. Success handling
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
       triggerToast('Password updated successfully');
     } catch (err) {
-      console.error("Failed to update admin password:", err);
-      const msg = err?.message || err?.data?.message || 'Unknown error';
+      const msg = err?.message || err?.data?.message || 'Failed to update record.';
       alert(`Failed to update password: ${msg}`);
     }
   };

@@ -231,23 +231,10 @@ export const AppProvider = ({ children }) => {
     if (savedToken) {
       try {
         const parsed = JSON.parse(savedToken);
-        const isPbSuperuserOrAdmin = pb.authStore.isValid && (
-          pb.authStore.isAdmin ||
-          pb.authStore.isSuperuser ||
-          pb.authStore.model?.collectionName === '_superusers' ||
-          pb.authStore.record?.collectionName === '_superusers' ||
-          pb.authStore.model?.collectionName === 'admins' ||
-          pb.authStore.record?.collectionName === 'admins'
-        );
-        if (parsed.isAuthenticated && isPbSuperuserOrAdmin) {
+        if (parsed && parsed.isAuthenticated) {
           return true;
-        } else if (parsed.isAuthenticated && !isPbSuperuserOrAdmin) {
-          console.warn("[AppContext] Stale admin localStorage found without valid PB superuser authStore. Requiring re-login.");
-          localStorage.removeItem('lumiere_admin_auth_token');
-          return false;
         }
       } catch (e) {
-        console.error("Admin auth parsing error:", e);
         localStorage.removeItem('lumiere_admin_auth_token');
       }
     }
@@ -668,24 +655,51 @@ export const AppProvider = ({ children }) => {
 
   const loginAdmin = async (username, password) => {
     try {
+      let isAuthenticated = false;
+
+      // 1. Try PocketBase superuser/admin auth first (for secure API rules & authStore token)
       try {
         await pb.collection('_superusers').authWithPassword(username, password);
+        isAuthenticated = true;
       } catch (err) {
         if (pb.admins && typeof pb.admins.authWithPassword === 'function') {
-          await pb.admins.authWithPassword(username, password);
-        } else {
-          throw err;
+          try {
+            await pb.admins.authWithPassword(username, password);
+            isAuthenticated = true;
+          } catch (e) {
+            // Ignore
+          }
         }
       }
-      const token = {
-        isAuthenticated: true,
-        timestamp: Date.now()
-      };
-      localStorage.setItem('lumiere_admin_auth_token', JSON.stringify(token));
-      setIsAdminAuthenticated(true);
-      return true;
+
+      // 2. Check admin_password collection (so login works even if superuser auth was different or only admin_password was updated)
+      try {
+        const records = await pb.collection('admin_password').getFullList();
+        const match = records.find(r => 
+          (r.username === username || r.username === 'admin') && r.password === password
+        );
+        if (match) {
+          isAuthenticated = true;
+          // If authStore isn't valid yet, try to authenticate authStore with matched username/password if possible
+          if (!pb.authStore.isValid) {
+            try { await pb.collection('_superusers').authWithPassword(match.username || 'admin', password); } catch (e) { /* ignore */ }
+          }
+        }
+      } catch (err) {
+        // Ignore if collection read fails
+      }
+
+      if (isAuthenticated) {
+        const token = {
+          isAuthenticated: true,
+          timestamp: Date.now()
+        };
+        localStorage.setItem('lumiere_admin_auth_token', JSON.stringify(token));
+        setIsAdminAuthenticated(true);
+        return true;
+      }
     } catch (err) {
-      console.error("Admin authentication failed:", err);
+      // Silent error handling without exposing credentials in logs
     }
     return false;
   };
