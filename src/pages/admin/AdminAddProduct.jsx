@@ -173,6 +173,7 @@ const AdminAddProduct = () => {
         WHOLESALE_PRICE: Number(wholesalePrice),
         RETAIL_PRICE:    Number(retailPrice),
         PRODUCT_TYPE:    'wholesale',
+        STATUS:          finalIsLive ? 'live' : 'hidden',
         is_live:         finalIsLive,
         imageFile:       imageFilePayload,
         STOCK:           Number(stockCount),

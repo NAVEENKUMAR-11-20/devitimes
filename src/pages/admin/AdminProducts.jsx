@@ -543,13 +543,14 @@ const AdminProducts = () => {
       await ensurePbAuth();
       console.log(`[PB] Toggling live status for product ${id} to ${targetStatusStr}`);
       const updatedRecord = await pbUpdateProduct(product.pbId || id, { 
+        STATUS: targetStatus ? 'live' : 'hidden',
         is_live: targetStatus
       }, 'PRODUCT_DATAS');
       
       console.log('[PB] Toggle response:', updatedRecord);
       
       if (updatedRecord && updatedRecord.isLive !== targetStatus) {
-        throw new Error(`PocketBase did not update status to ${targetStatusStr}. Please verify that the boolean field 'is_live' exists in the PRODUCT_DATAS collection schema in PocketBase.`);
+        throw new Error(`PocketBase did not update status to ${targetStatusStr}. Please verify that the field 'STATUS' exists in the PRODUCT_DATAS collection schema in PocketBase.`);
       }
 
       // Update local state immediately after confirmed PB success
@@ -794,6 +795,7 @@ const AdminProducts = () => {
         SIZE_DM:         sizeStr,
         WHOLESALE_PRICE: Number(wholesaleP || 0),
         RETAIL_PRICE:    Number(retailP || 0),
+        STATUS:          editForm.isLive ? 'live' : 'hidden',
         is_live:         Boolean(editForm.isLive),
         STOCK:           Number(newStockVal || 0),
       };
@@ -876,7 +878,7 @@ const AdminProducts = () => {
       }
 
       if (refetched && refetched.isLive !== Boolean(editForm.isLive)) {
-        console.warn(`[PB] Warning: PocketBase did not update 'is_live' to ${Boolean(editForm.isLive)}. Please verify that the 'is_live' boolean field exists in the PRODUCT_DATAS schema.`);
+        console.warn(`[PB] Warning: PocketBase did not update 'STATUS' to ${editForm.isLive ? 'live' : 'hidden'}. Please verify that the 'STATUS' field exists in the PRODUCT_DATAS schema.`);
       }
 
       // Update local state immediately after confirmed PB update so changes reflect in table instantly

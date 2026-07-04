@@ -73,14 +73,15 @@ export function mapRecord(record) {
   const wholesalePrice = Number(record.WHOLESALE_PRICE) || 0;
   const retailPrice = Number(record.RETAIL_PRICE) || 0;
   let isLiveVal = true;
-  if (record.is_live !== undefined && record.is_live !== null) isLiveVal = (String(record.is_live) === 'true' || record.is_live === true || record.is_live === 1);
+  if (record.STATUS !== undefined && record.STATUS !== null && record.STATUS !== '') isLiveVal = (String(record.STATUS).toLowerCase() === 'live' || String(record.STATUS).toLowerCase() === 'active' || String(record.STATUS) === 'true' || record.STATUS === true || record.STATUS === 1);
+  else if (record.status !== undefined && record.status !== null && record.status !== '') isLiveVal = (String(record.status).toLowerCase() === 'live' || String(record.status).toLowerCase() === 'active' || String(record.status) === 'true' || record.status === true || record.status === 1);
+  else if (record.is_live !== undefined && record.is_live !== null) isLiveVal = (String(record.is_live) === 'true' || record.is_live === true || record.is_live === 1);
   else if (record.isLive !== undefined && record.isLive !== null) isLiveVal = (String(record.isLive) === 'true' || record.isLive === true || record.isLive === 1);
   else if (record.live !== undefined && record.live !== null) isLiveVal = (String(record.live) === 'true' || record.live === true || record.live === 1);
   else if (record.active !== undefined && record.active !== null) isLiveVal = (String(record.active) === 'true' || record.active === true || record.active === 1);
   else if (record.hidden !== undefined && record.hidden !== null) isLiveVal = !(String(record.hidden) === 'true' || record.hidden === true || record.hidden === 1);
   else if (record.isHidden !== undefined && record.isHidden !== null) isLiveVal = !(String(record.isHidden) === 'true' || record.isHidden === true || record.isHidden === 1);
   else if (record.visibility !== undefined && record.visibility !== null) isLiveVal = (record.visibility === 'LIVE' || record.visibility === 'live' || record.visibility === 'active' || String(record.visibility) === 'true');
-  else if (record.status !== undefined && record.status !== null) isLiveVal = (record.status === 'LIVE' || record.status === 'live' || record.status === 'active');
   
   const modelNoStr = record.MODEL_NO !== undefined && record.MODEL_NO !== null ? String(record.MODEL_NO) :
                      (record.modelNumber !== undefined && record.modelNumber !== null ? String(record.modelNumber) :
@@ -93,6 +94,7 @@ export function mapRecord(record) {
     ...record,
     id: record.id,
     status: isLiveVal ? 'LIVE' : 'HIDDEN',
+    STATUS: isLiveVal ? 'live' : 'hidden',
     pbId: record.id,                          // keep PB id separate
     collectionId: record.collectionId || '',  // add for compatibility
     collectionName: record.collectionName || '', // add for compatibility
@@ -197,10 +199,12 @@ export async function createProduct(data) {
     formData.append('PRODUCT_TYPE',  data.PRODUCT_TYPE || data.product_type);
   }
   
-  const isLiveVal = data.is_live !== undefined ? (data.is_live === true || String(data.is_live) === 'true') :
-                    (data.isLive !== undefined ? (data.isLive === true || String(data.isLive) === 'true') :
-                    (data.status !== undefined ? (data.status === 'LIVE' || data.status === 'live') : true));
+  const isLiveVal = data.STATUS !== undefined ? (String(data.STATUS).toLowerCase() === 'live' || String(data.STATUS).toLowerCase() === 'active' || data.STATUS === true || String(data.STATUS) === 'true' || data.STATUS === 1) :
+                    (data.status !== undefined ? (String(data.status).toLowerCase() === 'live' || String(data.status).toLowerCase() === 'active' || data.status === true || String(data.status) === 'true' || data.status === 1) :
+                    (data.is_live !== undefined ? (data.is_live === true || String(data.is_live) === 'true' || data.is_live === 1) :
+                    (data.isLive !== undefined ? (data.isLive === true || String(data.isLive) === 'true' || data.isLive === 1) : true)));
   
+  formData.append('STATUS',          isLiveVal ? 'live' : 'hidden');
   formData.append('is_live',         String(isLiveVal));
   
   if (data.original_price !== undefined && data.original_price !== null && data.original_price !== '') {
@@ -241,12 +245,13 @@ export async function updateProduct(pbId, data, collectionName = 'PRODUCT_DATAS'
                    (data.imageFiles && data.imageFiles.length > 0);
 
   let isLiveVal = undefined;
-  if (data.is_live !== undefined) isLiveVal = (data.is_live === true || String(data.is_live) === 'true' || data.is_live === 1);
+  if (data.STATUS !== undefined) isLiveVal = (String(data.STATUS).toLowerCase() === 'live' || String(data.STATUS).toLowerCase() === 'active' || data.STATUS === true || String(data.STATUS) === 'true' || data.STATUS === 1);
+  else if (data.status !== undefined) isLiveVal = (String(data.status).toLowerCase() === 'live' || String(data.status).toLowerCase() === 'active' || data.status === true || String(data.status) === 'true' || data.status === 1);
+  else if (data.is_live !== undefined) isLiveVal = (data.is_live === true || String(data.is_live) === 'true' || data.is_live === 1);
   else if (data.isLive !== undefined) isLiveVal = (data.isLive === true || String(data.isLive) === 'true' || data.isLive === 1);
   else if (data.live !== undefined) isLiveVal = (data.live === true || String(data.live) === 'true' || data.live === 1);
   else if (data.active !== undefined) isLiveVal = (data.active === true || String(data.active) === 'true' || data.active === 1);
   else if (data.hidden !== undefined) isLiveVal = !(data.hidden === true || String(data.hidden) === 'true' || data.hidden === 1);
-  else if (data.status !== undefined) isLiveVal = (data.status === 'LIVE' || data.status === 'live');
 
   if (!hasFiles) {
     const payload = {};
@@ -265,6 +270,7 @@ export async function updateProduct(pbId, data, collectionName = 'PRODUCT_DATAS'
       payload.PRODUCT_TYPE = data.PRODUCT_TYPE || data.product_type || '';
     }
     if (isLiveVal !== undefined) {
+      payload.STATUS = isLiveVal ? 'live' : 'hidden';
       payload.is_live = Boolean(isLiveVal);
     }
     if (data.stock !== undefined && data.stock !== null && data.stock !== '') {
@@ -324,6 +330,7 @@ export async function updateProduct(pbId, data, collectionName = 'PRODUCT_DATAS'
     formData.append('PRODUCT_IMAGE+', data.imageFile);
   }
   if (isLiveVal !== undefined) {
+    formData.append('STATUS', isLiveVal ? 'live' : 'hidden');
     formData.append('is_live', String(isLiveVal));
   }
   if (data.stock !== undefined && data.stock !== null && data.stock !== '') {
