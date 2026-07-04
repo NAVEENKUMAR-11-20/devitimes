@@ -610,8 +610,8 @@ const AdminPdfImport = () => {
       }
 
       await createProduct({
-        MODEL_NO:        p.modelNumber || '',
-        SIZE_DM:         p.size || '',
+        MODEL_NO:        String(p.modelNumber || '').trim(),
+        SIZE_DM:         String(p.size || '').trim(),
         PACKAGE_NO:      p.packageNo || '',
         WHOLESALE_PRICE: Number(p.wholesalePrice) || 0,
         RETAIL_PRICE:    Number(p.retailPrice) || 0,
@@ -673,8 +673,8 @@ const AdminPdfImport = () => {
         }
 
         await createProduct({
-          MODEL_NO:        p.modelNumber || '',
-          SIZE_DM:         p.size || '',
+          MODEL_NO:        String(p.modelNumber || '').trim(),
+          SIZE_DM:         String(p.size || '').trim(),
           PACKAGE_NO:      p.packageNo || '',
           WHOLESALE_PRICE: Number(p.wholesalePrice) || 0,
           RETAIL_PRICE:    Number(p.retailPrice) || 0,

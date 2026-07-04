@@ -17,6 +17,10 @@ const Cart = () => {
   } = useApp();
   const navigate = useNavigate();
 
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [pendingOrderData, setPendingOrderData] = useState(null);
+
   useEffect(() => {
     if (!currentUser) {
       navigate('/login');
@@ -92,21 +96,67 @@ const Cart = () => {
     const productsJson = cart.map(item => ({
       productId: item.productId,
       productName: item.productName,
-      modelNumber: item.modelNumber,
-      size: item.size || '',
+      modelNumber: String(item.modelNumber || ''),
+      size: String(item.size || ''),
       unitPrice: item.unitPrice,
       quantity: item.quantity,
       image: item.image || null
     }));
 
+    const customId = `dvt${todayStr}${String(nextSeq).padStart(4, '0')}`;
+    const formattedOrderId = formatOrderId(customId);
+
+    // Construct WhatsApp message with formatted order ID
+    let message = `━━━━━━━━━━━━━━━━━━━━━
+🕐 DEVI TIMES — NEW ORDER
+━━━━━━━━━━━━━━━━━━━━━
+
+📄 ORDER DETAILS
+Order ID: ${formattedOrderId}
+
+👤 CUSTOMER DETAILS
+Name: ${currentUser.name}
+Mobile: ${currentUser.mobile}
+User ID: ${currentUser.userId}
+
+🛒 ORDER ITEMS
+${orderItemsText.trim()}
+
+────────────────
+TOTAL: ₹${grandTotal}
+━━━━━━━━━━━━━━━━━━━━━`;
+
+    message += `\n[${timestamp}]`;
+
+    const cleanPhone = finalPhone.replace(/[^0-9+]/g, '').replace('+', '');
+    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+
+    setPendingOrderData({
+      customId,
+      userRecordId,
+      productsJson,
+      grandTotal,
+      formattedOrderId,
+      timestamp
+    });
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmOrder = async () => {
+    if (isSubmittingOrder || !pendingOrderData) return;
+    setIsSubmittingOrder(true);
+
+    const { customId, userRecordId, productsJson, grandTotal, formattedOrderId, timestamp } = pendingOrderData;
+
     // Save order to PocketBase with retry logic for custom ID
     let pbOrderId = '';
     let attempt = 0;
+    let currentCustomId = customId;
     while (attempt < 5) {
-      const customId = `dvt${todayStr}${String(nextSeq).padStart(4, '0')}`;
       try {
         const pbOrder = await pb.collection('orders').create({
-          id: customId,
+          id: currentCustomId,
           User: userRecordId,
           orderDate: new Date().toISOString(),
           products: productsJson,
@@ -117,12 +167,13 @@ const Cart = () => {
         console.log("[Cart] Order saved successfully in PocketBase. ID:", pbOrderId);
         break;
       } catch (err) {
-        console.warn(`[Cart] Attempt ${attempt + 1} failed for custom ID ${customId}:`, err.message);
+        console.warn(`[Cart] Attempt ${attempt + 1} failed for custom ID ${currentCustomId}:`, err.message);
         if (err.status === 400 && err.data && err.data.id) {
-          nextSeq++;
+          const baseStr = currentCustomId.slice(0, -4);
+          const currentSeq = parseInt(currentCustomId.slice(-4), 10) || 1;
+          currentCustomId = `${baseStr}${String(currentSeq + 1).padStart(4, '0')}`;
           attempt++;
         } else {
-          // If different database error, fall back to auto-generated ID to prevent checkout failure
           try {
             const pbOrder = await pb.collection('orders').create({
               User: userRecordId,
@@ -159,47 +210,25 @@ const Cart = () => {
       }
     }
 
-    const formattedOrderId = formatOrderId(pbOrderId || `ORD-${Math.floor(100000 + Math.random() * 900000)}`);
-
-
-    // Construct WhatsApp message with formatted order ID
-    let message = `━━━━━━━━━━━━━━━━━━━━━
-🕐 DEVI TIMES — NEW ORDER
-━━━━━━━━━━━━━━━━━━━━━
-
-📄 ORDER DETAILS
-Order ID: ${formattedOrderId}
-
-👤 CUSTOMER DETAILS
-Name: ${currentUser.name}
-Mobile: ${currentUser.mobile}
-User ID: ${currentUser.userId}
-
-🛒 ORDER ITEMS
-${orderItemsText.trim()}
-
-────────────────
-TOTAL: ₹${grandTotal}
-━━━━━━━━━━━━━━━━━━━━━`;
-
-
-    message += `\n[${timestamp}]`;
-
     // Save details to sessionStorage for the CheckoutSuccess page
     sessionStorage.setItem('lumiere_last_order', JSON.stringify({
-      id: formattedOrderId,
+      id: formatOrderId(pbOrderId || formattedOrderId),
       customer: currentUser,
       items: cart,
       grandTotal,
       timestamp
     }));
 
-    const cleanPhone = finalPhone.replace(/[^0-9+]/g, '').replace('+', '');
-    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl, '_blank');
-
     clearCart();
+    setIsSubmittingOrder(false);
+    setShowConfirmModal(false);
     navigate('/checkout/success');
+  };
+
+  const handleBackToCart = () => {
+    if (isSubmittingOrder) return;
+    setShowConfirmModal(false);
+    setPendingOrderData(null);
   };
 
   return (
@@ -380,6 +409,44 @@ TOTAL: ₹${grandTotal}
         )}
 
       </div>
+
+      {/* WhatsApp Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="modal-overlay">
+          <div className="modal-card animate-fade-in">
+            <h3 className="modal-title font-heading">Confirm Your Order</h3>
+            <p className="modal-desc font-body">
+              WhatsApp opened. Please send the message to confirm your order.
+            </p>
+            
+            <div className="modal-actions-col">
+              <button 
+                onClick={handleConfirmOrder}
+                disabled={isSubmittingOrder}
+                className="btn-primary modal-confirm-btn"
+              >
+                {isSubmittingOrder ? 'Saving Order...' : 'I have sent the WhatsApp message'}
+              </button>
+              <button 
+                onClick={handleBackToCart}
+                disabled={isSubmittingOrder}
+                className="btn-secondary modal-back-btn"
+              >
+                Back to cart
+              </button>
+            </div>
+            
+            <button 
+              className="modal-close-btn" 
+              onClick={handleBackToCart}
+              disabled={isSubmittingOrder}
+              aria-label="Close Modal"
+            >
+              &times;
+            </button>
+          </div>
+        </div>
+      )}
 
       <style>{`
         .cart-root {
@@ -675,6 +742,68 @@ TOTAL: ₹${grandTotal}
         .cart-continue-link:hover {
           color: var(--accent-blue);
         }
+
+        /* ── Confirmation Modal ── */
+        .modal-overlay {
+          position: fixed;
+          inset: 0;
+          background-color: rgba(26,35,50,0.65);
+          backdrop-filter: blur(5px);
+          z-index: 2000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+        }
+
+        .modal-card {
+          background-color: #ffffff;
+          max-width: 440px;
+          width: 100%;
+          padding: 40px 36px;
+          border-radius: 4px;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+          position: relative;
+          text-align: center;
+          border-top: 4px solid #25D366;
+        }
+
+        .modal-title { font-size: 24px; color: var(--text-primary); margin-bottom: 12px; }
+
+        .modal-desc { font-size: 15px; color: var(--text-secondary); margin-bottom: 28px; line-height: 1.6; }
+
+        .modal-actions-col { display: flex; flex-direction: column; gap: 12px; }
+
+        .modal-confirm-btn { 
+          height: 48px; 
+          font-size: 13px; 
+          letter-spacing: 0.05em; 
+          background-color: #25D366; 
+          border-color: #25D366; 
+        }
+        .modal-confirm-btn:hover:not(:disabled) { 
+          background-color: #1FAF57; 
+          box-shadow: 0 4px 14px rgba(37,211,102,0.35); 
+        }
+        .modal-confirm-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .modal-back-btn { 
+          height: 44px; 
+          font-size: 13px; 
+          letter-spacing: 0.05em; 
+        }
+        .modal-back-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .modal-close-btn {
+          position: absolute;
+          top: 14px; right: 16px;
+          font-size: 22px;
+          color: var(--text-muted);
+          line-height: 1;
+          transition: color var(--transition-speed) ease;
+        }
+
+        .modal-close-btn:hover { color: var(--text-primary); }
 
         @media (max-width: 640px) {
           .cart-item-row {

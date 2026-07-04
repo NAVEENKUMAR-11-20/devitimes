@@ -167,8 +167,8 @@ const AdminAddProduct = () => {
       }
 
       await createProduct({
-        MODEL_NO:        modelNumber.trim(),
-        SIZE_DM:         finalSize,
+        MODEL_NO:        String(modelNumber || '').trim(),
+        SIZE_DM:         String(finalSize || '').trim(),
         PACKAGE_NO:      packageNo.trim(),
         WHOLESALE_PRICE: Number(wholesalePrice),
         RETAIL_PRICE:    Number(retailPrice),

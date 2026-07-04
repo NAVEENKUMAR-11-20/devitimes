@@ -497,9 +497,9 @@ const AdminSettings = () => {
       }
       const rows = allProducts.map((p) => ({
         'Product ID':       p.id || '',
-        'Model Number':     p.modelNumber || '',
+        'Model Number':     String(p.modelNumber || ''),
         'Product Price':    p.salePrice ?? '',
-        'Size Dimensions':  p.size || '',
+        'Size Dimensions':  String(p.size || ''),
         'Image URL(s)':     Array.isArray(p.images) ? p.images.join(', ') : (p.images || ''),
         'Created Date':     p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-IN') : '',
         'Updated Date':     p.updated   ? new Date(p.updated).toLocaleDateString('en-IN')   : '',

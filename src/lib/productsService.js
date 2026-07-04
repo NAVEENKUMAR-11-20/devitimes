@@ -79,8 +79,8 @@ export function mapRecord(record) {
     collectionId: record.collectionId || '',  // add for compatibility
     collectionName: record.collectionName || '', // add for compatibility
     prodimage: record.PRODUCT_IMAGE || '',    // new schema field
-    modelNumber: record.MODEL_NO !== undefined ? String(record.MODEL_NO) : '',
-    size: record.SIZE_DM || '300 × 300 MM',
+    modelNumber: record.MODEL_NO !== undefined && record.MODEL_NO !== null ? String(record.MODEL_NO) : '',
+    size: record.SIZE_DM !== undefined && record.SIZE_DM !== null ? String(record.SIZE_DM) : '300 × 300 MM',
     packageNo: record.PACKAGE_NO !== undefined ? String(record.PACKAGE_NO) : '',
     wholesalePrice: wholesalePrice,
     retailPrice: retailPrice,
@@ -92,7 +92,7 @@ export function mapRecord(record) {
     images: imageUrls,
     _jsonUrl: isJson ? imageUrl : null,
     _rawImageName: record.PRODUCT_IMAGE || '',    // original filename for updates
-    name: record.MODEL_NO !== undefined ? String(record.MODEL_NO) : record.id,   // fallback display name
+    name: record.MODEL_NO !== undefined && record.MODEL_NO !== null ? String(record.MODEL_NO) : record.id,   // fallback display name
     category: 'Modern Minimalist',
     color: '',
     description: record.description || '',
@@ -162,8 +162,8 @@ export async function fetchAllProducts() {
 export async function createProduct(data) {
   console.log('[PB] Saving product with data:', data);
   const formData = new FormData();
-  formData.append('MODEL_NO',        data.MODEL_NO !== undefined ? String(data.MODEL_NO) : '');
-  formData.append('SIZE_DM',         data.SIZE_DM || '');
+  formData.append('MODEL_NO',        data.MODEL_NO !== undefined && data.MODEL_NO !== null ? String(data.MODEL_NO) : '');
+  formData.append('SIZE_DM',         data.SIZE_DM !== undefined && data.SIZE_DM !== null ? String(data.SIZE_DM) : '');
   formData.append('PACKAGE_NO',      data.PACKAGE_NO !== undefined ? String(data.PACKAGE_NO) : '');
   formData.append('WHOLESALE_PRICE', String(data.WHOLESALE_PRICE || 0));
   formData.append('RETAIL_PRICE',    String(data.RETAIL_PRICE || 0));
@@ -211,8 +211,8 @@ export async function updateProduct(pbId, data, collectionName = 'PRODUCT_DATAS'
   console.log('[PB] updateProduct called with pbId:', pbId, 'data:', data, 'collection:', collectionName);
   const formData = new FormData();
   
-  if (data.MODEL_NO !== undefined) formData.append('MODEL_NO', String(data.MODEL_NO));
-  if (data.SIZE_DM !== undefined) formData.append('SIZE_DM', String(data.SIZE_DM));
+  if (data.MODEL_NO !== undefined) formData.append('MODEL_NO', data.MODEL_NO !== null ? String(data.MODEL_NO) : '');
+  if (data.SIZE_DM !== undefined) formData.append('SIZE_DM', data.SIZE_DM !== null ? String(data.SIZE_DM) : '');
   if (data.PACKAGE_NO !== undefined) formData.append('PACKAGE_NO', String(data.PACKAGE_NO));
   if (data.WHOLESALE_PRICE !== undefined) formData.append('WHOLESALE_PRICE', String(data.WHOLESALE_PRICE));
   if (data.RETAIL_PRICE !== undefined) formData.append('RETAIL_PRICE', String(data.RETAIL_PRICE));
