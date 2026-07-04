@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import pb from '../../lib/pocketbase';
-import { apiGet, apiPost, apiPut } from '../../lib/apiClient';
 import * as XLSX from 'xlsx';
 import { fetchAllProducts } from '../../lib/productsService';
 import { fetchAllUsers } from '../../lib/usersService';
@@ -84,15 +83,15 @@ const AdminSettings = () => {
     const finalPass = retailPassword.trim();
 
     try {
-      const res = await apiGet('/api/admin/retail-users');
-      const retailRecords = res?.records || [];
+      const res = await pb.collection('retail_users').getFullList();
+      const retailRecords = res || [];
       if (retailRecords.length > 0) {
-        await apiPut(`/api/admin/retail-users/${retailRecords[0].id}`, {
+        await pb.collection('retail_users').update(retailRecords[0].id, {
           username: finalId,
           password: finalPass
         });
       } else {
-        await apiPost('/api/admin/retail-users', {
+        await pb.collection('retail_users').create({
           name: 'naveen',
           username: finalId,
           password: finalPass,
@@ -293,11 +292,11 @@ const AdminSettings = () => {
 
   useEffect(() => {
     const loadSettingsFromPB = async () => {
-      console.log('Loading settings from backend...');
+      console.log('Loading settings from PocketBase...');
       try {
-        const res = await apiGet('/api/admin/settings');
-        if (res && (res.settings || (res.records && res.records.length > 0))) {
-          const record = res.settings || res.records[0];
+        const records = await pb.collection('app_settings').getFullList({ requestKey: null });
+        if (records && records.length > 0) {
+          const record = records[0];
           console.log('Settings record found:', record);
           setPbSettingsId(record.id);
           
@@ -318,9 +317,8 @@ const AdminSettings = () => {
           });
         }
 
-        // Fetch retail user credentials from backend API
-        const retailRes = await apiGet('/api/admin/retail-users').catch(() => null);
-        const retailRecords = retailRes?.records || [];
+        // Fetch retail user credentials
+        const retailRecords = await pb.collection('retail_users').getFullList().catch(() => []);
         if (retailRecords.length > 0) {
           const rRecord = retailRecords[0];
           setRetailUserId(rRecord.username);
@@ -331,7 +329,7 @@ const AdminSettings = () => {
           });
         }
       } catch (err) {
-        console.error("Failed to load app_settings from backend:", err);
+        console.error("Failed to load app_settings from PocketBase:", err);
       }
     };
     loadSettingsFromPB();
@@ -359,8 +357,14 @@ const AdminSettings = () => {
     };
 
     try {
-      const res = await apiPost('/api/admin/settings', payload);
-      const confirmed = res?.settings || payload;
+      const records = await pb.collection('app_settings').getFullList();
+      let updated;
+      if (records && records.length > 0) {
+        updated = await pb.collection('app_settings').update(records[0].id, payload);
+      } else {
+        updated = await pb.collection('app_settings').create(payload);
+      }
+      const confirmed = updated || payload;
       const confirmedPhone = confirmed.whatsapp_number || finalNumber;
       const confirmedThreshold = (confirmed.low_stock_limt !== undefined && !isNaN(Number(confirmed.low_stock_limt))) ? Number(confirmed.low_stock_limt) : finalThreshold;
       const confirmedEnabled = confirmed.inventory_alert !== false;
@@ -402,14 +406,17 @@ const AdminSettings = () => {
     }
 
     try {
-      const res = await apiPost('/api/admin/change-password', {
-        currentPassword,
-        newPassword,
-        confirmPassword
-      });
-      if (!res || !res.success) {
-        throw new Error(res?.message || res?.error || 'Failed to update record.');
+      const records = await pb.collection('admin_password').getFullList();
+      if (!records || records.length === 0) {
+        throw new Error('No admin password record found.');
       }
+      const adminRecord = records[0];
+      if (adminRecord.password !== currentPassword) {
+        throw new Error('Current password is incorrect.');
+      }
+      await pb.collection('admin_password').update(adminRecord.id, {
+        password: newPassword
+      });
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -423,8 +430,7 @@ const AdminSettings = () => {
   // Section 4 actions — Excel export
   const handleExportProducts = async () => {
     try {
-      const res = await apiGet('/api/admin/products/export').catch(() => null);
-      const allProducts = res?.records || await fetchAllProducts();
+      const allProducts = await fetchAllProducts();
       if (!allProducts || allProducts.length === 0) {
         triggerToast('No products found to export.');
         return;
@@ -459,8 +465,7 @@ const AdminSettings = () => {
     if (isExportingUsers) return;
     setIsExportingUsers(true);
     try {
-      const res = await apiGet('/api/admin/users/export').catch(() => null);
-      const allUsers = res?.records || await fetchAllUsers();
+      const allUsers = await fetchAllUsers();
       if (!allUsers || allUsers.length === 0) {
         triggerToast('No users found to export.');
         return;

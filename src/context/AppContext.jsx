@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { fetchAllProducts, mapRecord } from '../lib/productsService';
 import { fetchAllUsers, fetchPendingRegistrations, createRegistration as pbCreateRegistration, deleteRegistration as pbDeleteRegistration, updateRegistrationStatus as pbUpdateRegistrationStatus, createUser as pbCreateUser, deleteUser as pbDeleteUser } from '../lib/usersService';
 import pb from '../lib/pocketbase';
-import { apiGet, apiPost, setAdminToken } from '../lib/apiClient';
 
 const AppContext = createContext();
 
@@ -97,19 +96,20 @@ export const AppProvider = ({ children }) => {
 
     const loadGlobalSettings = async () => {
       try {
-        const res = await apiGet('/api/settings');
-        if (res && res.settings) {
-          const s = res.settings;
+        const records = await pb.collection('app_settings').getFullList({ requestKey: null });
+        if (records && records.length > 0) {
+          const s = records[0];
           setSettings(prev => ({
             ...prev,
-            whatsappNumber: s.whatsappNumber || s.whatsapp_number || prev.whatsappNumber || "7358349394",
-            lowStockThreshold: s.lowStockThreshold !== undefined ? Number(s.lowStockThreshold) : (s.low_stock_limit !== undefined ? Number(s.low_stock_limit) : 10),
-            bannerAlertEnabled: s.bannerAlertEnabled !== undefined ? s.bannerAlertEnabled : (s.banner_alert !== undefined ? s.banner_alert : true),
-            inventoryAlertEnabled: s.inventoryAlertEnabled !== undefined ? s.inventoryAlertEnabled : (s.inventory_alert !== undefined ? s.inventory_alert : true)
+            whatsappNumber: s.whatsapp_number || prev.whatsappNumber || "7358349394",
+            lowStockThreshold: s.low_stock_limt !== undefined ? Number(s.low_stock_limt) : 10,
+            bannerAlertEnabled: s.banner_alert !== false,
+            inventoryAlertEnabled: s.inventory_alert !== false,
+            alertData: s.alert_data && typeof s.alert_data === 'object' ? s.alert_data : prev.alertData
           }));
         }
       } catch (err) {
-        console.warn('[AppContext] Failed to load settings from API:', err);
+        console.warn('[AppContext] Failed to load settings from PB:', err);
       }
     };
 
@@ -431,10 +431,11 @@ export const AppProvider = ({ children }) => {
       const trimmedId = userId.trim();
       const trimmedPass = password.trim();
 
-      // Check if it is a retail user via backend API
+      // Check if it is a retail user
       try {
-        const retailRes = await apiPost('/api/retail-login', { username: trimmedId, password: trimmedPass }).catch(() => null);
-        if (retailRes && retailRes.success) {
+        const retailRecords = await pb.collection('retail_users').getFullList();
+        const match = retailRecords.find(r => r.username === trimmedId && r.password === trimmedPass);
+        if (match) {
           const sessionObj = {
             userId: trimmedId,
             name: 'Retailer',
@@ -480,9 +481,15 @@ export const AppProvider = ({ children }) => {
       }
 
       // 2. Check if there's a pending registration request with matching name/mobile
-      const resReg = await apiGet(`/api/check-pending-registration?user=${encodeURIComponent(userId.trim())}`);
-      if (resReg && resReg.isPending) {
-        return { success: false, message: "Your account is not approved yet. Please contact admin." };
+      try {
+        const pendingRegs = await pb.collection('registered_users').getFullList({
+          filter: `status = "pending" && (user_name = "${userId.trim()}" || mobile_no = "${userId.trim()}")`
+        });
+        if (pendingRegs.length > 0) {
+          return { success: false, message: "Your account is not approved yet. Please contact admin." };
+        }
+      } catch (err) {
+        // Ignore — if collection read fails, proceed to invalid credentials
       }
 
       return { success: false, message: "Invalid username or password. Please contact admin." };
@@ -506,20 +513,25 @@ export const AppProvider = ({ children }) => {
 
   const loginRetailUser = async (username, password) => {
     try {
-      const res = await apiPost('/api/retail-login', { username: username.trim(), password: password.trim() });
-      if (res && res.success && res.user) {
-        const matchedUser = res.user;
-        if (!matchedUser.active) {
-          return { success: false, message: "Your account is not active. Please contact admin." };
+      const records = await pb.collection('retail_users').getFullList({
+        filter: `username = "${username.trim()}"`
+      });
+
+      if (records.length > 0) {
+        const matchedUser = records[0];
+        if (String(matchedUser.password).trim() === String(password).trim()) {
+          if (!matchedUser.active) {
+            return { success: false, message: "Your account is not active. Please contact admin." };
+          }
+          const sessionObj = {
+            id: matchedUser.id,
+            username: matchedUser.username
+          };
+          sessionStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
+          localStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
+          setCurrentRetailUser(sessionObj);
+          return { success: true };
         }
-        const sessionObj = {
-          id: matchedUser.id,
-          username: matchedUser.username
-        };
-        sessionStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
-        localStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
-        setCurrentRetailUser(sessionObj);
-        return { success: true };
       }
       return { success: false, message: "Invalid username or password." };
     } catch (err) {
@@ -629,9 +641,75 @@ export const AppProvider = ({ children }) => {
 
   const loginAdmin = async (username, password) => {
     try {
-      const res = await apiPost('/api/admin/login', { username, password });
-      if (res && res.success && res.token) {
-        setAdminToken(res.token);
+      let isAuthenticated = false;
+      const cleanUser = username.trim();
+      const possibleUsers = Array.from(new Set([cleanUser, 'teamdenvex@gmail.com', 'admin']));
+
+      // 1. Try PocketBase superuser/admin auth first (for secure API rules & authStore token)
+      for (const u of possibleUsers) {
+        try {
+          await pb.collection('_superusers').authWithPassword(u, password);
+          isAuthenticated = true;
+          break;
+        } catch (err) {
+          if (pb.admins && typeof pb.admins.authWithPassword === 'function') {
+            try {
+              await pb.admins.authWithPassword(u, password);
+              isAuthenticated = true;
+              break;
+            } catch (e) {
+              // Ignore
+            }
+          }
+        }
+      }
+
+      // 2. Check admin_password collection
+      try {
+        let records = [];
+        try {
+          records = await pb.collection('admin_password').getFullList();
+        } catch (readErr) {
+          for (const u of possibleUsers) {
+            try {
+              await pb.collection('_superusers').authWithPassword(u, password);
+              records = await pb.collection('admin_password').getFullList();
+              break;
+            } catch (e) {
+              if (pb.admins && typeof pb.admins.authWithPassword === 'function') {
+                try {
+                  await pb.admins.authWithPassword(u, password);
+                  records = await pb.collection('admin_password').getFullList();
+                  break;
+                } catch (e2) { /* ignore */ }
+              }
+            }
+          }
+        }
+
+        if (records && records.length > 0) {
+          const match = records.find(r =>
+            (r.username === cleanUser || r.username === 'admin' || r.username === 'teamdenvex@gmail.com') && r.password === password
+          );
+          if (match) {
+            isAuthenticated = true;
+            if (!pb.authStore.isValid) {
+              for (const u of possibleUsers) {
+                try { await pb.collection('_superusers').authWithPassword(u, password); break; } catch (e) { /* ignore */ }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        // Ignore if collection read fails
+      }
+
+      if (isAuthenticated) {
+        const token = {
+          isAuthenticated: true,
+          timestamp: Date.now()
+        };
+        localStorage.setItem('lumiere_admin_auth_token', JSON.stringify(token));
         setIsAdminAuthenticated(true);
         return true;
       }
@@ -673,9 +751,14 @@ export const AppProvider = ({ children }) => {
     };
 
     try {
-      await apiPost('/api/admin/settings', payload);
+      const records = await pb.collection('app_settings').getFullList();
+      if (records.length > 0) {
+        await pb.collection('app_settings').update(records[0].id, payload);
+      } else {
+        await pb.collection('app_settings').create(payload);
+      }
     } catch (err) {
-      console.error("Failed to save settings via API:", err);
+      console.error("Failed to save settings to PocketBase app_settings:", err);
     }
   };
 

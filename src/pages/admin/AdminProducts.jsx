@@ -9,7 +9,6 @@ import {
   getProductImageUrl,
   getProductImageUrls,
 } from '../../lib/productsService';
-import { apiPatch } from '../../lib/apiClient';
 import pb from '../../lib/pocketbase';
 import { useApp } from '../../context/AppContext';
 
@@ -546,12 +545,9 @@ const AdminProducts = () => {
     
     try {
       console.log(`[PB] Toggling live status for product ${targetId} to ${targetStatusStr}`);
-      const res = await apiPatch(`/api/admin/products/${targetId}/status`, { 
-        STATUS: targetStatus ? 'live' : 'hidden',
-        status: targetStatus ? 'live' : 'hidden',
-        isLive: targetStatus
-      });
-      const updatedRecord = res.record || res;
+      const updatedRecord = await pb.collection('PRODUCT_DATAS').update(targetId, { 
+        STATUS: targetStatus ? 'live' : 'hidden'
+      }, { requestKey: null });
       
       console.log('[PB] Toggle response:', updatedRecord);
       

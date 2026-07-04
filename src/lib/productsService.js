@@ -1,5 +1,4 @@
 import pb from './pocketbase';
-import { apiGet, apiPost, apiPut, apiDelete, getAdminToken } from './apiClient';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -132,14 +131,6 @@ export function mapRecord(record) {
 export async function fetchProductById(pbId, collectionName = 'PRODUCT_DATAS') {
   console.log('[PB] Fetching product by ID:', pbId, 'from collection:', collectionName);
   try {
-    const token = getAdminToken();
-    if (token && collectionName === 'PRODUCT_DATAS') {
-      const res = await apiGet('/api/admin/products').catch(() => null);
-      if (res && res.records) {
-        const found = res.records.find(p => p.id === pbId || p.pbId === pbId);
-        if (found) return mapRecord(found);
-      }
-    }
     const record = await pb.collection(collectionName).getOne(pbId, {
       requestKey: null,
     });
@@ -175,13 +166,6 @@ export async function fetchProductById(pbId, collectionName = 'PRODUCT_DATAS') {
 export async function fetchAllProducts() {
   console.log('[PB] Fetching all products');
   try {
-    const token = getAdminToken();
-    if (token) {
-      const res = await apiGet('/api/admin/products').catch(() => null);
-      if (res && res.records) {
-        return res.records.map(mapRecord);
-      }
-    }
     const records = await pb.collection('PRODUCT_DATAS').getFullList({
       sort: '-created',
       requestKey: null,
@@ -233,8 +217,7 @@ export async function createProduct(data) {
     formData.append('PRODUCT_IMAGE', data.imageFile);
   }
 
-  const res = await apiPost('/api/admin/products', formData);
-  const record = res.record || res;
+  const record = await pb.collection('PRODUCT_DATAS').create(formData, { requestKey: null });
   console.log('[PB] Saved product response:', record);
   return mapRecord(record);
 }
@@ -285,8 +268,7 @@ export async function updateProduct(pbId, data, collectionName = 'PRODUCT_DATAS'
     }
 
     try {
-      const res = await apiPut(`/api/admin/products/${pbId}`, payload);
-      const record = res.record || res;
+      const record = await pb.collection('PRODUCT_DATAS').update(pbId, payload, { requestKey: null });
       console.log('[PB] PocketBase update response raw record (JSON):', record);
       return mapRecord(record);
     } catch (err) {
@@ -342,8 +324,7 @@ export async function updateProduct(pbId, data, collectionName = 'PRODUCT_DATAS'
   }
 
   try {
-    const res = await apiPut(`/api/admin/products/${pbId}`, formData);
-    const record = res.record || res;
+    const record = await pb.collection('PRODUCT_DATAS').update(pbId, formData, { requestKey: null });
     console.log('[PB] PocketBase update response raw record:', record);
     return mapRecord(record);
   } catch (err) {
@@ -356,6 +337,6 @@ export async function updateProduct(pbId, data, collectionName = 'PRODUCT_DATAS'
  * Delete a product by PocketBase record id.
  */
 export async function deleteProduct(pbId, collectionName = 'PRODUCT_DATAS') {
-  await apiDelete(`/api/admin/products/${pbId}`);
+  await pb.collection(collectionName).delete(pbId, { requestKey: null });
 }
 
