@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import pb from '../../lib/pocketbase';
+import { apiGet, apiPost, apiPut } from '../../lib/apiClient';
 import * as XLSX from 'xlsx';
 import { fetchAllProducts } from '../../lib/productsService';
 import { fetchAllUsers } from '../../lib/usersService';
@@ -83,37 +84,32 @@ const AdminSettings = () => {
     const finalPass = retailPassword.trim();
 
     try {
-      await pbWrite(async () => {
-        const retailRecords = await pb.collection('retail_users').getFullList();
-        if (retailRecords.length > 0) {
-          await pb.collection('retail_users').update(retailRecords[0].id, {
-            username: finalId,
-            password: finalPass
-          });
-        } else {
-          await pb.collection('retail_users').create({
-            name: 'naveen',
-            username: finalId,
-            password: finalPass,
-            active: true
-          });
-        }
-      });
-      // Re-fetch to confirm saved values
-      const confirmed = await pb.collection('retail_users').getFullList();
-      if (confirmed.length > 0) {
-        setRetailUserId(confirmed[0].username);
-        setRetailPassword(confirmed[0].password);
-        updateSettings({
-          retailUserId: confirmed[0].username,
-          retailPassword: confirmed[0].password
+      const res = await apiGet('/api/admin/retail-users');
+      const retailRecords = res?.records || [];
+      if (retailRecords.length > 0) {
+        await apiPut(`/api/admin/retail-users/${retailRecords[0].id}`, {
+          username: finalId,
+          password: finalPass
+        });
+      } else {
+        await apiPost('/api/admin/retail-users', {
+          name: 'naveen',
+          username: finalId,
+          password: finalPass,
+          active: true
         });
       }
+      setRetailUserId(finalId);
+      setRetailPassword(finalPass);
+      updateSettings({
+        retailUserId: finalId,
+        retailPassword: finalPass
+      });
       triggerToast('Retail credentials saved');
     } catch (err) {
-      console.error("Failed to save retail credentials to PocketBase:", err);
+      console.error("Failed to save retail credentials via API:", err);
       const msg = err?.message || err?.data?.message || 'Unknown error';
-      alert(`Failed to save retail credentials: ${msg}\n\nCheck PocketBase API Rules for retail_users collection.`);
+      alert(`Failed to save retail credentials: ${msg}`);
     }
   };
 
@@ -297,11 +293,11 @@ const AdminSettings = () => {
 
   useEffect(() => {
     const loadSettingsFromPB = async () => {
-      console.log('Loading settings from PocketBase...');
+      console.log('Loading settings from backend...');
       try {
-        const records = await pb.collection('app_settings').getFullList();
-        if (records.length > 0) {
-          const record = records[0];
+        const res = await apiGet('/api/settings');
+        if (res && res.settings) {
+          const record = res.settings;
           console.log('Settings record found:', record);
           setPbSettingsId(record.id);
           
@@ -320,21 +316,11 @@ const AdminSettings = () => {
             inventoryAlertEnabled: enabledVal,
             bannerAlertEnabled: bannerVal
           });
-        } else {
-          console.log('Creating settings record...');
-          const newRecord = await pb.collection('app_settings').create({
-            whatsapp_number: settings.whatsappNumber || "+919999999999",
-            low_stock_limt: 10,
-            inventory_alert: true,
-            banner_alert: true,
-            alert_data: {}
-          });
-          setPbSettingsId(newRecord.id);
-          setWhatsappNumber(settings.whatsappNumber || "+919999999999");
         }
 
-        // Fetch retail user credentials from retail_users collection
-        const retailRecords = await pb.collection('retail_users').getFullList();
+        // Fetch retail user credentials from backend API
+        const retailRes = await apiGet('/api/admin/retail-users').catch(() => null);
+        const retailRecords = retailRes?.records || [];
         if (retailRecords.length > 0) {
           const rRecord = retailRecords[0];
           setRetailUserId(rRecord.username);
@@ -344,13 +330,12 @@ const AdminSettings = () => {
             retailPassword: rRecord.password
           });
         }
-
       } catch (err) {
-        console.error("Failed to load app_settings from PocketBase:", err);
+        console.error("Failed to load app_settings from backend:", err);
       }
     };
     loadSettingsFromPB();
-  }, []); // Run only on mount to fetch PB data
+  }, []); // Run only on mount to fetch backend data
 
   // Section 1 Save
   const handleSaveWhatsapp = async (e) => {
@@ -374,26 +359,8 @@ const AdminSettings = () => {
     };
 
     try {
-      let recordId = pbSettingsId;
-      await pbWrite(async () => {
-        if (recordId) {
-          await pb.collection('app_settings').update(recordId, payload);
-        } else {
-          const existing = await pb.collection('app_settings').getFullList();
-          if (existing.length > 0) {
-            recordId = existing[0].id;
-            setPbSettingsId(recordId);
-            await pb.collection('app_settings').update(recordId, payload);
-          } else {
-            const newRecord = await pb.collection('app_settings').create(payload);
-            recordId = newRecord.id;
-            setPbSettingsId(recordId);
-          }
-        }
-      });
-
-      // Re-fetch to confirm saved values from backend
-      const confirmed = await pb.collection('app_settings').getOne(recordId);
+      const res = await apiPost('/api/admin/settings', payload);
+      const confirmed = res?.settings || payload;
       const confirmedPhone = confirmed.whatsapp_number || finalNumber;
       const confirmedThreshold = (confirmed.low_stock_limt !== undefined && !isNaN(Number(confirmed.low_stock_limt))) ? Number(confirmed.low_stock_limt) : finalThreshold;
       const confirmedEnabled = confirmed.inventory_alert !== false;
@@ -412,9 +379,9 @@ const AdminSettings = () => {
 
       triggerToast('Settings updated');
     } catch (err) {
-      console.error("Failed to save to PocketBase:", err);
+      console.error("Failed to save to backend:", err);
       const msg = err?.message || err?.data?.message || 'Unknown error';
-      alert(`Failed to save settings: ${msg}\n\nCheck PocketBase API Rules for app_settings collection (Update rule must be empty).`);
+      alert(`Failed to save settings: ${msg}`);
     }
   };
 
@@ -435,103 +402,20 @@ const AdminSettings = () => {
     }
 
     try {
-      const possibleUsers = ['teamdenvex@gmail.com', 'admin'];
-
-      // 1. Fetch existing records from admin_password collection
-      let records = [];
-      try {
-        records = await pb.collection('admin_password').getFullList();
-      } catch (err) {
-        // If API rules require Superuser auth and authStore expired/invalid, try re-authenticating as superuser
-        for (const u of possibleUsers) {
-          try {
-            await pb.collection('_superusers').authWithPassword(u, currentPassword);
-            records = await pb.collection('admin_password').getFullList();
-            break;
-          } catch (authErr) {
-            if (pb.admins && typeof pb.admins.authWithPassword === 'function') {
-              try {
-                await pb.admins.authWithPassword(u, currentPassword);
-                records = await pb.collection('admin_password').getFullList();
-                break;
-              } catch (e) { /* ignore */ }
-            }
-          }
-        }
+      const res = await apiPost('/api/admin/change-password', {
+        currentPassword,
+        newPassword,
+        confirmPassword
+      });
+      if (!res || !res.success) {
+        throw new Error(res?.message || res?.error || 'Failed to update record.');
       }
-
-      if (!records || records.length === 0) {
-        throw new Error('Admin record not found in database.');
-      }
-
-      // Find the existing admin record
-      const adminRecord = records.find(r => r.username === 'admin' || r.username === 'teamdenvex@gmail.com' || r.password === currentPassword) || records[0];
-
-      // 2. Validate current password matches backend password
-      if (adminRecord.password !== currentPassword) {
-        throw new Error('Current password is incorrect.');
-      }
-
-      // 3. Update ONLY the password field of the existing record in admin_password collection
-      try {
-        await pb.collection('admin_password').update(adminRecord.id, {
-          password: newPassword.trim()
-        });
-      } catch (updateErr) {
-        // If update failed due to permissions, try authenticating as superuser first
-        for (const u of possibleUsers) {
-          try {
-            await pb.collection('_superusers').authWithPassword(u, currentPassword);
-            await pb.collection('admin_password').update(adminRecord.id, {
-              password: newPassword.trim()
-            });
-            break;
-          } catch (authErr) {
-            if (pb.admins && typeof pb.admins.authWithPassword === 'function') {
-              try {
-                await pb.admins.authWithPassword(u, currentPassword);
-                await pb.collection('admin_password').update(adminRecord.id, {
-                  password: newPassword.trim()
-                });
-                break;
-              } catch (e) { /* ignore */ }
-            }
-          }
-        }
-      }
-
-      // Also attempt to update superuser password in _superusers to keep both in sync
-      let superId = pb.authStore.model?.id || pb.authStore.record?.id;
-      if (!superId || (!pb.authStore.isSuperuser && !pb.authStore.isAdmin && pb.authStore.model?.collectionName !== '_superusers')) {
-        for (const u of possibleUsers) {
-          try { await pb.collection('_superusers').authWithPassword(u, currentPassword); superId = pb.authStore.model?.id || pb.authStore.record?.id; break; } catch (e) { /* ignore */ }
-        }
-      }
-
-      if (superId) {
-        try {
-          await pb.collection('_superusers').update(superId, {
-            password: newPassword.trim(),
-            passwordConfirm: confirmPassword.trim()
-          });
-        } catch (e1) {
-          try {
-            await pb.collection('_superusers').update(superId, {
-              oldPassword: currentPassword,
-              password: newPassword.trim(),
-              passwordConfirm: confirmPassword.trim()
-            });
-          } catch (e2) { /* ignore */ }
-        }
-      }
-
-      // 4. Success handling
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
       triggerToast('Password updated successfully');
     } catch (err) {
-      const msg = err?.message || err?.data?.message || 'Failed to update record.';
+      const msg = err?.message || err?.data?.message || err?.error || 'Failed to update record.';
       alert(`Failed to update password: ${msg}`);
     }
   };
@@ -539,7 +423,8 @@ const AdminSettings = () => {
   // Section 4 actions — Excel export
   const handleExportProducts = async () => {
     try {
-      const allProducts = await fetchAllProducts();
+      const res = await apiGet('/api/admin/products/export').catch(() => null);
+      const allProducts = res?.records || await fetchAllProducts();
       if (!allProducts || allProducts.length === 0) {
         triggerToast('No products found to export.');
         return;
@@ -574,7 +459,8 @@ const AdminSettings = () => {
     if (isExportingUsers) return;
     setIsExportingUsers(true);
     try {
-      const allUsers = await fetchAllUsers();
+      const res = await apiGet('/api/admin/users/export').catch(() => null);
+      const allUsers = res?.records || await fetchAllUsers();
       if (!allUsers || allUsers.length === 0) {
         triggerToast('No users found to export.');
         return;

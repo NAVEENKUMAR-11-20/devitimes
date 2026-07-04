@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import pb from '../../lib/pocketbase';
+import { apiGet, apiPost, apiPut, apiDelete } from '../../lib/apiClient';
 
 const AdminUsers = ({ initialTab = 'USERS' }) => {
   const { 
@@ -53,7 +53,8 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
   // Fetch retail users
   const fetchRetailUsers = async () => {
     try {
-      const records = await pb.collection('retail_users').getFullList({ sort: '-created' });
+      const res = await apiGet('/api/admin/retail-users?sort=-created');
+      const records = res?.records || [];
       return records.map(r => {
         const nameStr = r.name || '';
         const parts = nameStr.split(' | ');
@@ -134,7 +135,7 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
     setIsProcessing(true);
     try {
       if (user.userType === 'Retail') {
-        await pb.collection('retail_users').update(user.pbId, {
+        await apiPut(`/api/admin/retail-users/${user.pbId}`, {
           active: newStatus === 'active'
         });
       } else {
@@ -158,7 +159,7 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
       setIsProcessing(true);
       try {
         if (user.userType === 'Retail') {
-          await pb.collection('retail_users').delete(user.pbId);
+          await apiDelete(`/api/admin/retail-users/${user.pbId}`);
         } else {
           await deleteUser(user.userId);
         }
@@ -277,8 +278,8 @@ const AdminUsers = ({ initialTab = 'USERS' }) => {
         await approveRegistration(pendingRegIdToApprove, userIdVal, passwordVal);
       } else {
         if (typeVal === 'Retail') {
-          // Save to retail_users collection in PB
-          await pb.collection('retail_users').create({
+          // Save to retail_users collection via backend API
+          await apiPost('/api/admin/retail-users', {
             username: userIdVal,
             name: `${nameVal} | ${mobileVal}`,
             password: passwordVal,

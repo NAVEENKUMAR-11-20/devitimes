@@ -4,10 +4,12 @@ import ClockSvg from '../../components/ClockSvg';
 import {
   fetchAllProducts,
   updateProduct as pbUpdateProduct,
+  deleteProduct,
   fetchProductById,
   getProductImageUrl,
   getProductImageUrls,
 } from '../../lib/productsService';
+import { apiPatch } from '../../lib/apiClient';
 import pb from '../../lib/pocketbase';
 import { useApp } from '../../context/AppContext';
 
@@ -458,7 +460,7 @@ const AdminProducts = () => {
     try {
       const failed = await processInBatches(
         itemsToDelete, 
-        (p) => pb.collection('PRODUCT_DATAS').delete(p.pbId || p.id, { requestKey: null }), 
+        (p) => deleteProduct(p.pbId || p.id), 
         10
       );
       const successCount = itemsToDelete.length - failed.length;
@@ -542,12 +544,12 @@ const AdminProducts = () => {
     const targetStatusStr = targetStatus ? 'LIVE' : 'HIDDEN';
     
     try {
-      await ensurePbAuth();
       console.log(`[PB] Toggling live status for product ${id} to ${targetStatusStr}`);
-      const updatedRecord = await pbUpdateProduct(product.pbId || id, { 
-        STATUS: targetStatus ? 'live' : 'hidden',
-        is_live: targetStatus
-      }, 'PRODUCT_DATAS');
+      const res = await apiPatch(`/api/admin/products/${product.pbId || id}/toggle-status`, { 
+        status: targetStatus ? 'live' : 'hidden',
+        isLive: targetStatus
+      });
+      const updatedRecord = res.record || res;
       
       console.log('[PB] Toggle response:', updatedRecord);
       
@@ -586,8 +588,7 @@ const AdminProducts = () => {
     triggerToast('Deleting product...');
     
     try {
-      await ensurePbAuth();
-      await pb.collection('PRODUCT_DATAS').delete(product?.pbId || idToDelete, { requestKey: null });
+      await deleteProduct(product?.pbId || idToDelete);
       
       // Update state only after confirmed delete
       setProducts(prev => prev.filter(p => p.id !== idToDelete));

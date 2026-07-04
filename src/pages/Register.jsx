@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import pb from '../lib/pocketbase';
+import { apiGet } from '../lib/apiClient';
 
 const Register = () => {
   const { settings } = useApp();
@@ -35,12 +36,12 @@ const Register = () => {
     // Admin WhatsApp Number
     let adminWhatsAppRaw = settings?.whatsappNumber || '7358349394';
     try {
-      const records = await pb.collection('app_settings').getFullList();
-      if (records && records.length > 0) {
-        adminWhatsAppRaw = records[0].whatsapp_number || adminWhatsAppRaw;
+      const res = await apiGet('/api/settings');
+      if (res && res.settings) {
+        adminWhatsAppRaw = res.settings.whatsapp_number || adminWhatsAppRaw;
       }
     } catch (err) {
-      console.error("Failed to fetch WhatsApp number from PB:", err);
+      console.error("Failed to fetch WhatsApp number from backend:", err);
     }
     
     let adminWhatsApp = adminWhatsAppRaw.replace(/\D/g, '');

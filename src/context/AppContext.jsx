@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { fetchAllProducts, mapRecord } from '../lib/productsService';
 import { fetchAllUsers, fetchPendingRegistrations, createRegistration as pbCreateRegistration, deleteRegistration as pbDeleteRegistration, updateRegistrationStatus as pbUpdateRegistrationStatus, createUser as pbCreateUser, deleteUser as pbDeleteUser } from '../lib/usersService';
 import pb from '../lib/pocketbase';
+import { apiGet, apiPost, setAdminToken } from '../lib/apiClient';
 
 const AppContext = createContext();
 
@@ -96,39 +97,21 @@ export const AppProvider = ({ children }) => {
 
     const loadGlobalSettings = async () => {
       try {
-        const records = await pb.collection('app_settings').getFullList();
-        if (records && records.length > 0) {
-          const record = records[0];
-          const phoneVal = record.whatsapp_number || '';
-          const thresholdVal = (record.low_stock_limt !== undefined && !isNaN(Number(record.low_stock_limt))) ? Number(record.low_stock_limt) : 10;
-          const enabledVal = record.inventory_alert !== false;
-          const bannerVal = record.banner_alert !== false;
-          let parsedAlertData = {};
-          if (record.alert_data && typeof record.alert_data === 'object') {
-            parsedAlertData = record.alert_data;
-          }
-
+        const res = await apiGet('/api/settings');
+        if (res && res.settings) {
+          const s = res.settings;
           setSettings(prev => ({
             ...prev,
-            whatsappNumber: phoneVal || prev.whatsappNumber || "7358349394",
-            lowStockThreshold: thresholdVal,
-            inventoryAlertEnabled: enabledVal,
-            bannerAlertEnabled: bannerVal,
-            alertData: Object.keys(parsedAlertData).length > 0 ? parsedAlertData : prev.alertData
-          }));
-        }
-
-        const retailRecords = await pb.collection('retail_users').getFullList();
-        if (retailRecords && retailRecords.length > 0) {
-          const rRecord = retailRecords[0];
-          setSettings(prev => ({
-            ...prev,
-            retailUserId: rRecord.username,
-            retailPassword: rRecord.password
+            whatsappNumber: s.whatsappNumber || prev.whatsappNumber || "7358349394",
+            lowStockThreshold: s.lowStockThreshold !== undefined ? Number(s.lowStockThreshold) : 10,
+            bannerAlertEnabled: s.bannerAlertEnabled !== false,
+            alertData: s.alertData || prev.alertData,
+            retailUserId: s.retailUserId || prev.retailUserId,
+            retailPassword: s.retailPassword || prev.retailPassword
           }));
         }
       } catch (err) {
-        console.warn('[AppContext] Failed to load settings from PB:', err);
+        console.warn('[AppContext] Failed to load settings from API:', err);
       }
     };
 
@@ -497,11 +480,8 @@ export const AppProvider = ({ children }) => {
       }
 
       // 2. Check if there's a pending registration request with matching name/mobile
-      const pendingRegs = await pb.collection('registered_users').getFullList({
-        filter: `status = "pending" && (user_name = "${userId.trim()}" || mobile_no = "${userId.trim()}")`
-      });
-
-      if (pendingRegs.length > 0) {
+      const resReg = await apiGet(`/api/check-pending-registration?user=${encodeURIComponent(userId.trim())}`);
+      if (resReg && resReg.isPending) {
         return { success: false, message: "Your account is not approved yet. Please contact admin." };
       }
 
@@ -526,26 +506,20 @@ export const AppProvider = ({ children }) => {
 
   const loginRetailUser = async (username, password) => {
     try {
-      const records = await pb.collection('retail_users').getFullList({
-        filter: `username = "${username.trim()}"`
-      });
-
-      if (records.length > 0) {
-        const matchedUser = records[0];
-        if (String(matchedUser.password).trim() === String(password).trim()) {
-          if (!matchedUser.active) {
-            return { success: false, message: "Your account is not active. Please contact admin." };
-          }
-          
-          const sessionObj = {
-            id: matchedUser.id,
-            username: matchedUser.username
-          };
-          sessionStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
-          localStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
-          setCurrentRetailUser(sessionObj);
-          return { success: true };
+      const res = await apiPost('/api/retail-login', { username: username.trim(), password: password.trim() });
+      if (res && res.success && res.user) {
+        const matchedUser = res.user;
+        if (!matchedUser.active) {
+          return { success: false, message: "Your account is not active. Please contact admin." };
         }
+        const sessionObj = {
+          id: matchedUser.id,
+          username: matchedUser.username
+        };
+        sessionStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
+        localStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
+        setCurrentRetailUser(sessionObj);
+        return { success: true };
       }
       return { success: false, message: "Invalid username or password." };
     } catch (err) {
@@ -655,76 +629,9 @@ export const AppProvider = ({ children }) => {
 
   const loginAdmin = async (username, password) => {
     try {
-      let isAuthenticated = false;
-      const cleanUser = username.trim();
-      const possibleUsers = Array.from(new Set([cleanUser, 'teamdenvex@gmail.com', 'admin']));
-
-      // 1. Try PocketBase superuser/admin auth first (for secure API rules & authStore token)
-      for (const u of possibleUsers) {
-        try {
-          await pb.collection('_superusers').authWithPassword(u, password);
-          isAuthenticated = true;
-          break;
-        } catch (err) {
-          if (pb.admins && typeof pb.admins.authWithPassword === 'function') {
-            try {
-              await pb.admins.authWithPassword(u, password);
-              isAuthenticated = true;
-              break;
-            } catch (e) {
-              // Ignore
-            }
-          }
-        }
-      }
-
-      // 2. Check admin_password collection (so login works even if superuser auth was different or only admin_password was updated)
-      try {
-        let records = [];
-        try {
-          records = await pb.collection('admin_password').getFullList();
-        } catch (readErr) {
-          // If admin_password requires superuser auth and step 1 didn't authenticate yet, try authWithPassword with known users
-          for (const u of possibleUsers) {
-            try {
-              await pb.collection('_superusers').authWithPassword(u, password);
-              records = await pb.collection('admin_password').getFullList();
-              break;
-            } catch (e) {
-              if (pb.admins && typeof pb.admins.authWithPassword === 'function') {
-                try {
-                  await pb.admins.authWithPassword(u, password);
-                  records = await pb.collection('admin_password').getFullList();
-                  break;
-                } catch (e2) { /* ignore */ }
-              }
-            }
-          }
-        }
-
-        if (records && records.length > 0) {
-          const match = records.find(r => 
-            (r.username === cleanUser || r.username === 'admin' || r.username === 'teamdenvex@gmail.com') && r.password === password
-          );
-          if (match) {
-            isAuthenticated = true;
-            if (!pb.authStore.isValid) {
-              for (const u of possibleUsers) {
-                try { await pb.collection('_superusers').authWithPassword(u, password); break; } catch (e) { /* ignore */ }
-              }
-            }
-          }
-        }
-      } catch (err) {
-        // Ignore if collection read fails
-      }
-
-      if (isAuthenticated) {
-        const token = {
-          isAuthenticated: true,
-          timestamp: Date.now()
-        };
-        localStorage.setItem('lumiere_admin_auth_token', JSON.stringify(token));
+      const res = await apiPost('/api/admin/login', { username, password });
+      if (res && res.success && res.token) {
+        setAdminToken(res.token);
         setIsAdminAuthenticated(true);
         return true;
       }
@@ -766,14 +673,9 @@ export const AppProvider = ({ children }) => {
     };
 
     try {
-      const records = await pb.collection('app_settings').getFullList();
-      if (records.length > 0) {
-        await pb.collection('app_settings').update(records[0].id, payload);
-      } else {
-        await pb.collection('app_settings').create(payload);
-      }
+      await apiPost('/api/admin/settings', payload);
     } catch (err) {
-      console.error("Failed to save settings to PocketBase app_settings:", err);
+      console.error("Failed to save settings via API:", err);
     }
   };
 

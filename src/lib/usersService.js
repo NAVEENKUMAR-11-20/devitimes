@@ -1,4 +1,5 @@
 import pb from './pocketbase';
+import { apiGet, apiPut, apiDelete } from './apiClient';
 
 // Map PocketBase user record → app user shape
 function mapUser(record) {
@@ -42,11 +43,8 @@ export async function fetchAllUsers() {
 
 export async function fetchPendingRegistrations() {
   try {
-    const records = await pb.collection('registered_users').getFullList({
-      filter: 'status = "pending"',
-      sort: '-created',
-      fields: 'id,user_name,mobile_no,status,created'
-    });
+    const res = await apiGet('/api/admin/registered-users?filter=status%3D%22pending%22');
+    const records = res?.records || [];
     return records.map(mapRegistration);
   } catch (err) {
     console.error('[PB] fetchPendingRegistrations error:', err);
@@ -66,12 +64,12 @@ export async function createRegistration(name, mobile) {
 
 /** Delete a registration */
 export async function deleteRegistration(id) {
-  await pb.collection('registered_users').delete(id);
+  await apiDelete(`/api/admin/registered-users/${id}`);
 }
 
 /** Update registration status */
 export async function updateRegistrationStatus(id, status) {
-  await pb.collection('registered_users').update(id, { status });
+  await apiPut(`/api/admin/registered-users/${id}`, { status });
 }
 
 /** Create a new user */
@@ -87,7 +85,7 @@ export async function createUser(data) {
 
 /** Delete a user by PB id */
 export async function deleteUser(pbId) {
-  await pb.collection('User').delete(pbId);
+  await apiDelete(`/api/admin/users/${pbId}`);
 }
 
 /** Resolve or create registered_users record ID for a user */
