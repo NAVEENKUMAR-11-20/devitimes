@@ -4,14 +4,16 @@ import ClockSvg from '../../components/ClockSvg';
 import {
   fetchAllProducts,
   updateProduct as pbUpdateProduct,
+  deleteProduct,
   fetchProductById,
   getProductImageUrl,
   getProductImageUrls,
 } from '../../lib/productsService';
-import pb from '../../lib/pocketbase';
+import { apiPatch } from '../../lib/apiClient';
 import { useApp } from '../../context/AppContext';
 
 const getCacheBuster = () => Date.now();
+const STANDARD_SIZES = ['200 × 200 MM', '250 × 250 MM', '300 × 300 MM', '350 × 350 MM', '400 × 400 MM', '450 × 450 MM', '500 × 500 MM'];
 
 // Helper to read file as base64 without losing quality (formerly compressImage)
 function compressImage(file) {
@@ -457,7 +459,7 @@ const AdminProducts = () => {
     try {
       const failed = await processInBatches(
         itemsToDelete, 
-        (p) => pb.collection('PRODUCT_DATAS').delete(p.pbId || p.id, { requestKey: null }), 
+        (p) => deleteProduct(p.pbId || p.id), 
         10
       );
       const successCount = itemsToDelete.length - failed.length;
@@ -534,28 +536,29 @@ const AdminProducts = () => {
 
   // Instant status toggle — wait for real PocketBase response before updating UI/showing toast
   const handleToggleLive = async (id, currentStatus) => {
-    const product = products.find(p => p.id === id);
+    const product = products.find(p => p.id === id || p.pbId === id);
     if (!product) return;
     
     const targetStatus = !currentStatus;
     const targetStatusStr = targetStatus ? 'LIVE' : 'HIDDEN';
+    const targetId = product.pbId || (typeof product.id === 'string' && product.id.length >= 10 ? product.id : id);
     
     try {
-      await ensurePbAuth();
-      console.log(`[PB] Toggling live status for product ${id} to ${targetStatusStr}`);
-      const updatedRecord = await pbUpdateProduct(product.pbId || id, { 
-        STATUS: targetStatus ? 'live' : 'hidden',
-        is_live: targetStatus
-      }, 'PRODUCT_DATAS');
+      console.log(`[API] Toggling live status for product ${targetId} to ${targetStatusStr}`);
+      const res = await apiPatch(`/api/admin/products/${targetId}/status`, { 
+        STATUS: targetStatus ? 'live' : 'hidden'
+      });
       
-      console.log('[PB] Toggle response:', updatedRecord);
+      const updatedRecord = res.record || res;
+      console.log('[API] Toggle response:', updatedRecord);
       
-      if (updatedRecord && updatedRecord.isLive !== targetStatus) {
-        throw new Error(`PocketBase did not update status to ${targetStatusStr}. Please verify that the field 'STATUS' exists in the PRODUCT_DATAS collection schema in PocketBase.`);
+      const isLiveResult = String(updatedRecord.STATUS || updatedRecord.status || '').toLowerCase() === 'live' || updatedRecord.isLive === true;
+      if (updatedRecord && (updatedRecord.STATUS !== undefined || updatedRecord.status !== undefined || updatedRecord.isLive !== undefined) && isLiveResult !== targetStatus) {
+        throw new Error(`API did not update status to ${targetStatusStr}.`);
       }
 
       // Update local state immediately after confirmed PB success
-      setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updatedRecord, isLive: targetStatus, status: targetStatusStr } : p));
+      setProducts(prev => prev.map(p => (p.id === id || p.pbId === targetId) ? { ...p, ...updatedRecord, isLive: targetStatus, status: targetStatusStr, STATUS: targetStatus ? 'live' : 'hidden' } : p));
       triggerToast(`Product set to ${targetStatusStr}`);
       await refreshProducts(true);
     } catch (err) {
@@ -585,8 +588,7 @@ const AdminProducts = () => {
     triggerToast('Deleting product...');
     
     try {
-      await ensurePbAuth();
-      await pb.collection('PRODUCT_DATAS').delete(product?.pbId || idToDelete, { requestKey: null });
+      await deleteProduct(product?.pbId || idToDelete);
       
       // Update state only after confirmed delete
       setProducts(prev => prev.filter(p => p.id !== idToDelete));
@@ -776,7 +778,7 @@ const AdminProducts = () => {
     setIsSaving(true);
     try {
       await ensurePbAuth();
-      const pbId = editForm.pbId || editForm.id;
+      const pbId = editForm.pbId || (typeof editForm.id === 'string' && editForm.id.length >= 10 ? editForm.id : '') || editingProduct?.pbId || editingProduct?.id;
       const newStockVal = Number(editForm.stock !== undefined ? editForm.stock : 20);
       
       const payload = {
@@ -785,7 +787,6 @@ const AdminProducts = () => {
         WHOLESALE_PRICE: Number(wholesaleP || 0),
         RETAIL_PRICE:    Number(retailP || 0),
         STATUS:          editForm.isLive ? 'live' : 'hidden',
-        is_live:         Boolean(editForm.isLive),
         STOCK:           Number(newStockVal || 0),
       };
 
@@ -794,15 +795,6 @@ const AdminProducts = () => {
       }
       if (editForm.product_type) {
         payload.PRODUCT_TYPE = editForm.product_type;
-      }
-      if (editForm.originalPrice !== undefined && editForm.originalPrice !== null && editForm.originalPrice !== '') {
-        payload.original_price = Number(editForm.originalPrice);
-      }
-      if (editForm.isOnSale !== undefined && editForm.isOnSale !== null) {
-        payload.is_on_sale = Boolean(editForm.isOnSale);
-      }
-      if (editForm.description !== undefined && editForm.description !== null) {
-        payload.description = editForm.description || '';
       }
 
       // 1. Identify raw filenames of original images in PocketBase
@@ -1404,24 +1396,61 @@ const AdminProducts = () => {
 
                 <div className="form-group">
                   <label className="form-label">SIZE *</label>
-                  <select 
-                    className="form-input"
-                    value={editForm.SIZE_DM !== undefined && editForm.SIZE_DM !== null && editForm.SIZE_DM !== '' ? editForm.SIZE_DM : (editForm.size || '')}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, SIZE_DM: e.target.value, size: e.target.value }))}
-                  >
-                    <option value="">Select Size</option>
-                    <option value="300 × 300 MM">300 × 300 MM</option>
-                    <option value="350 × 350 MM">350 × 350 MM</option>
-                    <option value="400 × 400 MM">400 × 400 MM</option>
-                    <option value="450 × 450 MM">450 × 450 MM</option>
-                    <option value="500 × 500 MM">500 × 500 MM</option>
-                    {(() => {
-                      const val = editForm.SIZE_DM !== undefined && editForm.SIZE_DM !== null && editForm.SIZE_DM !== '' ? editForm.SIZE_DM : (editForm.size || '');
-                      return val && !["300 × 300 MM", "350 × 350 MM", "400 × 400 MM", "450 × 450 MM", "500 × 500 MM"].includes(val) ? (
-                        <option value={val}>{val}</option>
-                      ) : null;
-                    })()}
-                  </select>
+                  <div style={{ display: 'flex', gap: '16px' }}>
+                    <select 
+                      className="form-input"
+                      value={editForm.sizeType !== undefined ? editForm.sizeType : (STANDARD_SIZES.includes(editForm.SIZE_DM || editForm.size) ? (editForm.SIZE_DM || editForm.size) : ((editForm.SIZE_DM || editForm.size) ? 'Custom' : ''))}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === 'Custom') {
+                          setEditForm(prev => ({
+                            ...prev,
+                            sizeType: 'Custom',
+                            customSize: prev.customSize || (STANDARD_SIZES.includes(prev.SIZE_DM || prev.size) ? '' : (prev.SIZE_DM || prev.size || '')),
+                            SIZE_DM: prev.customSize || (STANDARD_SIZES.includes(prev.SIZE_DM || prev.size) ? '' : (prev.SIZE_DM || prev.size || '')),
+                            size: prev.customSize || (STANDARD_SIZES.includes(prev.SIZE_DM || prev.size) ? '' : (prev.SIZE_DM || prev.size || ''))
+                          }));
+                        } else {
+                          setEditForm(prev => ({
+                            ...prev,
+                            sizeType: val,
+                            SIZE_DM: val,
+                            size: val
+                          }));
+                        }
+                      }}
+                      style={{ flex: 1 }}
+                    >
+                      <option value="">Select Size</option>
+                      <option value="200 × 200 MM">200 × 200 MM</option>
+                      <option value="250 × 250 MM">250 × 250 MM</option>
+                      <option value="300 × 300 MM">300 × 300 MM</option>
+                      <option value="350 × 350 MM">350 × 350 MM</option>
+                      <option value="400 × 400 MM">400 × 400 MM</option>
+                      <option value="450 × 450 MM">450 × 450 MM</option>
+                      <option value="500 × 500 MM">500 × 500 MM</option>
+                      <option value="Custom">Custom</option>
+                    </select>
+
+                    {((editForm.sizeType === 'Custom') || (editForm.sizeType === undefined && (editForm.SIZE_DM || editForm.size) && !STANDARD_SIZES.includes(editForm.SIZE_DM || editForm.size))) && (
+                      <input 
+                        type="text" 
+                        className="form-input"
+                        placeholder="e.g. 300 × 300 MM"
+                        value={editForm.customSize !== undefined ? editForm.customSize : (editForm.SIZE_DM || editForm.size || '')}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEditForm(prev => ({
+                            ...prev,
+                            customSize: val,
+                            SIZE_DM: val,
+                            size: val
+                          }));
+                        }}
+                        style={{ flex: 1 }}
+                      />
+                    )}
+                  </div>
                 </div>
 
               </div>

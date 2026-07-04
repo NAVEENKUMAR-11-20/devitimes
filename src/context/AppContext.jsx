@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { fetchAllProducts, mapRecord } from '../lib/productsService';
 import { fetchAllUsers, fetchPendingRegistrations, createRegistration as pbCreateRegistration, deleteRegistration as pbDeleteRegistration, updateRegistrationStatus as pbUpdateRegistrationStatus, createUser as pbCreateUser, deleteUser as pbDeleteUser } from '../lib/usersService';
 import pb from '../lib/pocketbase';
+import { apiGet, apiPost } from '../lib/apiClient';
 
 const AppContext = createContext();
 
@@ -96,39 +97,20 @@ export const AppProvider = ({ children }) => {
 
     const loadGlobalSettings = async () => {
       try {
-        const records = await pb.collection('app_settings').getFullList();
-        if (records && records.length > 0) {
-          const record = records[0];
-          const phoneVal = record.whatsapp_number || '';
-          const thresholdVal = (record.low_stock_limt !== undefined && !isNaN(Number(record.low_stock_limt))) ? Number(record.low_stock_limt) : 10;
-          const enabledVal = record.inventory_alert !== false;
-          const bannerVal = record.banner_alert !== false;
-          let parsedAlertData = {};
-          if (record.alert_data && typeof record.alert_data === 'object') {
-            parsedAlertData = record.alert_data;
-          }
-
+        const data = await apiGet('/api/settings');
+        if (data && data.success && data.settings) {
+          const s = data.settings;
           setSettings(prev => ({
             ...prev,
-            whatsappNumber: phoneVal || prev.whatsappNumber || "7358349394",
-            lowStockThreshold: thresholdVal,
-            inventoryAlertEnabled: enabledVal,
-            bannerAlertEnabled: bannerVal,
-            alertData: Object.keys(parsedAlertData).length > 0 ? parsedAlertData : prev.alertData
-          }));
-        }
-
-        const retailRecords = await pb.collection('retail_users').getFullList();
-        if (retailRecords && retailRecords.length > 0) {
-          const rRecord = retailRecords[0];
-          setSettings(prev => ({
-            ...prev,
-            retailUserId: rRecord.username,
-            retailPassword: rRecord.password
+            whatsappNumber: s.whatsapp_number || s.whatsappNumber || "7358349394",
+            lowStockThreshold: s.low_stock_limt !== undefined ? Number(s.low_stock_limt) : (s.low_stock_limit !== undefined ? Number(s.low_stock_limit) : 10),
+            bannerAlertEnabled: s.banner_alert !== false,
+            inventoryAlertEnabled: s.inventory_alert !== false,
+            alertData: s.alert_data && typeof s.alert_data === 'object' ? s.alert_data : prev.alertData
           }));
         }
       } catch (err) {
-        console.warn('[AppContext] Failed to load settings from PB:', err);
+        console.warn('[AppContext] Failed to load settings from API:', err);
       }
     };
 
@@ -231,23 +213,10 @@ export const AppProvider = ({ children }) => {
     if (savedToken) {
       try {
         const parsed = JSON.parse(savedToken);
-        const isPbSuperuserOrAdmin = pb.authStore.isValid && (
-          pb.authStore.isAdmin ||
-          pb.authStore.isSuperuser ||
-          pb.authStore.model?.collectionName === '_superusers' ||
-          pb.authStore.record?.collectionName === '_superusers' ||
-          pb.authStore.model?.collectionName === 'admins' ||
-          pb.authStore.record?.collectionName === 'admins'
-        );
-        if (parsed.isAuthenticated && isPbSuperuserOrAdmin) {
+        if (parsed && parsed.isAuthenticated) {
           return true;
-        } else if (parsed.isAuthenticated && !isPbSuperuserOrAdmin) {
-          console.warn("[AppContext] Stale admin localStorage found without valid PB superuser authStore. Requiring re-login.");
-          localStorage.removeItem('lumiere_admin_auth_token');
-          return false;
         }
       } catch (e) {
-        console.error("Admin auth parsing error:", e);
         localStorage.removeItem('lumiere_admin_auth_token');
       }
     }
@@ -464,25 +433,34 @@ export const AppProvider = ({ children }) => {
       const trimmedPass = password.trim();
 
       // Check if it is a retail user
-      const targetUserId = (settings.retailUserId || '').trim();
-      const targetPassword = (settings.retailPassword || '').trim();
-
-      if (targetUserId && targetPassword && trimmedId === targetUserId && trimmedPass === targetPassword) {
-        const sessionObj = {
-          userId: trimmedId,
-          name: 'Retailer',
-          mobile: '',
-          isRetail: true
-        };
-        sessionStorage.setItem('lumiere_current_user', JSON.stringify(sessionObj));
-        localStorage.setItem('lumiere_current_user', JSON.stringify(sessionObj));
-        setCurrentUser(sessionObj);
-        return { success: true, isRetail: true };
+      try {
+        const retailData = await apiPost('/api/retail-login', { username: trimmedId, password: trimmedPass });
+        if (retailData.success && retailData.user) {
+          const match = retailData.user;
+          if (!match.active) {
+            return { success: false, message: "Your account is not active. Please contact admin." };
+          }
+          const sessionObj = {
+            userId: trimmedId,
+            id: match.id,
+            name: match.name || 'Retailer',
+            mobile: '',
+            isRetail: true
+          };
+          sessionStorage.setItem('lumiere_current_user', JSON.stringify(sessionObj));
+          localStorage.setItem('lumiere_current_user', JSON.stringify(sessionObj));
+          setCurrentUser(sessionObj);
+          return { success: true, isRetail: true };
+        }
+      } catch (err) {
+        // Not a retail user or login failed, continue to User collection check
       }
 
       // 1. Search in PocketBase User collection
       const records = await pb.collection('User').getFullList({
-        filter: `User_ID = "${trimmedId}"`
+        filter: `User_ID = "${trimmedId}"`,
+        requestKey: null,
+        _: Date.now()
       });
 
       if (records.length > 0) {
@@ -510,12 +488,13 @@ export const AppProvider = ({ children }) => {
       }
 
       // 2. Check if there's a pending registration request with matching name/mobile
-      const pendingRegs = await pb.collection('registered_users').getFullList({
-        filter: `status = "pending" && (user_name = "${userId.trim()}" || mobile_no = "${userId.trim()}")`
-      });
-
-      if (pendingRegs.length > 0) {
-        return { success: false, message: "Your account is not approved yet. Please contact admin." };
+      try {
+        const check = await apiGet(`/api/check-pending-registration?user=${encodeURIComponent(userId.trim())}`);
+        if (check.isPending) {
+          return { success: false, message: "Your account is not approved yet. Please contact admin." };
+        }
+      } catch (err) {
+        // Ignore — if collection read fails, proceed to invalid credentials
       }
 
       return { success: false, message: "Invalid username or password. Please contact admin." };
@@ -539,31 +518,30 @@ export const AppProvider = ({ children }) => {
 
   const loginRetailUser = async (username, password) => {
     try {
-      const records = await pb.collection('retail_users').getFullList({
-        filter: `username = "${username.trim()}"`
-      });
-
-      if (records.length > 0) {
-        const matchedUser = records[0];
-        if (String(matchedUser.password).trim() === String(password).trim()) {
-          if (!matchedUser.active) {
-            return { success: false, message: "Your account is not active. Please contact admin." };
-          }
-          
-          const sessionObj = {
-            id: matchedUser.id,
-            username: matchedUser.username
-          };
-          sessionStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
-          localStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
-          setCurrentRetailUser(sessionObj);
-          return { success: true };
+      const data = await apiPost('/api/retail-login', { username: username.trim(), password: password.trim() });
+      if (data.success && data.user) {
+        const matchedUser = data.user;
+        if (!matchedUser.active) {
+          return { success: false, message: "Your account is not active. Please contact admin." };
         }
+        
+        sessionStorage.removeItem('lumiere_retail_user');
+        localStorage.removeItem('lumiere_retail_user');
+        
+        const sessionObj = {
+          id: matchedUser.id,
+          username: matchedUser.username,
+          name: matchedUser.name
+        };
+        sessionStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
+        localStorage.setItem('lumiere_retail_user', JSON.stringify(sessionObj));
+        setCurrentRetailUser(sessionObj);
+        return { success: true };
       }
       return { success: false, message: "Invalid username or password." };
     } catch (err) {
       console.error('[AppContext] loginRetailUser error:', err);
-      return { success: false, message: "Authentication failed. Please check connection." };
+      return { success: false, message: err.message || "Authentication failed. Please check connection." };
     }
   };
 
@@ -668,24 +646,19 @@ export const AppProvider = ({ children }) => {
 
   const loginAdmin = async (username, password) => {
     try {
-      try {
-        await pb.collection('_superusers').authWithPassword(username, password);
-      } catch (err) {
-        if (pb.admins && typeof pb.admins.authWithPassword === 'function') {
-          await pb.admins.authWithPassword(username, password);
-        } else {
-          throw err;
-        }
+      const data = await apiPost('/api/admin/login', { username, password });
+      if (data.success && data.token) {
+        const tokenData = {
+          isAuthenticated: true,
+          token: data.token,
+          timestamp: Date.now()
+        };
+        localStorage.setItem('lumiere_admin_auth_token', JSON.stringify(tokenData));
+        setIsAdminAuthenticated(true);
+        return true;
       }
-      const token = {
-        isAuthenticated: true,
-        timestamp: Date.now()
-      };
-      localStorage.setItem('lumiere_admin_auth_token', JSON.stringify(token));
-      setIsAdminAuthenticated(true);
-      return true;
     } catch (err) {
-      console.error("Admin authentication failed:", err);
+      console.error('[AppContext] Admin login error:', err);
     }
     return false;
   };
@@ -722,14 +695,9 @@ export const AppProvider = ({ children }) => {
     };
 
     try {
-      const records = await pb.collection('app_settings').getFullList();
-      if (records.length > 0) {
-        await pb.collection('app_settings').update(records[0].id, payload);
-      } else {
-        await pb.collection('app_settings').create(payload);
-      }
+      await apiPost('/api/admin/settings', payload);
     } catch (err) {
-      console.error("Failed to save settings to PocketBase app_settings:", err);
+      console.error("Failed to save settings to backend:", err);
     }
   };
 
