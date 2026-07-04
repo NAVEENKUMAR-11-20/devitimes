@@ -295,9 +295,9 @@ const AdminSettings = () => {
     const loadSettingsFromPB = async () => {
       console.log('Loading settings from backend...');
       try {
-        const res = await apiGet('/api/settings');
-        if (res && res.settings) {
-          const record = res.settings;
+        const res = await apiGet('/api/admin/settings');
+        if (res && (res.settings || (res.records && res.records.length > 0))) {
+          const record = res.settings || res.records[0];
           console.log('Settings record found:', record);
           setPbSettingsId(record.id);
           

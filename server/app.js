@@ -95,42 +95,32 @@ app.get('/api/settings', async (req, res) => {
     await ensureSuperuserAuth();
     const records = await pb.collection('app_settings').getFullList();
     const settingsRecord = records && records.length > 0 ? records[0] : null;
-    
-    const retailRecords = await pb.collection('retail_users').getFullList().catch(() => []);
-    const rRecord = retailRecords && retailRecords.length > 0 ? retailRecords[0] : null;
 
     res.json({
       success: true,
-      settings: settingsRecord ? {
-        id: settingsRecord.id,
-        whatsappNumber: settingsRecord.whatsapp_number || '7358349394',
-        whatsapp_number: settingsRecord.whatsapp_number || '7358349394',
-        bannerAlertEnabled: settingsRecord.banner_alert_enabled !== false,
-        lowStockThreshold: settingsRecord.low_stock_threshold || 10,
-        alertData: settingsRecord.alert_data || {},
-        retailUserId: rRecord?.username || '',
-        retailPassword: rRecord?.password || ''
-      } : {
-        whatsappNumber: '7358349394',
-        whatsapp_number: '7358349394',
-        bannerAlertEnabled: true,
-        lowStockThreshold: 10,
-        alertData: {},
-        retailUserId: rRecord?.username || '',
-        retailPassword: rRecord?.password || ''
+      settings: {
+        whatsapp_number: settingsRecord?.whatsapp_number || '7358349394',
+        whatsappNumber: settingsRecord?.whatsapp_number || '7358349394',
+        low_stock_limit: settingsRecord?.low_stock_threshold || 10,
+        lowStockThreshold: settingsRecord?.low_stock_threshold || 10,
+        banner_alert: settingsRecord?.banner_alert_enabled !== false,
+        bannerAlertEnabled: settingsRecord?.banner_alert_enabled !== false,
+        inventory_alert: settingsRecord?.inventory_alert_enabled !== false,
+        inventoryAlertEnabled: settingsRecord?.inventory_alert_enabled !== false
       }
     });
   } catch (err) {
     res.json({
       success: true,
       settings: {
-        whatsappNumber: '7358349394',
         whatsapp_number: '7358349394',
-        bannerAlertEnabled: true,
+        whatsappNumber: '7358349394',
+        low_stock_limit: 10,
         lowStockThreshold: 10,
-        alertData: {},
-        retailUserId: '',
-        retailPassword: ''
+        banner_alert: true,
+        bannerAlertEnabled: true,
+        inventory_alert: true,
+        inventoryAlertEnabled: true
       }
     });
   }
@@ -326,7 +316,8 @@ app.get('/api/admin/settings', requireAdminAuth, async (req, res) => {
   try {
     await ensureSuperuserAuth();
     const records = await pb.collection('app_settings').getFullList();
-    res.json({ success: true, records });
+    const settingsRecord = records && records.length > 0 ? records[0] : null;
+    res.json({ success: true, records, settings: settingsRecord });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

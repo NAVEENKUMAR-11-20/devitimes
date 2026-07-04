@@ -102,12 +102,10 @@ export const AppProvider = ({ children }) => {
           const s = res.settings;
           setSettings(prev => ({
             ...prev,
-            whatsappNumber: s.whatsappNumber || prev.whatsappNumber || "7358349394",
-            lowStockThreshold: s.lowStockThreshold !== undefined ? Number(s.lowStockThreshold) : 10,
-            bannerAlertEnabled: s.bannerAlertEnabled !== false,
-            alertData: s.alertData || prev.alertData,
-            retailUserId: s.retailUserId || prev.retailUserId,
-            retailPassword: s.retailPassword || prev.retailPassword
+            whatsappNumber: s.whatsappNumber || s.whatsapp_number || prev.whatsappNumber || "7358349394",
+            lowStockThreshold: s.lowStockThreshold !== undefined ? Number(s.lowStockThreshold) : (s.low_stock_limit !== undefined ? Number(s.low_stock_limit) : 10),
+            bannerAlertEnabled: s.bannerAlertEnabled !== undefined ? s.bannerAlertEnabled : (s.banner_alert !== undefined ? s.banner_alert : true),
+            inventoryAlertEnabled: s.inventoryAlertEnabled !== undefined ? s.inventoryAlertEnabled : (s.inventory_alert !== undefined ? s.inventory_alert : true)
           }));
         }
       } catch (err) {
@@ -433,21 +431,23 @@ export const AppProvider = ({ children }) => {
       const trimmedId = userId.trim();
       const trimmedPass = password.trim();
 
-      // Check if it is a retail user
-      const targetUserId = (settings.retailUserId || '').trim();
-      const targetPassword = (settings.retailPassword || '').trim();
-
-      if (targetUserId && targetPassword && trimmedId === targetUserId && trimmedPass === targetPassword) {
-        const sessionObj = {
-          userId: trimmedId,
-          name: 'Retailer',
-          mobile: '',
-          isRetail: true
-        };
-        sessionStorage.setItem('lumiere_current_user', JSON.stringify(sessionObj));
-        localStorage.setItem('lumiere_current_user', JSON.stringify(sessionObj));
-        setCurrentUser(sessionObj);
-        return { success: true, isRetail: true };
+      // Check if it is a retail user via backend API
+      try {
+        const retailRes = await apiPost('/api/retail-login', { username: trimmedId, password: trimmedPass }).catch(() => null);
+        if (retailRes && retailRes.success) {
+          const sessionObj = {
+            userId: trimmedId,
+            name: 'Retailer',
+            mobile: '',
+            isRetail: true
+          };
+          sessionStorage.setItem('lumiere_current_user', JSON.stringify(sessionObj));
+          localStorage.setItem('lumiere_current_user', JSON.stringify(sessionObj));
+          setCurrentUser(sessionObj);
+          return { success: true, isRetail: true };
+        }
+      } catch (err) {
+        // Not a retail user or login failed, continue to User collection check
       }
 
       // 1. Search in PocketBase User collection
