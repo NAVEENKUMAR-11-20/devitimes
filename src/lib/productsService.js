@@ -78,6 +78,8 @@ export function mapRecord(record) {
   else if (record.live !== undefined && record.live !== null) isLiveVal = (String(record.live) === 'true' || record.live === true || record.live === 1);
   else if (record.active !== undefined && record.active !== null) isLiveVal = (String(record.active) === 'true' || record.active === true || record.active === 1);
   else if (record.hidden !== undefined && record.hidden !== null) isLiveVal = !(String(record.hidden) === 'true' || record.hidden === true || record.hidden === 1);
+  else if (record.isHidden !== undefined && record.isHidden !== null) isLiveVal = !(String(record.isHidden) === 'true' || record.isHidden === true || record.isHidden === 1);
+  else if (record.visibility !== undefined && record.visibility !== null) isLiveVal = (record.visibility === 'LIVE' || record.visibility === 'live' || record.visibility === 'active' || String(record.visibility) === 'true');
   else if (record.status !== undefined && record.status !== null) isLiveVal = (record.status === 'LIVE' || record.status === 'live' || record.status === 'active');
   
   const modelNoStr = record.MODEL_NO !== undefined && record.MODEL_NO !== null ? String(record.MODEL_NO) :
@@ -90,7 +92,7 @@ export function mapRecord(record) {
   return {
     ...record,
     id: record.id,
-    status: record.status || (isLiveVal ? 'LIVE' : 'HIDDEN'),
+    status: isLiveVal ? 'LIVE' : 'HIDDEN',
     pbId: record.id,                          // keep PB id separate
     collectionId: record.collectionId || '',  // add for compatibility
     collectionName: record.collectionName || '', // add for compatibility

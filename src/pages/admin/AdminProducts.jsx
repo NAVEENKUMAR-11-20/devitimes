@@ -548,7 +548,11 @@ const AdminProducts = () => {
       
       console.log('[PB] Toggle response:', updatedRecord);
       
-      // Update local state immediately after confirmed success
+      if (updatedRecord && updatedRecord.isLive !== targetStatus) {
+        throw new Error(`PocketBase did not update status to ${targetStatusStr}. Please verify that the boolean field 'is_live' exists in the PRODUCT_DATAS collection schema in PocketBase.`);
+      }
+
+      // Update local state immediately after confirmed PB success
       setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updatedRecord, isLive: targetStatus, status: targetStatusStr } : p));
       triggerToast(`Product set to ${targetStatusStr}`);
       await refreshProducts(true);
@@ -871,8 +875,12 @@ const AdminProducts = () => {
         console.error('[ERROR] Failed to refetch product after save:', err);
       }
 
+      if (refetched && refetched.isLive !== Boolean(editForm.isLive)) {
+        console.warn(`[PB] Warning: PocketBase did not update 'is_live' to ${Boolean(editForm.isLive)}. Please verify that the 'is_live' boolean field exists in the PRODUCT_DATAS schema.`);
+      }
+
       // Update local state immediately after confirmed PB update so changes reflect in table instantly
-      setProducts(prev => prev.map(p => (p.id === pbId || p.pbId === pbId || p.id === (editForm.id || editForm.pbId)) ? { ...p, ...refetched, ...editForm, id: p.id } : p));
+      setProducts(prev => prev.map(p => (p.id === pbId || p.pbId === pbId || p.id === (editForm.id || editForm.pbId)) ? { ...p, ...refetched, id: p.id } : p));
 
       // Trigger shared low stock alert checker
       await checkAndTriggerLowStockAlert(editingProduct, newStockVal);
