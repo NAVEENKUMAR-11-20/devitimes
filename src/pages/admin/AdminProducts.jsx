@@ -531,24 +531,39 @@ const AdminProducts = () => {
     }
   };
 
-  // Instant status toggle — update is_live in PocketBase
+  // Instant status toggle — wait for real PocketBase response before updating UI/showing toast
   const handleToggleLive = async (id, currentStatus) => {
     const product = products.find(p => p.id === id);
     if (!product) return;
     
-    // Optimistic update
-    setProducts(prev => prev.map(p => p.id === id ? { ...p, isLive: !currentStatus } : p));
-    triggerToast(currentStatus ? 'Product set to HIDDEN' : 'Product set to LIVE');
+    const targetStatus = !currentStatus;
+    const targetStatusStr = targetStatus ? 'LIVE' : 'HIDDEN';
     
     try {
       await ensurePbAuth();
-      await pbUpdateProduct(product.pbId || id, { is_live: !currentStatus }, 'PRODUCT_DATAS');
+      console.log(`[PB] Toggling live status for product ${id} to ${targetStatusStr}`);
+      const updatedRecord = await pbUpdateProduct(product.pbId || id, { 
+        is_live: targetStatus,
+        isLive: targetStatus,
+        status: targetStatusStr
+      }, 'PRODUCT_DATAS');
+      
+      console.log('[PB] Toggle response:', updatedRecord);
+      
+      // Update local state immediately after confirmed success
+      setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updatedRecord, isLive: targetStatus, status: targetStatusStr } : p));
+      triggerToast(`Product set to ${targetStatusStr}`);
       await refreshProducts(true);
     } catch (err) {
-      // Revert on error
-      setProducts(prev => prev.map(p => p.id === id ? { ...p, isLive: currentStatus } : p));
-      triggerToast('Error updating status');
-      console.error(err);
+      console.error('[PB] Toggle live status error:', err);
+      const errMsg = err?.response?.message || err?.message || 'Failed to update status';
+      if (err?.status === 403 || errMsg.toLowerCase().includes('permission') || errMsg.toLowerCase().includes('superuser') || errMsg.toLowerCase().includes('admin')) {
+        triggerToast('Permission Error: Superuser/Admin authentication required.');
+        alert('Permission Error: You are not authenticated as a PocketBase superuser/admin to modify products.');
+      } else {
+        triggerToast(`Error updating status: ${errMsg}`);
+        alert(`Error updating status: ${errMsg}`);
+      }
     }
   };
 
@@ -563,22 +578,27 @@ const AdminProducts = () => {
     const product = products.find(p => p.id === idToDelete);
     
     setIsDeleting(true);
-    
-    // Optimistic update
-    setProducts(prev => prev.filter(p => p.id !== idToDelete));
     triggerToast('Deleting product...');
     
     try {
       await ensurePbAuth();
       await pb.collection('PRODUCT_DATAS').delete(product?.pbId || idToDelete, { requestKey: null });
+      
+      // Update state only after confirmed delete
+      setProducts(prev => prev.filter(p => p.id !== idToDelete));
       setDeletingProductId(null);
       triggerToast('Product deleted successfully');
       await refreshProducts(true);
     } catch (err) {
-      // Revert on error at exact position if possible
-      if (product) setProducts(prev => [product, ...prev]);
-      triggerToast(`Error deleting product: ${err.message || 'Unknown error'}`);
-      console.error(err);
+      console.error('[PB] Delete product error:', err);
+      const errMsg = err?.response?.message || err?.message || 'Unknown error';
+      if (err?.status === 403 || errMsg.toLowerCase().includes('permission') || errMsg.toLowerCase().includes('superuser') || errMsg.toLowerCase().includes('admin')) {
+        triggerToast('Permission Error: Superuser/Admin authentication required.');
+        alert('Permission Error: You are not authenticated as a PocketBase superuser/admin to delete products.');
+      } else {
+        triggerToast(`Error deleting product: ${errMsg}`);
+        alert(`Error deleting product: ${errMsg}`);
+      }
     } finally {
       setIsDeleting(false);
     }
@@ -752,15 +772,29 @@ const AdminProducts = () => {
       const payload = {
         MODEL_NO:        modelNumStr,
         SIZE_DM:         sizeStr,
-        PACKAGE_NO:      editForm.packageNo ? (isNaN(Number(editForm.packageNo)) ? editForm.packageNo : Number(editForm.packageNo)) : '',
-        WHOLESALE_PRICE: Number(wholesaleP),
-        RETAIL_PRICE:    Number(retailP),
-        is_live:         editForm.isLive,
-        original_price:  editForm.originalPrice !== undefined && editForm.originalPrice !== null && editForm.originalPrice !== '' ? Number(editForm.originalPrice) : null,
-        is_on_sale:      editForm.isOnSale,
-        description:     editForm.description || '',
-        STOCK:           newStockVal,
+        WHOLESALE_PRICE: Number(wholesaleP || 0),
+        RETAIL_PRICE:    Number(retailP || 0),
+        is_live:         Boolean(editForm.isLive),
+        isLive:          Boolean(editForm.isLive),
+        status:          editForm.isLive ? 'LIVE' : 'HIDDEN',
+        STOCK:           Number(newStockVal || 0),
       };
+
+      if (editForm.packageNo !== undefined && editForm.packageNo !== null && editForm.packageNo !== '') {
+        payload.PACKAGE_NO = Number(editForm.packageNo) || 0;
+      }
+      if (editForm.product_type) {
+        payload.PRODUCT_TYPE = editForm.product_type;
+      }
+      if (editForm.originalPrice !== undefined && editForm.originalPrice !== null && editForm.originalPrice !== '') {
+        payload.original_price = Number(editForm.originalPrice);
+      }
+      if (editForm.isOnSale !== undefined && editForm.isOnSale !== null) {
+        payload.is_on_sale = Boolean(editForm.isOnSale);
+      }
+      if (editForm.description !== undefined && editForm.description !== null) {
+        payload.description = editForm.description || '';
+      }
 
       // 1. Identify raw filenames of original images in PocketBase
       let originalFilenames = [];
@@ -815,12 +849,16 @@ const AdminProducts = () => {
       console.log('[DEBUG] PocketBase update response:', response);
 
       // Explicitly refetch the updated product from PocketBase
+      let refetched = response;
       try {
-        const refetched = await fetchProductById(pbId, 'PRODUCT_DATAS');
+        refetched = await fetchProductById(pbId, 'PRODUCT_DATAS');
         console.log('[DEBUG] Refetched product after edit save:', refetched);
       } catch (err) {
         console.error('[ERROR] Failed to refetch product after save:', err);
       }
+
+      // Update local state immediately after confirmed PB update so changes reflect in table instantly
+      setProducts(prev => prev.map(p => (p.id === pbId || p.pbId === pbId || p.id === (editForm.id || editForm.pbId)) ? { ...p, ...refetched, ...editForm, id: p.id } : p));
 
       // Trigger shared low stock alert checker
       await checkAndTriggerLowStockAlert(editingProduct, newStockVal);
@@ -829,8 +867,15 @@ const AdminProducts = () => {
       triggerToast('Product updated successfully');
       await refreshProducts(true);
     } catch (err) {
-      triggerToast('Error saving product');
       console.error('[ERROR] Error updating product:', err);
+      const errMsg = err?.response?.message || err?.message || 'Failed to update product';
+      if (err?.status === 403 || errMsg.toLowerCase().includes('permission') || errMsg.toLowerCase().includes('superuser') || errMsg.toLowerCase().includes('admin')) {
+        triggerToast('Permission Error: Superuser/Admin authentication required.');
+        alert('Permission Error: You are not authenticated as a PocketBase superuser/admin to modify this product.');
+      } else {
+        triggerToast(`Error saving product: ${errMsg}`);
+        alert(`Error saving product: ${errMsg}`);
+      }
     } finally {
       setIsSaving(false);
     }

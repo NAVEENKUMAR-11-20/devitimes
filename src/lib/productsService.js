@@ -72,23 +72,26 @@ export function mapRecord(record) {
   const isJson = imageUrl && imageUrl.toLowerCase().split('?')[0].endsWith('.json');
   const wholesalePrice = Number(record.WHOLESALE_PRICE) || 0;
   const retailPrice = Number(record.RETAIL_PRICE) || 0;
+  const isLiveVal = record.is_live !== undefined ? (String(record.is_live) === 'true' || record.is_live === true) :
+                    (record.isLive !== undefined ? (String(record.isLive) === 'true' || record.isLive === true) :
+                    (record.status !== undefined ? (record.status === 'LIVE' || record.status === 'live') : true));
   return {
     id: record.id,
-    status: record.status || (record.is_live ? 'LIVE' : 'HIDDEN'),
+    status: record.status || (isLiveVal ? 'LIVE' : 'HIDDEN'),
     pbId: record.id,                          // keep PB id separate
     collectionId: record.collectionId || '',  // add for compatibility
     collectionName: record.collectionName || '', // add for compatibility
     prodimage: record.PRODUCT_IMAGE || '',    // new schema field
     modelNumber: record.MODEL_NO !== undefined && record.MODEL_NO !== null ? String(record.MODEL_NO) : '',
     size: record.SIZE_DM !== undefined && record.SIZE_DM !== null ? String(record.SIZE_DM) : '300 × 300 MM',
-    packageNo: record.PACKAGE_NO !== undefined ? String(record.PACKAGE_NO) : '',
+    packageNo: record.PACKAGE_NO !== undefined && record.PACKAGE_NO !== null ? String(record.PACKAGE_NO) : '',
     wholesalePrice: wholesalePrice,
     retailPrice: retailPrice,
     product_type: record.PRODUCT_TYPE || '',
     salePrice: wholesalePrice, // default salePrice is wholesalePrice
     originalPrice: record.original_price !== undefined && record.original_price !== null ? Number(record.original_price) : null,
     isOnSale: record.is_on_sale !== undefined ? (String(record.is_on_sale) === 'true') : false,
-    isLive: record.is_live !== undefined ? (String(record.is_live) === 'true') : true,
+    isLive: isLiveVal,
     images: imageUrls,
     _jsonUrl: isJson ? imageUrl : null,
     _rawImageName: record.PRODUCT_IMAGE || '',    // original filename for updates
@@ -99,7 +102,7 @@ export function mapRecord(record) {
     source: 'pocketbase',
     createdAt: record.created,
     updatedAt: record.updated || '',
-    stock: record.STOCK !== undefined ? Number(record.STOCK) : 20,
+    stock: record.STOCK !== undefined && record.STOCK !== null ? Number(record.STOCK) : 20,
   };
 }
 
@@ -162,32 +165,40 @@ export async function fetchAllProducts() {
 export async function createProduct(data) {
   console.log('[PB] Saving product with data:', data);
   const formData = new FormData();
-  formData.append('MODEL_NO',        data.MODEL_NO !== undefined && data.MODEL_NO !== null ? String(data.MODEL_NO) : '');
-  formData.append('SIZE_DM',         data.SIZE_DM !== undefined && data.SIZE_DM !== null ? String(data.SIZE_DM) : '');
-  formData.append('PACKAGE_NO',      data.PACKAGE_NO !== undefined ? String(data.PACKAGE_NO) : '');
-  formData.append('WHOLESALE_PRICE', String(data.WHOLESALE_PRICE || 0));
-  formData.append('RETAIL_PRICE',    String(data.RETAIL_PRICE || 0));
-  if (data.PRODUCT_TYPE) {
-    formData.append('PRODUCT_TYPE',  data.PRODUCT_TYPE);
+  formData.append('MODEL_NO',        data.MODEL_NO !== undefined && data.MODEL_NO !== null ? String(data.MODEL_NO).trim() : '');
+  formData.append('SIZE_DM',         data.SIZE_DM !== undefined && data.SIZE_DM !== null ? String(data.SIZE_DM).trim() : '');
+  
+  if (data.PACKAGE_NO !== undefined && data.PACKAGE_NO !== null && data.PACKAGE_NO !== '') {
+    const pkgNum = Number(data.PACKAGE_NO);
+    formData.append('PACKAGE_NO', String(!isNaN(pkgNum) ? pkgNum : 0));
+  } else {
+    formData.append('PACKAGE_NO', '0');
   }
   
-  // Extra fields for compatibility with existing UI filters
-  formData.append('status',          data.status          || 'LIVE');
-  formData.append('is_live',         data.is_live !== undefined ? String(data.is_live) : 'true');
-  formData.append('isLive',          data.isLive !== undefined ? String(data.isLive) : 'true');
+  formData.append('WHOLESALE_PRICE', String(Number(data.WHOLESALE_PRICE || 0)));
+  formData.append('RETAIL_PRICE',    String(Number(data.RETAIL_PRICE || 0)));
+  if (data.PRODUCT_TYPE || data.product_type) {
+    formData.append('PRODUCT_TYPE',  data.PRODUCT_TYPE || data.product_type);
+  }
   
-  if (data.original_price  !== undefined) {
-    formData.append('original_price', data.original_price !== null ? String(data.original_price) : '');
+  const isLiveVal = data.is_live !== undefined ? (data.is_live === true || String(data.is_live) === 'true') :
+                    (data.isLive !== undefined ? (data.isLive === true || String(data.isLive) === 'true') :
+                    (data.status !== undefined ? (data.status === 'LIVE' || data.status === 'live') : true));
+  
+  formData.append('status',          isLiveVal ? 'LIVE' : 'HIDDEN');
+  formData.append('is_live',         String(isLiveVal));
+  formData.append('isLive',          String(isLiveVal));
+  
+  if (data.original_price !== undefined && data.original_price !== null && data.original_price !== '') {
+    formData.append('original_price', String(Number(data.original_price)));
   }
-  if (data.is_on_sale      !== undefined) {
-    formData.append('is_on_sale', String(data.is_on_sale));
+  if (data.is_on_sale !== undefined && data.is_on_sale !== null) {
+    formData.append('is_on_sale', String(Boolean(data.is_on_sale)));
   }
-  if (data.description     !== undefined) formData.append('description', data.description);
-  if (data.stock !== undefined) {
-    formData.append('STOCK', String(data.stock));
-  } else if (data.STOCK !== undefined) {
-    formData.append('STOCK', String(data.STOCK));
-  }
+  if (data.description !== undefined && data.description !== null) formData.append('description', data.description || '');
+  
+  const stockVal = data.stock !== undefined ? data.stock : (data.STOCK !== undefined ? data.STOCK : 20);
+  formData.append('STOCK', String(Number(stockVal) || 0));
 
   if (data.imageFiles && data.imageFiles.length > 0) {
     data.imageFiles.forEach(file => {
@@ -211,12 +222,26 @@ export async function updateProduct(pbId, data, collectionName = 'PRODUCT_DATAS'
   console.log('[PB] updateProduct called with pbId:', pbId, 'data:', data, 'collection:', collectionName);
   const formData = new FormData();
   
-  if (data.MODEL_NO !== undefined) formData.append('MODEL_NO', data.MODEL_NO !== null ? String(data.MODEL_NO) : '');
-  if (data.SIZE_DM !== undefined) formData.append('SIZE_DM', data.SIZE_DM !== null ? String(data.SIZE_DM) : '');
-  if (data.PACKAGE_NO !== undefined) formData.append('PACKAGE_NO', String(data.PACKAGE_NO));
-  if (data.WHOLESALE_PRICE !== undefined) formData.append('WHOLESALE_PRICE', String(data.WHOLESALE_PRICE));
-  if (data.RETAIL_PRICE !== undefined) formData.append('RETAIL_PRICE', String(data.RETAIL_PRICE));
-  if (data.PRODUCT_TYPE !== undefined) formData.append('PRODUCT_TYPE', data.PRODUCT_TYPE);
+  if (data.MODEL_NO !== undefined) formData.append('MODEL_NO', data.MODEL_NO !== null ? String(data.MODEL_NO).trim() : '');
+  if (data.SIZE_DM !== undefined) formData.append('SIZE_DM', data.SIZE_DM !== null ? String(data.SIZE_DM).trim() : '');
+  
+  if (data.PACKAGE_NO !== undefined && data.PACKAGE_NO !== null) {
+    if (data.PACKAGE_NO === '') {
+      formData.append('PACKAGE_NO', '0');
+    } else {
+      const pkgNum = Number(data.PACKAGE_NO);
+      formData.append('PACKAGE_NO', String(!isNaN(pkgNum) ? pkgNum : 0));
+    }
+  }
+  if (data.WHOLESALE_PRICE !== undefined && data.WHOLESALE_PRICE !== null && data.WHOLESALE_PRICE !== '') {
+    formData.append('WHOLESALE_PRICE', String(Number(data.WHOLESALE_PRICE) || 0));
+  }
+  if (data.RETAIL_PRICE !== undefined && data.RETAIL_PRICE !== null && data.RETAIL_PRICE !== '') {
+    formData.append('RETAIL_PRICE', String(Number(data.RETAIL_PRICE) || 0));
+  }
+  if (data.PRODUCT_TYPE !== undefined || data.product_type !== undefined) {
+    formData.append('PRODUCT_TYPE', data.PRODUCT_TYPE || data.product_type || '');
+  }
   
   // Handle file deletions using the minus modifier
   if (data.deletedImageNames && data.deletedImageNames.length > 0) {
@@ -237,21 +262,34 @@ export async function updateProduct(pbId, data, collectionName = 'PRODUCT_DATAS'
     formData.append('PRODUCT_IMAGE+', data.imageFile);
   }
 
-  if (data.is_live !== undefined) formData.append('is_live', String(data.is_live));
-  if (data.stock !== undefined) {
-    formData.append('STOCK', String(data.stock));
-  } else if (data.STOCK !== undefined) {
-    formData.append('STOCK', String(data.STOCK));
+  let isLiveVal = undefined;
+  if (data.is_live !== undefined) isLiveVal = (data.is_live === true || String(data.is_live) === 'true');
+  else if (data.isLive !== undefined) isLiveVal = (data.isLive === true || String(data.isLive) === 'true');
+  else if (data.live !== undefined) isLiveVal = (data.live === true || String(data.live) === 'true');
+  else if (data.active !== undefined) isLiveVal = (data.active === true || String(data.active) === 'true');
+  else if (data.hidden !== undefined) isLiveVal = !(data.hidden === true || String(data.hidden) === 'true');
+  else if (data.status !== undefined) isLiveVal = (data.status === 'LIVE' || data.status === 'live');
+
+  if (isLiveVal !== undefined) {
+    formData.append('is_live', String(isLiveVal));
+    formData.append('isLive', String(isLiveVal));
+    formData.append('status', isLiveVal ? 'LIVE' : 'HIDDEN');
+  }
+
+  if (data.stock !== undefined && data.stock !== null && data.stock !== '') {
+    formData.append('STOCK', String(Number(data.stock) || 0));
+  } else if (data.STOCK !== undefined && data.STOCK !== null && data.STOCK !== '') {
+    formData.append('STOCK', String(Number(data.STOCK) || 0));
   }
   
   // Support other fields if they exist in schema
   if (data.original_price !== undefined) {
-    formData.append('original_price', data.original_price !== null ? String(data.original_price) : '');
+    formData.append('original_price', data.original_price !== null && data.original_price !== '' ? String(Number(data.original_price)) : '');
   }
-  if (data.is_on_sale !== undefined) {
-    formData.append('is_on_sale', String(data.is_on_sale));
+  if (data.is_on_sale !== undefined && data.is_on_sale !== null) {
+    formData.append('is_on_sale', String(Boolean(data.is_on_sale)));
   }
-  if (data.description !== undefined) formData.append('description', data.description);
+  if (data.description !== undefined && data.description !== null) formData.append('description', data.description || '');
 
   try {
     const record = await pb.collection('PRODUCT_DATAS').update(pbId, formData, {

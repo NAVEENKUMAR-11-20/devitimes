@@ -191,7 +191,14 @@ const AdminAddProduct = () => {
     } catch (err) {
       console.error('[PB] createProduct error:', err);
       setShowConfirmModal(false);
-      showToast('❌ Failed to add product. Please try again.', 'error');
+      const errMsg = err?.response?.message || err?.message || 'Failed to add product.';
+      if (err?.status === 403 || errMsg.toLowerCase().includes('permission') || errMsg.toLowerCase().includes('superuser') || errMsg.toLowerCase().includes('admin')) {
+        showToast('❌ Permission Error: Superuser/Admin authentication required.', 'error');
+        alert('Permission Error: You are not authenticated as a PocketBase superuser/admin to add products.');
+      } else {
+        showToast(`❌ Add failed: ${errMsg}`, 'error');
+        alert(`Add failed: ${errMsg}`);
+      }
     } finally {
       setIsSaving(false);
     }
