@@ -343,7 +343,24 @@ app.post('/api/admin/settings', requireAdminAuth, async (req, res) => {
     } else {
       updated = await pb.collection('app_settings').create(payload);
     }
-    res.json({ success: true, record: updated });
+    res.json({ success: true, record: updated, settings: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/admin/settings', requireAdminAuth, async (req, res) => {
+  try {
+    await ensureSuperuserAuth();
+    const payload = req.body;
+    const records = await pb.collection('app_settings').getFullList();
+    let updated;
+    if (records && records.length > 0) {
+      updated = await pb.collection('app_settings').update(records[0].id, payload);
+    } else {
+      updated = await pb.collection('app_settings').create(payload);
+    }
+    res.json({ success: true, record: updated, settings: updated });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -439,6 +456,33 @@ app.delete('/api/admin/products/:id', requireAdminAuth, async (req, res) => {
 });
 
 app.patch('/api/admin/products/:id/toggle-status', requireAdminAuth, async (req, res) => {
+  try {
+    await ensureSuperuserAuth();
+    const { id } = req.params;
+    const { status, isLive } = req.body;
+    const targetStatus = status !== undefined ? status : (isLive ? 'live' : 'hidden');
+    
+    // Update multiple possible status fields to be robust
+    const payload = {
+      STATUS: targetStatus,
+      status: targetStatus,
+      isLive: targetStatus === 'live' || targetStatus === 'active',
+      is_live: targetStatus === 'live' || targetStatus === 'active',
+      live: targetStatus === 'live' || targetStatus === 'active',
+      active: targetStatus === 'live' || targetStatus === 'active',
+      hidden: targetStatus === 'hidden' || targetStatus === 'inactive',
+      isHidden: targetStatus === 'hidden' || targetStatus === 'inactive',
+      visibility: targetStatus
+    };
+
+    const updated = await pb.collection('PRODUCT_DATAS').update(id, payload, { requestKey: null });
+    res.json({ success: true, record: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/admin/products/:id/status', requireAdminAuth, async (req, res) => {
   try {
     await ensureSuperuserAuth();
     const { id } = req.params;

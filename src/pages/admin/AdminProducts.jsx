@@ -545,7 +545,7 @@ const AdminProducts = () => {
     
     try {
       console.log(`[PB] Toggling live status for product ${id} to ${targetStatusStr}`);
-      const res = await apiPatch(`/api/admin/products/${product.pbId || id}/toggle-status`, { 
+      const res = await apiPatch(`/api/admin/products/${product.pbId || id}/status`, { 
         status: targetStatus ? 'live' : 'hidden',
         isLive: targetStatus
       });
