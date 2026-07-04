@@ -36,7 +36,7 @@ export async function fetchAllUsers() {
     return records.map(mapUser);
   } catch (err) {
     console.error('[PB] fetchAllUsers error:', err);
-    throw err;
+    return [];
   }
 }
 
@@ -50,7 +50,7 @@ export async function fetchPendingRegistrations() {
     return records.map(mapRegistration);
   } catch (err) {
     console.error('[PB] fetchPendingRegistrations error:', err);
-    throw err;
+    return [];
   }
 }
 

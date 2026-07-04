@@ -173,7 +173,7 @@ export async function fetchAllProducts() {
     return records.map(mapRecord);
   } catch (err) {
     console.error('[PB] fetchAllProducts error:', err);
-    throw err;
+    return [];
   }
 }
 
