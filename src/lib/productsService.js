@@ -221,15 +221,6 @@ export async function createProduct(data) {
                     (data.isLive !== undefined ? (data.isLive === true || String(data.isLive) === 'true' || data.isLive === 1) : true)));
   
   formData.append('STATUS',          isLiveVal ? 'live' : 'hidden');
-  formData.append('is_live',         String(isLiveVal));
-  
-  if (data.original_price !== undefined && data.original_price !== null && data.original_price !== '') {
-    formData.append('original_price', String(Number(data.original_price)));
-  }
-  if (data.is_on_sale !== undefined && data.is_on_sale !== null) {
-    formData.append('is_on_sale', String(Boolean(data.is_on_sale)));
-  }
-  if (data.description !== undefined && data.description !== null) formData.append('description', data.description || '');
   
   const stockVal = data.stock !== undefined ? data.stock : (data.STOCK !== undefined ? data.STOCK : 20);
   formData.append('STOCK', String(Number(stockVal) || 0));
@@ -286,20 +277,12 @@ export async function updateProduct(pbId, data, collectionName = 'PRODUCT_DATAS'
     }
     if (isLiveVal !== undefined) {
       payload.STATUS = isLiveVal ? 'live' : 'hidden';
-      payload.is_live = Boolean(isLiveVal);
     }
     if (data.stock !== undefined && data.stock !== null && data.stock !== '') {
       payload.STOCK = Number(data.stock) || 0;
     } else if (data.STOCK !== undefined && data.STOCK !== null && data.STOCK !== '') {
       payload.STOCK = Number(data.STOCK) || 0;
     }
-    if (data.original_price !== undefined) {
-      payload.original_price = data.original_price !== null && data.original_price !== '' ? Number(data.original_price) : null;
-    }
-    if (data.is_on_sale !== undefined && data.is_on_sale !== null) {
-      payload.is_on_sale = Boolean(data.is_on_sale);
-    }
-    if (data.description !== undefined && data.description !== null) payload.description = data.description || '';
 
     try {
       const res = await apiPut(`/api/admin/products/${pbId}`, payload);
@@ -351,20 +334,12 @@ export async function updateProduct(pbId, data, collectionName = 'PRODUCT_DATAS'
   }
   if (isLiveVal !== undefined) {
     formData.append('STATUS', isLiveVal ? 'live' : 'hidden');
-    formData.append('is_live', String(isLiveVal));
   }
   if (data.stock !== undefined && data.stock !== null && data.stock !== '') {
     formData.append('STOCK', String(Number(data.stock) || 0));
   } else if (data.STOCK !== undefined && data.STOCK !== null && data.STOCK !== '') {
     formData.append('STOCK', String(Number(data.STOCK) || 0));
   }
-  if (data.original_price !== undefined) {
-    formData.append('original_price', data.original_price !== null && data.original_price !== '' ? String(Number(data.original_price)) : '');
-  }
-  if (data.is_on_sale !== undefined && data.is_on_sale !== null) {
-    formData.append('is_on_sale', String(Boolean(data.is_on_sale)));
-  }
-  if (data.description !== undefined && data.description !== null) formData.append('description', data.description || '');
 
   try {
     const res = await apiPut(`/api/admin/products/${pbId}`, formData);

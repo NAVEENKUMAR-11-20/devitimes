@@ -537,15 +537,17 @@ const AdminProducts = () => {
 
   // Instant status toggle — wait for real PocketBase response before updating UI/showing toast
   const handleToggleLive = async (id, currentStatus) => {
-    const product = products.find(p => p.id === id);
+    const product = products.find(p => p.id === id || p.pbId === id);
     if (!product) return;
     
     const targetStatus = !currentStatus;
     const targetStatusStr = targetStatus ? 'LIVE' : 'HIDDEN';
+    const targetId = product.pbId || (typeof product.id === 'string' && product.id.length >= 10 ? product.id : id);
     
     try {
-      console.log(`[PB] Toggling live status for product ${id} to ${targetStatusStr}`);
-      const res = await apiPatch(`/api/admin/products/${product.pbId || id}/status`, { 
+      console.log(`[PB] Toggling live status for product ${targetId} to ${targetStatusStr}`);
+      const res = await apiPatch(`/api/admin/products/${targetId}/status`, { 
+        STATUS: targetStatus ? 'live' : 'hidden',
         status: targetStatus ? 'live' : 'hidden',
         isLive: targetStatus
       });
@@ -553,12 +555,13 @@ const AdminProducts = () => {
       
       console.log('[PB] Toggle response:', updatedRecord);
       
-      if (updatedRecord && updatedRecord.isLive !== targetStatus) {
-        throw new Error(`PocketBase did not update status to ${targetStatusStr}. Please verify that the field 'STATUS' exists in the PRODUCT_DATAS collection schema in PocketBase.`);
+      const isLiveResult = String(updatedRecord.STATUS || updatedRecord.status || '').toLowerCase() === 'live' || updatedRecord.isLive === true;
+      if (updatedRecord && (updatedRecord.STATUS !== undefined || updatedRecord.status !== undefined || updatedRecord.isLive !== undefined) && isLiveResult !== targetStatus) {
+        throw new Error(`PocketBase did not update status to ${targetStatusStr}.`);
       }
 
       // Update local state immediately after confirmed PB success
-      setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updatedRecord, isLive: targetStatus, status: targetStatusStr } : p));
+      setProducts(prev => prev.map(p => (p.id === id || p.pbId === targetId) ? { ...p, ...updatedRecord, isLive: targetStatus, status: targetStatusStr, STATUS: targetStatus ? 'live' : 'hidden' } : p));
       triggerToast(`Product set to ${targetStatusStr}`);
       await refreshProducts(true);
     } catch (err) {
@@ -778,7 +781,7 @@ const AdminProducts = () => {
     setIsSaving(true);
     try {
       await ensurePbAuth();
-      const pbId = editForm.pbId || editForm.id;
+      const pbId = editForm.pbId || (typeof editForm.id === 'string' && editForm.id.length >= 10 ? editForm.id : '') || editingProduct?.pbId || editingProduct?.id;
       const newStockVal = Number(editForm.stock !== undefined ? editForm.stock : 20);
       
       const payload = {
@@ -787,7 +790,6 @@ const AdminProducts = () => {
         WHOLESALE_PRICE: Number(wholesaleP || 0),
         RETAIL_PRICE:    Number(retailP || 0),
         STATUS:          editForm.isLive ? 'live' : 'hidden',
-        is_live:         Boolean(editForm.isLive),
         STOCK:           Number(newStockVal || 0),
       };
 
@@ -796,15 +798,6 @@ const AdminProducts = () => {
       }
       if (editForm.product_type) {
         payload.PRODUCT_TYPE = editForm.product_type;
-      }
-      if (editForm.originalPrice !== undefined && editForm.originalPrice !== null && editForm.originalPrice !== '') {
-        payload.original_price = Number(editForm.originalPrice);
-      }
-      if (editForm.isOnSale !== undefined && editForm.isOnSale !== null) {
-        payload.is_on_sale = Boolean(editForm.isOnSale);
-      }
-      if (editForm.description !== undefined && editForm.description !== null) {
-        payload.description = editForm.description || '';
       }
 
       // 1. Identify raw filenames of original images in PocketBase

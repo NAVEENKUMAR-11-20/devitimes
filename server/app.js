@@ -397,13 +397,69 @@ app.get('/api/admin/products', requireAdminAuth, async (req, res) => {
   }
 });
 
+function sanitizeProductPayload(body) {
+  const clean = {};
+  if (body.MODEL_NO !== undefined) clean.MODEL_NO = body.MODEL_NO !== null ? String(body.MODEL_NO).trim() : '';
+  else if (body.modelNumber !== undefined) clean.MODEL_NO = body.modelNumber !== null ? String(body.modelNumber).trim() : '';
+
+  if (body.SIZE_DM !== undefined) clean.SIZE_DM = body.SIZE_DM !== null ? String(body.SIZE_DM).trim() : '';
+  else if (body.size !== undefined) clean.SIZE_DM = body.size !== null ? String(body.size).trim() : '';
+
+  if (body.PACKAGE_NO !== undefined && body.PACKAGE_NO !== null && body.PACKAGE_NO !== '') {
+    clean.PACKAGE_NO = Number(body.PACKAGE_NO) || 0;
+  } else if (body.packageNo !== undefined && body.packageNo !== null && body.packageNo !== '') {
+    clean.PACKAGE_NO = Number(body.packageNo) || 0;
+  } else if (body.PACKAGE_NO === '' || body.packageNo === '') {
+    clean.PACKAGE_NO = 0;
+  }
+
+  if (body.WHOLESALE_PRICE !== undefined && body.WHOLESALE_PRICE !== null && body.WHOLESALE_PRICE !== '') {
+    clean.WHOLESALE_PRICE = Number(body.WHOLESALE_PRICE) || 0;
+  } else if (body.wholesalePrice !== undefined && body.wholesalePrice !== null && body.wholesalePrice !== '') {
+    clean.WHOLESALE_PRICE = Number(body.wholesalePrice) || 0;
+  }
+
+  if (body.RETAIL_PRICE !== undefined && body.RETAIL_PRICE !== null && body.RETAIL_PRICE !== '') {
+    clean.RETAIL_PRICE = Number(body.RETAIL_PRICE) || 0;
+  } else if (body.retailPrice !== undefined && body.retailPrice !== null && body.retailPrice !== '') {
+    clean.RETAIL_PRICE = Number(body.retailPrice) || 0;
+  }
+
+  if (body.PRODUCT_TYPE !== undefined || body.product_type !== undefined) {
+    clean.PRODUCT_TYPE = body.PRODUCT_TYPE || body.product_type || '';
+  }
+
+  if (body.STOCK !== undefined && body.STOCK !== null && body.STOCK !== '') {
+    clean.STOCK = Number(body.STOCK) || 0;
+  } else if (body.stock !== undefined && body.stock !== null && body.stock !== '') {
+    clean.STOCK = Number(body.stock) || 0;
+  }
+
+  let statusVal = body.STATUS;
+  if (statusVal === undefined) statusVal = body.status;
+  if (statusVal === undefined) statusVal = body.isLive !== undefined ? (body.isLive === 'true' || body.isLive === true ? 'live' : 'hidden') : undefined;
+  if (statusVal !== undefined) {
+    const str = String(statusVal).toLowerCase();
+    clean.STATUS = (str === 'live' || str === 'active' || str === 'true' || str === '1') ? 'live' : 'hidden';
+  }
+
+  for (const key of Object.keys(body)) {
+    if (key.startsWith('PRODUCT_IMAGE-') || key.startsWith('PRODUCT_IMAGE+')) {
+      clean[key] = body[key];
+    }
+  }
+
+  return clean;
+}
+
 app.post('/api/admin/products', requireAdminAuth, upload.any(), async (req, res) => {
   try {
     await ensureSuperuserAuth();
-    let payload = req.body;
+    const cleanBody = sanitizeProductPayload(req.body);
+    let payload = cleanBody;
     if (req.files && req.files.length > 0) {
       const formData = new FormData();
-      for (const [key, val] of Object.entries(req.body)) {
+      for (const [key, val] of Object.entries(cleanBody)) {
         formData.append(key, val);
       }
       for (const file of req.files) {
@@ -424,10 +480,11 @@ app.put('/api/admin/products/:id', requireAdminAuth, upload.any(), async (req, r
   try {
     await ensureSuperuserAuth();
     const { id } = req.params;
-    let payload = req.body;
+    const cleanBody = sanitizeProductPayload(req.body);
+    let payload = cleanBody;
     if (req.files && req.files.length > 0) {
       const formData = new FormData();
-      for (const [key, val] of Object.entries(req.body)) {
+      for (const [key, val] of Object.entries(cleanBody)) {
         formData.append(key, val);
       }
       for (const file of req.files) {
@@ -459,21 +516,11 @@ app.patch('/api/admin/products/:id/toggle-status', requireAdminAuth, async (req,
   try {
     await ensureSuperuserAuth();
     const { id } = req.params;
-    const { status, isLive } = req.body;
-    const targetStatus = status !== undefined ? status : (isLive ? 'live' : 'hidden');
-    
-    // Update multiple possible status fields to be robust
-    const payload = {
-      STATUS: targetStatus,
-      status: targetStatus,
-      isLive: targetStatus === 'live' || targetStatus === 'active',
-      is_live: targetStatus === 'live' || targetStatus === 'active',
-      live: targetStatus === 'live' || targetStatus === 'active',
-      active: targetStatus === 'live' || targetStatus === 'active',
-      hidden: targetStatus === 'hidden' || targetStatus === 'inactive',
-      isHidden: targetStatus === 'hidden' || targetStatus === 'inactive',
-      visibility: targetStatus
-    };
+    const { status, isLive, STATUS } = req.body;
+    let val = STATUS !== undefined ? STATUS : (status !== undefined ? status : (isLive !== undefined ? isLive : 'live'));
+    const str = String(val).toLowerCase();
+    const targetStatus = (str === 'live' || str === 'active' || str === 'true' || str === '1') ? 'live' : 'hidden';
+    const payload = { STATUS: targetStatus };
 
     const updated = await pb.collection('PRODUCT_DATAS').update(id, payload, { requestKey: null });
     res.json({ success: true, record: updated });
@@ -486,21 +533,11 @@ app.patch('/api/admin/products/:id/status', requireAdminAuth, async (req, res) =
   try {
     await ensureSuperuserAuth();
     const { id } = req.params;
-    const { status, isLive } = req.body;
-    const targetStatus = status !== undefined ? status : (isLive ? 'live' : 'hidden');
-    
-    // Update multiple possible status fields to be robust
-    const payload = {
-      STATUS: targetStatus,
-      status: targetStatus,
-      isLive: targetStatus === 'live' || targetStatus === 'active',
-      is_live: targetStatus === 'live' || targetStatus === 'active',
-      live: targetStatus === 'live' || targetStatus === 'active',
-      active: targetStatus === 'live' || targetStatus === 'active',
-      hidden: targetStatus === 'hidden' || targetStatus === 'inactive',
-      isHidden: targetStatus === 'hidden' || targetStatus === 'inactive',
-      visibility: targetStatus
-    };
+    const { status, isLive, STATUS } = req.body;
+    let val = STATUS !== undefined ? STATUS : (status !== undefined ? status : (isLive !== undefined ? isLive : 'live'));
+    const str = String(val).toLowerCase();
+    const targetStatus = (str === 'live' || str === 'active' || str === 'true' || str === '1') ? 'live' : 'hidden';
+    const payload = { STATUS: targetStatus };
 
     const updated = await pb.collection('PRODUCT_DATAS').update(id, payload, { requestKey: null });
     res.json({ success: true, record: updated });
