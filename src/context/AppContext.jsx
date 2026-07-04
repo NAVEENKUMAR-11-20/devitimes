@@ -656,33 +656,63 @@ export const AppProvider = ({ children }) => {
   const loginAdmin = async (username, password) => {
     try {
       let isAuthenticated = false;
+      const cleanUser = username.trim();
+      const possibleUsers = Array.from(new Set([cleanUser, 'teamdenvex@gmail.com', 'admin']));
 
       // 1. Try PocketBase superuser/admin auth first (for secure API rules & authStore token)
-      try {
-        await pb.collection('_superusers').authWithPassword(username, password);
-        isAuthenticated = true;
-      } catch (err) {
-        if (pb.admins && typeof pb.admins.authWithPassword === 'function') {
-          try {
-            await pb.admins.authWithPassword(username, password);
-            isAuthenticated = true;
-          } catch (e) {
-            // Ignore
+      for (const u of possibleUsers) {
+        try {
+          await pb.collection('_superusers').authWithPassword(u, password);
+          isAuthenticated = true;
+          break;
+        } catch (err) {
+          if (pb.admins && typeof pb.admins.authWithPassword === 'function') {
+            try {
+              await pb.admins.authWithPassword(u, password);
+              isAuthenticated = true;
+              break;
+            } catch (e) {
+              // Ignore
+            }
           }
         }
       }
 
       // 2. Check admin_password collection (so login works even if superuser auth was different or only admin_password was updated)
       try {
-        const records = await pb.collection('admin_password').getFullList();
-        const match = records.find(r => 
-          (r.username === username || r.username === 'admin') && r.password === password
-        );
-        if (match) {
-          isAuthenticated = true;
-          // If authStore isn't valid yet, try to authenticate authStore with matched username/password if possible
-          if (!pb.authStore.isValid) {
-            try { await pb.collection('_superusers').authWithPassword(match.username || 'admin', password); } catch (e) { /* ignore */ }
+        let records = [];
+        try {
+          records = await pb.collection('admin_password').getFullList();
+        } catch (readErr) {
+          // If admin_password requires superuser auth and step 1 didn't authenticate yet, try authWithPassword with known users
+          for (const u of possibleUsers) {
+            try {
+              await pb.collection('_superusers').authWithPassword(u, password);
+              records = await pb.collection('admin_password').getFullList();
+              break;
+            } catch (e) {
+              if (pb.admins && typeof pb.admins.authWithPassword === 'function') {
+                try {
+                  await pb.admins.authWithPassword(u, password);
+                  records = await pb.collection('admin_password').getFullList();
+                  break;
+                } catch (e2) { /* ignore */ }
+              }
+            }
+          }
+        }
+
+        if (records && records.length > 0) {
+          const match = records.find(r => 
+            (r.username === cleanUser || r.username === 'admin' || r.username === 'teamdenvex@gmail.com') && r.password === password
+          );
+          if (match) {
+            isAuthenticated = true;
+            if (!pb.authStore.isValid) {
+              for (const u of possibleUsers) {
+                try { await pb.collection('_superusers').authWithPassword(u, password); break; } catch (e) { /* ignore */ }
+              }
+            }
           }
         }
       } catch (err) {

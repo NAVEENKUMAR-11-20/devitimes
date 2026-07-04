@@ -435,22 +435,26 @@ const AdminSettings = () => {
     }
 
     try {
+      const possibleUsers = ['teamdenvex@gmail.com', 'admin'];
+
       // 1. Fetch existing records from admin_password collection
       let records = [];
       try {
         records = await pb.collection('admin_password').getFullList();
       } catch (err) {
         // If API rules require Superuser auth and authStore expired/invalid, try re-authenticating as superuser
-        try {
-          await pb.collection('_superusers').authWithPassword('admin', currentPassword);
-          records = await pb.collection('admin_password').getFullList();
-        } catch (authErr) {
-          if (pb.admins && typeof pb.admins.authWithPassword === 'function') {
-            try {
-              await pb.admins.authWithPassword('admin', currentPassword);
-              records = await pb.collection('admin_password').getFullList();
-            } catch (e) {
-              // Ignore
+        for (const u of possibleUsers) {
+          try {
+            await pb.collection('_superusers').authWithPassword(u, currentPassword);
+            records = await pb.collection('admin_password').getFullList();
+            break;
+          } catch (authErr) {
+            if (pb.admins && typeof pb.admins.authWithPassword === 'function') {
+              try {
+                await pb.admins.authWithPassword(u, currentPassword);
+                records = await pb.collection('admin_password').getFullList();
+                break;
+              } catch (e) { /* ignore */ }
             }
           }
         }
@@ -461,7 +465,7 @@ const AdminSettings = () => {
       }
 
       // Find the existing admin record
-      const adminRecord = records.find(r => r.username === 'admin' || r.password === currentPassword) || records[0];
+      const adminRecord = records.find(r => r.username === 'admin' || r.username === 'teamdenvex@gmail.com' || r.password === currentPassword) || records[0];
 
       // 2. Validate current password matches backend password
       if (adminRecord.password !== currentPassword) {
@@ -475,34 +479,49 @@ const AdminSettings = () => {
         });
       } catch (updateErr) {
         // If update failed due to permissions, try authenticating as superuser first
-        try {
-          await pb.collection('_superusers').authWithPassword('admin', currentPassword);
-          await pb.collection('admin_password').update(adminRecord.id, {
-            password: newPassword.trim()
-          });
-        } catch (authErr) {
-          if (pb.admins && typeof pb.admins.authWithPassword === 'function') {
-            await pb.admins.authWithPassword('admin', currentPassword);
+        for (const u of possibleUsers) {
+          try {
+            await pb.collection('_superusers').authWithPassword(u, currentPassword);
             await pb.collection('admin_password').update(adminRecord.id, {
               password: newPassword.trim()
             });
-          } else {
-            throw updateErr;
+            break;
+          } catch (authErr) {
+            if (pb.admins && typeof pb.admins.authWithPassword === 'function') {
+              try {
+                await pb.admins.authWithPassword(u, currentPassword);
+                await pb.collection('admin_password').update(adminRecord.id, {
+                  password: newPassword.trim()
+                });
+                break;
+              } catch (e) { /* ignore */ }
+            }
           }
         }
       }
 
-      // Also attempt to update superuser password if authStore is authenticated as superuser, to keep both in sync
-      const adminId = pb.authStore.model?.id || pb.authStore.record?.id;
-      if (adminId && (pb.authStore.isSuperuser || pb.authStore.isAdmin || pb.authStore.model?.collectionName === '_superusers')) {
+      // Also attempt to update superuser password in _superusers to keep both in sync
+      let superId = pb.authStore.model?.id || pb.authStore.record?.id;
+      if (!superId || (!pb.authStore.isSuperuser && !pb.authStore.isAdmin && pb.authStore.model?.collectionName !== '_superusers')) {
+        for (const u of possibleUsers) {
+          try { await pb.collection('_superusers').authWithPassword(u, currentPassword); superId = pb.authStore.model?.id || pb.authStore.record?.id; break; } catch (e) { /* ignore */ }
+        }
+      }
+
+      if (superId) {
         try {
-          await pb.collection('_superusers').update(adminId, {
-            oldPassword: currentPassword,
+          await pb.collection('_superusers').update(superId, {
             password: newPassword.trim(),
             passwordConfirm: confirmPassword.trim()
           });
-        } catch (e) {
-          // Ignore superuser sync error if admin_password collection update succeeded
+        } catch (e1) {
+          try {
+            await pb.collection('_superusers').update(superId, {
+              oldPassword: currentPassword,
+              password: newPassword.trim(),
+              passwordConfirm: confirmPassword.trim()
+            });
+          } catch (e2) { /* ignore */ }
         }
       }
 
