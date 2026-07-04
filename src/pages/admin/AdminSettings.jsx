@@ -406,7 +406,7 @@ const AdminSettings = () => {
     }
 
     try {
-      const records = await pb.collection('admin_password').getFullList();
+      const records = await pb.collection('admin_password').getFullList({ requestKey: null, _: Date.now() });
       if (!records || records.length === 0) {
         throw new Error('No admin password record found.');
       }

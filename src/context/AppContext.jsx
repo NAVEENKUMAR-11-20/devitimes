@@ -433,7 +433,7 @@ export const AppProvider = ({ children }) => {
 
       // Check if it is a retail user
       try {
-        const retailRecords = await pb.collection('retail_users').getFullList({ requestKey: null });
+        const retailRecords = await pb.collection('retail_users').getFullList({ requestKey: null, _: Date.now() });
         const match = retailRecords.find(r => r.username === trimmedId && r.password === trimmedPass);
         if (match) {
           if (!match.active) {
@@ -457,7 +457,9 @@ export const AppProvider = ({ children }) => {
 
       // 1. Search in PocketBase User collection
       const records = await pb.collection('User').getFullList({
-        filter: `User_ID = "${trimmedId}"`
+        filter: `User_ID = "${trimmedId}"`,
+        requestKey: null,
+        _: Date.now()
       });
 
       if (records.length > 0) {
@@ -517,7 +519,7 @@ export const AppProvider = ({ children }) => {
 
   const loginRetailUser = async (username, password) => {
     try {
-      const records = await pb.collection('retail_users').getFullList({ requestKey: null });
+      const records = await pb.collection('retail_users').getFullList({ requestKey: null, _: Date.now() });
       const matchedUser = records.find(r => r.username === username.trim());
 
       if (matchedUser) {
@@ -674,7 +676,7 @@ export const AppProvider = ({ children }) => {
 
       // 2. Check admin_password collection
       try {
-        let records = await pb.collection('admin_password').getFullList({ requestKey: null });
+        let records = await pb.collection('admin_password').getFullList({ requestKey: null, _: Date.now() });
 
         if (records && records.length > 0) {
           const match = records.find(r =>
