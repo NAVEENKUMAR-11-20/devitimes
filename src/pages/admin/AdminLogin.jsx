@@ -8,6 +8,7 @@ const AdminLogin = () => {
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
 
   // If already authenticated, bypass login gate
@@ -73,13 +74,24 @@ const AdminLogin = () => {
           {/* Password */}
           <div className="form-group">
             <label className="form-label font-body">PASSWORD</label>
-            <input 
-              type="password" 
-              className="form-input" 
-              placeholder="••••••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+            <div className="password-wrapper">
+              <input 
+                type={showPassword ? "text" : "password"} 
+                className="form-input" 
+                placeholder="••••••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <button
+                type="button"
+                className="password-toggle"
+                onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                title={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? "🙈" : "👁️"}
+              </button>
+            </div>
           </div>
 
           <button type="submit" className="btn-primary full-width-btn admin-submit-btn">
@@ -171,6 +183,37 @@ const AdminLogin = () => {
 
         .admin-form .form-input:focus {
           border-color: var(--accent-blue);
+        }
+
+        .password-wrapper {
+          position: relative;
+          display: flex;
+          align-items: center;
+        }
+
+        .password-wrapper .form-input {
+          padding-right: 44px;
+          width: 100%;
+        }
+
+        .password-toggle {
+          position: absolute;
+          right: 12px;
+          background: none;
+          border: none;
+          cursor: pointer;
+          font-size: 16px;
+          color: #94A3B8;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0;
+          transition: transform 0.2s ease, opacity 0.2s ease;
+        }
+
+        .password-toggle:hover {
+          opacity: 0.8;
+          transform: scale(1.15);
         }
 
         .admin-submit-btn {
