@@ -2,8 +2,8 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { fetchAllProducts, mapRecord } from '../lib/productsService';
 import { fetchAllUsers, fetchPendingRegistrations, createRegistration as pbCreateRegistration, deleteRegistration as pbDeleteRegistration, updateRegistrationStatus as pbUpdateRegistrationStatus, createUser as pbCreateUser, deleteUser as pbDeleteUser } from '../lib/usersService';
 
-import { apiGet, apiPost } from '../lib/apiClient';
-
+import { apiGet, apiPost, apiPut } from '../lib/apiClient';
+import pb from '../lib/pocketbase';
 const AppContext = createContext();
 
 // Default admin settings

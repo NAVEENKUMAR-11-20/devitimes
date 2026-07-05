@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import pb from '../lib/pocketbase';
 import { formatOrderId } from '../lib/usersService';
+import { apiGet } from '../lib/apiClient';
 import ClockSvg from '../components/ClockSvg';
 
 const History = () => {
@@ -460,7 +461,7 @@ const History = () => {
       <div className="container history-main-container animate-fade-in">
         
         {/* === DESKTOP VIEW === */}
-        <div className="desktop-history-view">
+        <div className="desktop-history-view hide-mobile">
           <header className="history-header">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '16px' }}>
             <div>
@@ -688,7 +689,7 @@ const History = () => {
         </div> {/* End of desktop-history-view */}
 
         {/* === MOBILE VIEW === */}
-        <div className="mobile-history-view">
+        <div className="mobile-history-view show-mobile-only">
           <div className="mobile-header">
             <h1 className="font-heading mobile-title">Order History</h1>
             <p className="font-body mobile-subtitle">Track and manage your wholesale orders</p>
