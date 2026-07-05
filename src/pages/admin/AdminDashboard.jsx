@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
-import pb from '../../lib/pocketbase';
+import { apiGet } from '../../lib/apiClient';
 
 const AdminDashboard = () => {
   const {
@@ -29,40 +29,36 @@ const AdminDashboard = () => {
         setIsBackgroundRefreshing(true);
       }
       setErrorDetails(null);
+      
+      // Fetch directly from the proxy backend as requested
+      const dashboardData = await apiGet('/api/admin/dashboard');
+      
+      // We still call refreshProducts and refreshUsers to ensure global state is hydrated
       await Promise.all([
         refreshProducts(),
         refreshUsers()
       ]);
       
-      // Also log successful auth state to console as requested
-      console.log('--- POCKETBASE SUCCESS ---');
-      console.log('PB URL:', pb.baseUrl);
-      console.log('Auth Valid:', pb.authStore.isValid);
-      console.log('Auth Model:', pb.authStore.model ? pb.authStore.model.id : 'None');
+      console.log('--- API AUTH SUCCESS ---');
+      console.log('Dashboard Data Loaded:', dashboardData ? 'Yes' : 'No');
       console.log('--------------------------');
     } catch (err) {
-      console.error('[PB] loadData error:', err);
+      console.error('[API] loadData error:', err);
       
       const details = {
         message: err.message,
         status: err.status || 'Network Error / 0',
         url: err.url || 'N/A',
-        data: err.data ? JSON.stringify(err.data) : 'N/A',
-        pbUrl: pb.baseUrl,
-        isAuthValid: pb.authStore.isValid,
-        authModel: pb.authStore.model ? JSON.stringify(pb.authStore.model) : 'None'
+        data: err.data ? JSON.stringify(err.data) : 'N/A'
       };
       
-      console.error('--- POCKETBASE ERROR DETAILS ---');
-      console.error('PB URL:', details.pbUrl);
-      console.error('Auth Valid:', details.isAuthValid);
-      console.error('Auth Model:', details.authModel);
+      console.error('--- API ERROR DETAILS ---');
       console.error('HTTP Status:', details.status);
       console.error('Request URL:', details.url);
       console.error('Error Message:', details.message);
-      console.error('Error Data:', details.data);
-      console.error('--------------------------------');
-
+      console.error('Response Data:', details.data);
+      console.error('--------------------------');
+      
       setErrorDetails(details);
     } finally {
       setLoading(false);

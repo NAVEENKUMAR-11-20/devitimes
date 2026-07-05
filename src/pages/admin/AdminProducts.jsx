@@ -126,21 +126,7 @@ const adminGalleriesCache = {};
 const AdminProducts = () => {
   const { products: contextProducts, refreshProducts, settings, updateSettings, saveSettingsToPB, checkAndTriggerLowStockAlert } = useApp();
 
-  const ensurePbAuth = async () => {
-    // Clear regular user session to prevent API rules policy mismatch on public collections
-    const isPbSuperuserOrAdmin = pb.authStore.isValid && (
-      pb.authStore.isAdmin ||
-      pb.authStore.isSuperuser ||
-      pb.authStore.model?.collectionName === '_superusers' ||
-      pb.authStore.record?.collectionName === '_superusers' ||
-      pb.authStore.model?.collectionName === 'admins' ||
-      pb.authStore.record?.collectionName === 'admins'
-    );
-    if (pb.authStore.isValid && !isPbSuperuserOrAdmin) {
-      console.log('[PB] Clearing regular user session from authStore for admin operations');
-      pb.authStore.clear();
-    }
-  };
+  // PocketBase SDK check removed as admin auth goes through API
   // ── PocketBase state ──────────────────────────────────────────────────────
   const [products, setProducts]   = useState([]);
   const [pbLoading, setPbLoading] = useState(false);
@@ -454,7 +440,7 @@ const AdminProducts = () => {
     setBulkProgress({ current: 0, total: itemsToDelete.length, type: 'Deleting' });
     triggerToast('Bulk delete started... Please wait.');
     
-    await ensurePbAuth();
+    // PocketBase auth check removed
 
     try {
       const failed = await processInBatches(
@@ -686,7 +672,7 @@ const AdminProducts = () => {
     const apiStart = performance.now();
     (async () => {
       try {
-        await ensurePbAuth();
+        // PocketBase auth check removed
         const colName = 'PRODUCT_DATAS';
         const latestProduct = await fetchProductById(product.pbId || product.id, colName);
         const apiEnd = performance.now();
@@ -777,7 +763,7 @@ const AdminProducts = () => {
 
     setIsSaving(true);
     try {
-      await ensurePbAuth();
+      // PocketBase auth check removed
       const pbId = editForm.pbId || (typeof editForm.id === 'string' && editForm.id.length >= 10 ? editForm.id : '') || editingProduct?.pbId || editingProduct?.id;
       const newStockVal = Number(editForm.stock !== undefined ? editForm.stock : 20);
       
@@ -959,7 +945,7 @@ const AdminProducts = () => {
 
     try {
       console.log(`[PREFETCH] Prefetching details for: ${product.modelNumber}`);
-      await ensurePbAuth();
+      // PocketBase auth check removed
       const colName = 'PRODUCT_DATAS';
       const latestProduct = await fetchProductById(product.pbId || product.id, colName);
       
@@ -992,7 +978,7 @@ const AdminProducts = () => {
         if (adminGalleriesCache[prod.id]) continue; // already cached
         
         try {
-          await ensurePbAuth();
+          // PocketBase auth check removed
           const colName = 'PRODUCT_DATAS';
           const latestProduct = await fetchProductById(prod.pbId || prod.id, colName);
           
@@ -1045,7 +1031,7 @@ const AdminProducts = () => {
       )}
       {!pbLoading && pbError && (
         <div style={{ padding: '16px', background: '#FEF2F2', color: '#B91C1C', borderRadius: '4px', marginBottom: '16px' }}>
-          ⚠️ {pbError} — Make sure PocketBase is running on {import.meta.env.VITE_API_URL || import.meta.env.VITE_POCKETBASE_URL || 'https://api.devitimes.in'}
+          ⚠️ {pbError}
         </div>
       )}
       

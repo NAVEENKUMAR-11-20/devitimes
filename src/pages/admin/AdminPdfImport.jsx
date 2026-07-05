@@ -634,7 +634,7 @@ const AdminPdfImport = () => {
       }
     } catch (err) {
       console.error('[PB] handleSaveSingle error:', err);
-      alert(`Failed to save product to PocketBase. Make sure PocketBase is running on ${import.meta.env.VITE_API_URL || import.meta.env.VITE_POCKETBASE_URL || 'https://api.devitimes.in'}`);
+      alert(`Failed to save product to the backend. Please try again.`);
     }
   };
 

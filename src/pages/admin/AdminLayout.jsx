@@ -1,24 +1,9 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
-import pb from '../../lib/pocketbase';
-
 const AdminLayout = () => {
   const { isAdminAuthenticated, logoutAdmin, settings, updateSettings, saveSettingsToPB, products } = useApp();
-
-  // Clear any regular wholesale user session synchronously to prevent API rules policy mismatch in child routes
-  const isPbSuperuserOrAdmin = pb.authStore.isValid && (
-    pb.authStore.isAdmin ||
-    pb.authStore.isSuperuser ||
-    pb.authStore.model?.collectionName === '_superusers' ||
-    pb.authStore.record?.collectionName === '_superusers' ||
-    pb.authStore.model?.collectionName === 'admins' ||
-    pb.authStore.record?.collectionName === 'admins'
-  );
-  if (pb.authStore.isValid && !isPbSuperuserOrAdmin) {
-    console.log('[AdminLayout] Synchronously clearing regular user session');
-    pb.authStore.clear();
-  }
+  // Removed PocketBase SDK checking because Admin auth now goes through the Express API
 
   const navigate = useNavigate();
   const location = useLocation();
