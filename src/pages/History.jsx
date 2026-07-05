@@ -26,7 +26,7 @@ const History = () => {
   const availableYears = useMemo(() => {
     const years = new Set();
     orders.forEach(o => {
-      const orderDate = new Date(o.timestamp);
+      const orderDate = new Date(o._rawCreated);
       if (!isNaN(orderDate.getTime())) {
         years.add(orderDate.getFullYear().toString());
       }
@@ -50,7 +50,7 @@ const History = () => {
       }
 
       // Otherwise, filter by time period
-      const orderDate = new Date(o.timestamp);
+      const orderDate = new Date(o._rawCreated);
       if (isNaN(orderDate.getTime())) return true;
       
       const diffMs = now - orderDate;
