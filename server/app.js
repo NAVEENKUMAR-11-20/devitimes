@@ -130,13 +130,43 @@ app.post('/api/retail-login', async (req, res) => {
   try {
     await ensureSuperuserAuth();
     const { username, password } = req.body;
-    const records = await pb.collection('retail_users').getFullList();
-    const match = records.find(r => r.username === username && r.password === password);
-    if (match) {
-      res.json({ success: true, user: match });
-    } else {
-      res.status(401).json({ error: 'Invalid retail credentials' });
+    const records = await pb.collection('retail_users').getFullList({
+      filter: `username = "${username}"`,
+      requestKey: null
+    });
+    if (records.length > 0 && String(records[0].password).trim() === String(password).trim()) {
+      return res.json({ success: true, user: records[0] });
     }
+    return res.status(401).json({ success: false, message: 'Invalid credentials' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/wholesale-login', async (req, res) => {
+  try {
+    await ensureSuperuserAuth();
+    const { username, password } = req.body;
+    const records = await pb.collection('User').getFullList({
+      filter: `User_ID = "${username}"`,
+      requestKey: null
+    });
+    
+    if (records.length === 0) {
+      return res.status(401).json({ error: 'Invalid User ID or Password.' });
+    }
+    
+    const matchedUser = records[0];
+    if (String(matchedUser.password).trim() !== String(password).trim()) {
+      return res.status(401).json({ error: 'Invalid User ID or Password.' });
+    }
+    
+    const isSuspended = matchedUser.Full_Name && matchedUser.Full_Name.endsWith(' [SUSPENDED]');
+    if (isSuspended) {
+      return res.status(403).json({ error: 'Your account is suspended. Please contact admin.' });
+    }
+    
+    res.json({ success: true, user: matchedUser });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -192,6 +222,117 @@ app.post('/api/orders/decrement-stock', async (req, res) => {
       }
     }
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Public endpoint for fetching orders by user
+app.get('/api/orders/user/:id', async (req, res) => {
+  try {
+    await ensureSuperuserAuth();
+    const { id } = req.params;
+    const records = await pb.collection('orders').getFullList({
+      filter: `User = "${id}"`,
+      sort: '-created'
+    });
+    res.json({ success: true, records });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Public endpoint for placing an order
+app.post('/api/orders', async (req, res) => {
+  try {
+    await ensureSuperuserAuth();
+    const created = await pb.collection('orders').create(req.body);
+    res.json({ success: true, record: created });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/get-or-create-registration', async (req, res) => {
+  try {
+    await ensureSuperuserAuth();
+    const { name, mobile } = req.body;
+    const cleanName = String(name || '').trim();
+    const cleanMobile = String(mobile || '').trim();
+
+    if (!cleanName && !cleanMobile) return res.json({ id: '' });
+
+    // 1. Try to find approved registration record
+    let filterStr = '';
+    if (cleanName && cleanMobile) {
+      filterStr = `status = "approved" && (user_name = "${cleanName}" || mobile_no = "${cleanMobile}")`;
+    } else if (cleanName) {
+      filterStr = `status = "approved" && user_name = "${cleanName}"`;
+    } else if (cleanMobile) {
+      filterStr = `status = "approved" && mobile_no = "${cleanMobile}"`;
+    }
+
+    if (filterStr) {
+      const records = await pb.collection('registered_users').getFullList({ filter: filterStr });
+      if (records.length > 0) {
+        return res.json({ id: records[0].id });
+      }
+    }
+
+    // 2. Try to find any registration record matching name or mobile
+    filterStr = '';
+    if (cleanName && cleanMobile) {
+      filterStr = `user_name = "${cleanName}" || mobile_no = "${cleanMobile}"`;
+    } else if (cleanName) {
+      filterStr = `user_name = "${cleanName}"`;
+    } else if (cleanMobile) {
+      filterStr = `mobile_no = "${cleanMobile}"`;
+    }
+
+    if (filterStr) {
+      const records = await pb.collection('registered_users').getFullList({ filter: filterStr });
+      if (records.length > 0) {
+        const reg = records[0];
+        if (reg.status !== 'approved') {
+          await pb.collection('registered_users').update(reg.id, { status: 'approved' });
+        }
+        return res.json({ id: reg.id });
+      }
+    }
+
+    // 3. Create on the fly if not found
+    if (cleanName || cleanMobile) {
+      const record = await pb.collection('registered_users').create({
+        user_name: cleanName || 'Wholesale User',
+        mobile_no: cleanMobile || '',
+        status: 'approved'
+      });
+      return res.json({ id: record.id });
+    }
+
+    res.json({ id: '' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/check-user-status', async (req, res) => {
+  try {
+    await ensureSuperuserAuth();
+    const userId = req.query.userId;
+    if (!userId) return res.json({ suspended: false });
+    
+    const records = await pb.collection('User').getFullList({
+      filter: `User_ID = "${userId}"`,
+      requestKey: null
+    });
+    
+    if (records.length > 0) {
+      const matchedUser = records[0];
+      const isSuspended = matchedUser.Full_Name && matchedUser.Full_Name.endsWith(' [SUSPENDED]');
+      return res.json({ suspended: isSuspended, id: matchedUser.id });
+    }
+    res.json({ suspended: false });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -642,6 +783,27 @@ app.get('/api/admin/users', requireAdminAuth, async (req, res) => {
   }
 });
 
+app.post('/api/admin/users', requireAdminAuth, async (req, res) => {
+  try {
+    await ensureSuperuserAuth();
+    const created = await pb.collection('User').create(req.body);
+    res.json({ success: true, record: created });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/admin/users/:id', requireAdminAuth, async (req, res) => {
+  try {
+    await ensureSuperuserAuth();
+    const { id } = req.params;
+    const updated = await pb.collection('User').update(id, req.body);
+    res.json({ success: true, record: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.delete('/api/admin/users/:id', requireAdminAuth, async (req, res) => {
   try {
     await ensureSuperuserAuth();
@@ -656,6 +818,19 @@ app.delete('/api/admin/users/:id', requireAdminAuth, async (req, res) => {
 // ==========================================
 // 6. ADMIN ORDERS & EXPORTS ENDPOINTS
 // ==========================================
+
+app.get('/api/admin/dashboard', requireAdminAuth, async (req, res) => {
+  try {
+    await ensureSuperuserAuth();
+    const [products, users] = await Promise.all([
+      pb.collection('PRODUCT_DATAS').getFullList({ sort: '-created' }),
+      pb.collection('User').getFullList({ sort: '-created' })
+    ]);
+    res.json({ success: true, products, users });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 app.get('/api/admin/orders', requireAdminAuth, async (req, res) => {
   try {

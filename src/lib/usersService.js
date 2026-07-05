@@ -30,13 +30,11 @@ function mapRegistration(record) {
 
 export async function fetchAllUsers() {
   try {
-    const records = await pb.collection('User').getFullList({
-      sort: '-created',
-      fields: 'id,User_ID,Full_Name,moblieno,mobileno,password,created'
-    });
+    const res = await apiGet('/api/admin/users');
+    const records = res?.records || [];
     return records.map(mapUser);
   } catch (err) {
-    console.error('[PB] fetchAllUsers error:', err);
+    console.error('[API] fetchAllUsers error:', err);
     throw err;
   }
 }
@@ -54,12 +52,12 @@ export async function fetchPendingRegistrations() {
 
 /** Create a new registration */
 export async function createRegistration(name, mobile) {
-  const record = await pb.collection('registered_users').create({
+  const data = await apiPost('/api/admin/registered-users', {
     user_name: name,
     mobile_no: mobile,
     status: 'pending'
   });
-  return mapRegistration(record);
+  return mapRegistration(data.record);
 }
 
 /** Delete a registration */
@@ -74,13 +72,13 @@ export async function updateRegistrationStatus(id, status) {
 
 /** Create a new user */
 export async function createUser(data) {
-  const record = await pb.collection('User').create({
+  const res = await apiPost('/api/admin/users', {
     User_ID:   data.userId || '',
     Full_Name: data.name || '',
     moblieno:  data.mobile || '',
     password:  data.password || '',
   });
-  return mapUser(record);
+  return mapUser(res.record);
 }
 
 /** Delete a user by PB id */
@@ -94,66 +92,13 @@ export async function getOrCreateRegistrationId(currentUser) {
   const cleanName = String(currentUser.name || '').trim();
   const cleanMobile = String(currentUser.mobile || '').trim();
 
-  // 1. Try to find approved registration record
   try {
-    let filterStr = '';
-    if (cleanName && cleanMobile) {
-      filterStr = `status = "approved" && (user_name = "${cleanName}" || mobile_no = "${cleanMobile}")`;
-    } else if (cleanName) {
-      filterStr = `status = "approved" && user_name = "${cleanName}"`;
-    } else if (cleanMobile) {
-      filterStr = `status = "approved" && mobile_no = "${cleanMobile}"`;
-    }
-
-    if (filterStr) {
-      const records = await pb.collection('registered_users').getFullList({ filter: filterStr });
-      if (records.length > 0) {
-        return records[0].id;
-      }
-    }
+    const res = await apiPost('/api/get-or-create-registration', { name: cleanName, mobile: cleanMobile });
+    return res.id || '';
   } catch (err) {
-    console.error('[PB] getOrCreateRegistrationId approved fetch error:', err);
+    console.error('[API] getOrCreateRegistrationId error:', err);
+    return '';
   }
-
-  // 2. Try to find any registration record matching name or mobile
-  try {
-    let filterStr = '';
-    if (cleanName && cleanMobile) {
-      filterStr = `user_name = "${cleanName}" || mobile_no = "${cleanMobile}"`;
-    } else if (cleanName) {
-      filterStr = `user_name = "${cleanName}"`;
-    } else if (cleanMobile) {
-      filterStr = `mobile_no = "${cleanMobile}"`;
-    }
-
-    if (filterStr) {
-      const records = await pb.collection('registered_users').getFullList({ filter: filterStr });
-      if (records.length > 0) {
-        const reg = records[0];
-        if (reg.status !== 'approved') {
-          await pb.collection('registered_users').update(reg.id, { status: 'approved' });
-        }
-        return reg.id;
-      }
-    }
-  } catch (err) {
-    console.error('[PB] getOrCreateRegistrationId any fetch error:', err);
-  }
-
-  // 3. Create on the fly if not found
-  try {
-    if (cleanName || cleanMobile) {
-      const record = await pb.collection('registered_users').create({
-        user_name: cleanName || 'Wholesale User',
-        mobile_no: cleanMobile || '',
-        status: 'approved'
-      });
-      return record.id;
-    }
-  } catch (err) {
-    console.error('[PB] getOrCreateRegistrationId create error:', err);
-  }
-  return '';
 }
 
 /** Formats a 15-char PocketBase order ID to DVT-YYYYMMDD-XXXX format if it matches the pattern */

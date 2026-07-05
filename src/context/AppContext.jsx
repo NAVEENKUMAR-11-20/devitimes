@@ -117,67 +117,16 @@ export const AppProvider = ({ children }) => {
     loadProducts();
     loadGlobalSettings();
 
-    const subscribeToProducts = async () => {
-      try {
-        await pb.collection('PRODUCT_DATAS').subscribe('*', (e) => {
-          if (!isMounted) return;
-          if (e.action === 'create' || e.action === 'update' || e.action === 'delete') {
-            loadProducts(true);
-          }
-        });
-        console.log('[AppContext] Successfully subscribed to PRODUCT_DATAS collection.');
-      } catch (err) {
-        console.warn('[AppContext] PocketBase real-time subscription failed:', err);
-      }
-    };
-
-    const subscribeToSettings = async () => {
-      try {
-        await pb.collection('app_settings').subscribe('*', (e) => {
-          console.log('[AppContext] PocketBase settings real-time event:', e.action, e.record);
-          if (!isMounted) return;
-          if (e.action === 'update' || e.action === 'create') {
-            const rec = e.record;
-            const phoneVal = rec.whatsapp_number || '';
-            const thresholdVal = (rec.low_stock_limt !== undefined && !isNaN(Number(rec.low_stock_limt))) ? Number(rec.low_stock_limt) : 10;
-            const enabledVal = rec.inventory_alert !== false;
-            const bannerVal = rec.banner_alert !== false;
-            let parsedAlertData = {};
-            if (rec.alert_data && typeof rec.alert_data === 'object') {
-              parsedAlertData = rec.alert_data;
-            }
-
-            setSettings(prev => ({
-              ...prev,
-              whatsappNumber: phoneVal || prev.whatsappNumber || "7358349394",
-              lowStockThreshold: thresholdVal,
-              inventoryAlertEnabled: enabledVal,
-              bannerAlertEnabled: bannerVal,
-              alertData: Object.keys(parsedAlertData).length > 0 ? parsedAlertData : prev.alertData
-            }));
-          }
-        });
-        console.log('[AppContext] Successfully subscribed to app_settings collection.');
-      } catch (err) {
-        console.warn('[AppContext] PocketBase settings subscription failed:', err);
-      }
-    };
-
-    subscribeToProducts();
-    subscribeToSettings();
-
     pollIntervalId = setInterval(() => {
       loadProducts();
       loadGlobalSettings();
-    }, 30000); // Poll every 30s as fallback; real-time subscriptions handle live updates
+    }, 30000); // Poll every 30s as fallback
 
     return () => {
       isMounted = false;
       if (pollIntervalId) {
         clearInterval(pollIntervalId);
       }
-      pb.collection('PRODUCT_DATAS').unsubscribe('*').catch(err => {});
-      pb.collection('app_settings').unsubscribe('*').catch(err => {});
     };
   }, []);
 
@@ -223,8 +172,6 @@ export const AppProvider = ({ children }) => {
     return false;
   });
 
-  // Removed ensurePbAuth as we are relying on public API rules for guest access
-
   const loadUserData = async (force = false) => {
     const now = Date.now();
     if (!force && users.length > 0 && now - lastUsersFetchRef.current < 15000) {
@@ -246,7 +193,6 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     if (isAdminAuthenticated) {
       loadUserData().catch(err => {
-        // Will be caught by AdminDashboard if triggered there, but here we just log
         console.error("Background loadUserData failed:", err);
       });
     } else {
@@ -292,10 +238,6 @@ export const AppProvider = ({ children }) => {
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
-
-  // Products are now fetched from PocketBase — no localStorage sync needed
-
-  // Products and Users are fetched from PocketBase — no localStorage sync needed
 
   useEffect(() => {
     localStorage.setItem('lumiere_settings', JSON.stringify(settings));
@@ -404,7 +346,7 @@ export const AppProvider = ({ children }) => {
         } else {
           newName = newName.replace(' [SUSPENDED]', '');
         }
-        await pb.collection('User').update(user.pbId, { Full_Name: newName });
+        await apiPut(`/api/admin/users/${user.pbId}`, { Full_Name: newName });
       }
       setUsers(prev => prev.map(u => u.userId === userId ? { ...u, status } : u));
     } catch (err) {
@@ -456,21 +398,11 @@ export const AppProvider = ({ children }) => {
         // Not a retail user or login failed, continue to User collection check
       }
 
-      // 1. Search in PocketBase User collection
-      const records = await pb.collection('User').getFullList({
-        filter: `User_ID = "${trimmedId}"`,
-        requestKey: null,
-        _: Date.now()
-      });
-
-      if (records.length > 0) {
-        const matchedUser = records[0];
-        if (String(matchedUser.password).trim() === String(password).trim()) {
-          const isSuspended = matchedUser.Full_Name && matchedUser.Full_Name.endsWith(' [SUSPENDED]');
-          if (isSuspended) {
-            return { success: false, message: "Your account is suspended. Please contact admin." };
-          }
-          
+      // 1. Search in PocketBase User collection via API
+      try {
+        const wholesaleData = await apiPost('/api/wholesale-login', { username: trimmedId, password: trimmedPass });
+        if (wholesaleData.success && wholesaleData.user) {
+          const matchedUser = wholesaleData.user;
           const sessionObj = {
             userId: matchedUser.User_ID || matchedUser.id,
             id: matchedUser.id,
@@ -478,16 +410,18 @@ export const AppProvider = ({ children }) => {
             mobile: matchedUser.moblieno || matchedUser.mobileno || '',
             isRetail: false
           };
+          
           sessionStorage.setItem('lumiere_current_user', JSON.stringify(sessionObj));
           localStorage.setItem('lumiere_current_user', JSON.stringify(sessionObj));
           setCurrentUser(sessionObj);
+          
           return { success: true, isRetail: false };
-        } else {
-          return { success: false, message: "Invalid username or password. Please contact admin." };
+        }
+      } catch (err) {
+        if (err.message && err.message.includes('suspended')) {
+           return { success: false, message: "Your account is suspended. Please contact admin." };
         }
       }
-
-      // 2. Check if there's a pending registration request with matching name/mobile
       try {
         const check = await apiGet(`/api/check-pending-registration?user=${encodeURIComponent(userId.trim())}`);
         if (check.isPending) {
@@ -561,30 +495,26 @@ export const AppProvider = ({ children }) => {
     if (!currentUser) return true;
     if (currentUser.isRetail) return true;
     try {
-      const records = await pb.collection('User').getFullList({
-        filter: `User_ID = "${currentUser.userId}"`
-      });
-      if (records.length > 0) {
-        const matchedUser = records[0];
-        const isSuspended = matchedUser.Full_Name && matchedUser.Full_Name.endsWith(' [SUSPENDED]');
-        if (isSuspended) {
-          logoutUser();
-          alert('Your account is suspended. Please contact admin.');
-          window.location.hash = '/login';
-          return false;
-        }
+      const check = await apiGet(`/api/check-user-status?userId=${encodeURIComponent(currentUser.userId)}`);
+      
+      if (check && check.suspended) {
+        logoutUser();
+        alert('Your account is suspended. Please contact admin.');
+        window.location.hash = '/login';
+        return false;
+      }
 
-        // If the session object doesn't have the database record ID, update it
-        if (!currentUser.id) {
-          const updatedSession = {
-            ...currentUser,
-            id: matchedUser.id
-          };
-          sessionStorage.setItem('lumiere_current_user', JSON.stringify(updatedSession));
-          localStorage.setItem('lumiere_current_user', JSON.stringify(updatedSession));
-          setCurrentUser(updatedSession);
-        }
-      } else {
+      // If the session object doesn't have the database record ID, update it
+      if (check && check.id && !currentUser.id) {
+        const updatedSession = {
+          ...currentUser,
+          id: check.id
+        };
+        sessionStorage.setItem('lumiere_current_user', JSON.stringify(updatedSession));
+        localStorage.setItem('lumiere_current_user', JSON.stringify(updatedSession));
+        setCurrentUser(updatedSession);
+      }
+      if (check && !check.id) {
         logoutUser();
         window.location.hash = '/login';
         return false;

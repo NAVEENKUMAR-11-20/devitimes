@@ -88,98 +88,12 @@ const History = () => {
 
     const loadOrders = async () => {
       let userRecordId = currentUser?.id || '';
-      if (!userRecordId && currentUser?.userId) {
-        try {
-          const records = await pb.collection('User').getFullList({
-            filter: `User_ID = "${currentUser.userId}"`
-          });
-          if (records.length > 0) {
-            userRecordId = records[0].id;
-          }
-        } catch (err) {
-          console.error("[History] Failed to resolve User ID from database:", err);
-        }
-      }
-
       if (userRecordId) {
-        // --- Migration of localStorage orders ---
-        try {
-          const stored = localStorage.getItem('lumiere_order_history');
-          let parsed = stored ? JSON.parse(stored) : [];
-          
-          // Filter local orders belonging to this user
-          const userLocalOrders = parsed.filter(o => o.customer && o.customer.userId === currentUser.userId);
-          
-          if (userLocalOrders.length > 0) {
-            console.log(`[History] Found ${userLocalOrders.length} local orders for migration.`);
-            
-            for (const localOrder of userLocalOrders) {
-              const isPbId = localOrder.id && !localOrder.id.startsWith('ORD-');
-              
-              if (isPbId) {
-                // If it looks like a PocketBase ID, verify if it exists and update its User relation
-                try {
-                  const record = await pb.collection('orders').getOne(localOrder.id);
-                  if (record && record.User !== userRecordId) {
-                    await pb.collection('orders').update(localOrder.id, { User: userRecordId });
-                    console.log(`[History] Linked existing PB order ${localOrder.id} to User ${userRecordId}`);
-                  }
-                } catch (err) {
-                  // If not found in database, create it
-                  if (err.status === 404) {
-                    try {
-                      await pb.collection('orders').create({
-                        id: localOrder.id,
-                        User: userRecordId,
-                        orderDate: new Date(localOrder.timestamp || Date.now()).toISOString(),
-                        products: localOrder.items,
-                        totalAmount: localOrder.grandTotal,
-                        status: localOrder.status || 'Pending'
-                      });
-                      console.log(`[History] Re-created PB order ${localOrder.id} during migration.`);
-                    } catch (e) {
-                      console.error(`[History] Failed to re-create PB order:`, e.message);
-                    }
-                  } else {
-                    console.error(`[History] Failed to verify/link order ${localOrder.id}:`, err.message);
-                  }
-                }
-              } else {
-                // If it's a generated local ID (ORD-xxx), create a new order in PocketBase
-                try {
-                  const newRecord = await pb.collection('orders').create({
-                    User: userRecordId,
-                    orderDate: new Date(localOrder.timestamp || Date.now()).toISOString(),
-                    products: localOrder.items,
-                    totalAmount: localOrder.grandTotal,
-                    status: localOrder.status || 'Pending'
-                  });
-                  console.log(`[History] Migrated local order ${localOrder.id} to PB. New PB ID: ${newRecord.id}`);
-                } catch (err) {
-                  console.error(`[History] Failed to migrate local order ${localOrder.id}:`, err.message);
-                }
-              }
-            }
-
-            // Remove migrated orders from localStorage
-            const remainingOrders = parsed.filter(o => !(o.customer && o.customer.userId === currentUser.userId));
-            if (remainingOrders.length > 0) {
-              localStorage.setItem('lumiere_order_history', JSON.stringify(remainingOrders));
-            } else {
-              localStorage.removeItem('lumiere_order_history');
-            }
-            console.log("[History] Migration of local orders completed successfully.");
-          }
-        } catch (err) {
-          console.error("[History] Failed to migrate local orders:", err);
-        }
-
-        // --- Fetch all orders from PocketBase ---
+        // --- Fetch all orders from backend API ---
         try {
           console.log("[History] Fetching orders for User record ID:", userRecordId);
-          const records = await pb.collection('orders').getFullList({
-            filter: `User = "${userRecordId}"`
-          });
+          const res = await apiGet(`/api/orders/user/${userRecordId}`);
+          const records = res?.records || [];
 
           // Sort oldest first to assign sequential indices to legacy orders
           const sortedRecords = [...records].sort((a, b) => new Date(a.created).getTime() - new Date(b.created).getTime());

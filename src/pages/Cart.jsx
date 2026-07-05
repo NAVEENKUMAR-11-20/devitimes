@@ -64,18 +64,6 @@ const Cart = () => {
 
     // Use the User record ID directly for the User relation in orders
     let userRecordId = currentUser?.id || '';
-    if (!userRecordId && currentUser?.userId) {
-      try {
-        const records = await pb.collection('User').getFullList({
-          filter: `User_ID = "${currentUser.userId}"`
-        });
-        if (records.length > 0) {
-          userRecordId = records[0].id;
-        }
-      } catch (err) {
-        console.error("[Cart] Failed to resolve User ID from database:", err);
-      }
-    }
 
     // Generate a unique, sortable, date-based ID (DVT-YYYYMMDD-XXXX)
     const now = new Date();
@@ -156,7 +144,7 @@ TOTAL: ₹${grandTotal}
     let currentCustomId = customId;
     while (attempt < 5) {
       try {
-        const pbOrder = await pb.collection('orders').create({
+        const data = await apiPost('/api/orders', {
           id: currentCustomId,
           User: userRecordId,
           orderDate: new Date().toISOString(),
@@ -164,8 +152,8 @@ TOTAL: ₹${grandTotal}
           totalAmount: grandTotal,
           status: 'Pending'
         });
-        pbOrderId = pbOrder.id;
-        console.log("[Cart] Order saved successfully in PocketBase. ID:", pbOrderId);
+        pbOrderId = data.record.id;
+        console.log("[Cart] Order saved successfully in backend. ID:", pbOrderId);
         break;
       } catch (err) {
         console.warn(`[Cart] Attempt ${attempt + 1} failed for custom ID ${currentCustomId}:`, err.message);
@@ -176,15 +164,15 @@ TOTAL: ₹${grandTotal}
           attempt++;
         } else {
           try {
-            const pbOrder = await pb.collection('orders').create({
+            const data = await apiPost('/api/orders', {
               User: userRecordId,
               orderDate: new Date().toISOString(),
               products: productsJson,
               totalAmount: grandTotal,
               status: 'Pending'
             });
-            pbOrderId = pbOrder.id;
-            console.log("[Cart] Order saved successfully in PocketBase with auto-generated ID. ID:", pbOrderId);
+            pbOrderId = data.record.id;
+            console.log("[Cart] Order saved successfully in backend with auto-generated ID. ID:", pbOrderId);
           } catch (e) {
             console.error("[Cart] Failed to save order with auto-generated ID:", e.message);
           }
