@@ -781,9 +781,6 @@ const History = () => {
                 filteredOrders.map(o => {
                   const isExpanded = mobileExpandedId === o.id;
                   const st = (o.status || 'Pending').toLowerCase();
-                  const isConfirmed = st === 'confirmed' || st === 'processing' || st === 'packed' || st === 'shipped' || st === 'delivered';
-                  const isPacked = st === 'packed' || st === 'shipped' || st === 'delivered';
-                  const isDelivered = st === 'delivered';
 
                   return (
                     <div key={o.id} className={`mobile-order-card ${isExpanded ? 'expanded' : ''}`}>
@@ -793,35 +790,10 @@ const History = () => {
                           <div className="mobile-order-date font-body">{o.timestamp.split(',')[0]}</div>
                           <div className="mobile-order-amount font-heading">₹{o.grandTotal}</div>
                         </div>
-                        <div className="mobile-card-right">
-                          <span className={`mobile-status-pill ${st}`}>{o.status || 'Pending'}</span>
-                        </div>
                       </div>
 
                       {isExpanded && (
                         <div className="mobile-card-expanded animate-expand">
-                          
-                          <div className="mobile-timeline">
-                            <div className="timeline-step active">
-                              <div className="step-circle">✓</div>
-                              <span>Placed</span>
-                            </div>
-                            <div className={`timeline-line ${isConfirmed ? 'active' : ''}`}></div>
-                            <div className={`timeline-step ${isConfirmed ? 'active' : ''}`}>
-                              <div className="step-circle">{isConfirmed ? '✓' : ''}</div>
-                              <span>Confirmed</span>
-                            </div>
-                            <div className={`timeline-line ${isPacked ? 'active' : ''}`}></div>
-                            <div className={`timeline-step ${isPacked ? 'active' : ''}`}>
-                              <div className="step-circle">{isPacked ? '✓' : ''}</div>
-                              <span>Packed</span>
-                            </div>
-                            <div className={`timeline-line ${isDelivered ? 'active' : ''}`}></div>
-                            <div className={`timeline-step ${isDelivered ? 'active' : ''}`}>
-                              <div className="step-circle">{isDelivered ? '✓' : ''}</div>
-                              <span>Delivered</span>
-                            </div>
-                          </div>
 
                           <div className="mobile-items-list">
                             {o.items.map((item, idx) => (
