@@ -58,6 +58,7 @@ const Collection = () => {
 
   // Auth Modal State
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   
   // Success toast/feedback per product
   const [addedProductId, setAddedProductId] = useState(null);
@@ -88,7 +89,7 @@ const Collection = () => {
   };
   // Filter products in real time (only keep live ones and filter by correct price field or product_type)
   const filteredProducts = useMemo(() => {
-    return (liveProducts || []).filter((product) => {
+    let result = (liveProducts || []).filter((product) => {
       if (!product) return false;
       // Accept both boolean true and string 'true' from PocketBase
       const live = product.isLive === true || product.isLive === 'true' || product.isLive === undefined;
@@ -99,7 +100,21 @@ const Collection = () => {
       // Wholesale: show all live products that are NOT retail-only
       return product.product_type !== 'retail' && product.product_type !== 'RETAIL';
     });
-  }, [liveProducts, isRetail]);
+
+    if (searchTerm.trim()) {
+      const lowerSearch = searchTerm.toLowerCase();
+      result = result.filter(p => {
+        return (
+          (p.modelNumber && p.modelNumber.toLowerCase().includes(lowerSearch)) ||
+          (p.size && p.size.toLowerCase().includes(lowerSearch)) ||
+          (p.product_type && p.product_type.toLowerCase().includes(lowerSearch)) ||
+          (p.packageNo && p.packageNo.toLowerCase().includes(lowerSearch))
+        );
+      });
+    }
+
+    return result;
+  }, [liveProducts, isRetail, searchTerm]);
 
   // Handle click on "ORDER" button
   const handleOrder = (product) => {
@@ -237,6 +252,28 @@ const Collection = () => {
         </section>
       ) : (
         <>
+      {/* 2. Collection Search Bar */}
+      <section className="collection-search-section">
+        <div className="container">
+          <div className="collection-search-wrapper">
+            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" className="search-icon">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input 
+              type="text" 
+              placeholder="Search products by model, size, or type..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="collection-search-input font-body"
+            />
+            {searchTerm && (
+              <button className="clear-search-btn" onClick={() => setSearchTerm('')}>&times;</button>
+            )}
+          </div>
+        </div>
+      </section>
+
       {/* 4. Product Grid */}
       <section className="products-grid-section">
         <div className="container">
@@ -251,7 +288,7 @@ const Collection = () => {
             </div>
           ) : !Array.isArray(filteredProducts) || filteredProducts.length === 0 ? (
             <div className="empty-results-box font-body">
-              <p>No products available in the collection.</p>
+              <p>{searchTerm ? "No matching products found." : "No products available in the collection."}</p>
             </div>
           ) : (
             <div className="grid-products">
@@ -428,6 +465,43 @@ const Collection = () => {
         }
 
         /* ── Unified Control Panel Removed ── */
+        
+        /* ── Search Bar ── */
+        .collection-search-section {
+          padding: 24px 0 0 0;
+        }
+        .collection-search-wrapper {
+          display: flex;
+          align-items: center;
+          background: #ffffff;
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          padding: 0 16px;
+          height: 50px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+          position: relative;
+        }
+        .collection-search-input {
+          flex: 1;
+          border: none;
+          outline: none;
+          background: transparent;
+          font-size: 15px;
+          color: var(--text-primary);
+          padding-left: 12px;
+          height: 100%;
+        }
+        .search-icon {
+          color: var(--text-muted);
+        }
+        .clear-search-btn {
+          background: none;
+          border: none;
+          font-size: 20px;
+          color: var(--text-muted);
+          cursor: pointer;
+          padding: 0 8px;
+        }
 
         .products-grid-section { padding: 48px 0 40px 0; }
 

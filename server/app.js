@@ -519,7 +519,7 @@ app.post('/api/admin/whatsapp-number', requireAdminAuth, async (req, res) => {
 // 4. ADMIN PRODUCTS ENDPOINTS
 // ==========================================
 
-app.get('/api/admin/products', requireAdminAuth, async (req, res) => {
+app.get('/api/admin/products', async (req, res) => {
   try {
     await ensureSuperuserAuth();
     const records = await pb.collection('PRODUCT_DATAS').getFullList({ sort: '-created' });
