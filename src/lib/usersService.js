@@ -1,5 +1,4 @@
-import pb from './pocketbase';
-import { apiGet, apiPut, apiDelete } from './apiClient';
+import { apiGet, apiPost, apiPut, apiDelete } from './apiClient';
 
 // Map PocketBase user record → app user shape
 function mapUser(record) {
@@ -45,7 +44,7 @@ export async function fetchPendingRegistrations() {
     const records = res?.records || [];
     return records.map(mapRegistration);
   } catch (err) {
-    console.error('[PB] fetchPendingRegistrations error:', err);
+    console.error('[API] fetchPendingRegistrations error:', err);
     throw err;
   }
 }

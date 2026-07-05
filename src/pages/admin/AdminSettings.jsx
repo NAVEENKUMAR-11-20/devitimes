@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
-import pb from '../../lib/pocketbase';
 import { apiGet, apiPost, apiPut } from '../../lib/apiClient';
 import * as XLSX from 'xlsx';
 import { fetchAllProducts } from '../../lib/productsService';

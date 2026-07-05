@@ -154,7 +154,7 @@ const AdminDashboard = () => {
         <p><strong>Error Message:</strong> {errorDetails.message}</p>
         <p><strong>Error Data:</strong> {errorDetails.data}</p>
         <p><strong>Request URL:</strong> {errorDetails.url}</p>
-        <p><strong>PocketBase Server:</strong> {errorDetails.pbUrl}</p>
+        <p><strong>Backend API Server:</strong> {errorDetails.url}</p>
         <p><strong>Auth Valid:</strong> {errorDetails.isAuthValid ? 'Yes' : 'No'}</p>
         <p><strong>Auth Details:</strong> {errorDetails.authModel}</p>
       </div>

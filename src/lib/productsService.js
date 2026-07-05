@@ -35,7 +35,7 @@ export function getProductImageUrls(record) {
   
   // If it is an array
   if (Array.isArray(prodimages)) {
-    const pbUrl = (import.meta.env.VITE_API_URL || import.meta.env.VITE_POCKETBASE_URL || '').replace(/\/$/, '');
+    const backendUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
     const collectionName = record.collectionName || record.collectionId || 'PRODUCT_DATAS';
     const recordId = record.id || record.pbId;
     
@@ -46,8 +46,8 @@ export function getProductImageUrls(record) {
         if (filename.startsWith('http://') || filename.startsWith('https://') || filename.startsWith('data:')) {
           return filename;
         }
-        // Build URL using PocketBase file URL logic with VITE_POCKETBASE_URL
-        return `${pbUrl}/api/files/${collectionName}/${recordId}/${filename}`;
+        // Build URL using backend API
+        return `${backendUrl}/api/files/${collectionName}/${recordId}/${filename}`;
       });
   }
   
@@ -55,7 +55,7 @@ export function getProductImageUrls(record) {
 }
 
 /**
- * Build a full image URL for a PocketBase file record.
+ * Build a full image URL for a file record.
  * Returns null if the record has no image.
  */
 export function getProductImageUrl(record) {
@@ -64,7 +64,7 @@ export function getProductImageUrl(record) {
 }
 
 /**
- * Map a raw PocketBase product record → app product shape
+ * Map a raw product record → app product shape
  */
 export function mapRecord(record) {
   const imageUrls = getProductImageUrls(record);
@@ -161,7 +161,7 @@ export async function fetchProductById(pbId, collectionName = 'PRODUCT_DATAS') {
 // ─── API ──────────────────────────────────────────────────────────────────────
 
 /**
- * Fetch all products from PocketBase.
+ * Fetch all products from the backend API.
  * Falls back to [] on error so the UI never breaks.
  */
 export async function fetchAllProducts() {

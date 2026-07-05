@@ -127,7 +127,7 @@ const AdminProducts = () => {
   const { products: contextProducts, refreshProducts, settings, updateSettings, saveSettingsToPB, checkAndTriggerLowStockAlert } = useApp();
 
   // PocketBase SDK check removed as admin auth goes through API
-  // ── PocketBase state ──────────────────────────────────────────────────────
+  // ── Backend state ──────────────────────────────────────────────────────
   const [products, setProducts]   = useState([]);
   const [pbLoading, setPbLoading] = useState(false);
   const [pbError,   setPbError]   = useState('');
@@ -153,7 +153,7 @@ const AdminProducts = () => {
     if (!contextProducts || contextProducts.length === 0) {
       setPbLoading(true);
       refreshProducts()
-        .catch(err => setPbError('Failed to load products from PocketBase.'))
+        .catch(err => setPbError('Failed to load products from backend.'))
         .finally(() => setPbLoading(false));
     }
   }, [contextProducts, refreshProducts]);
@@ -520,7 +520,7 @@ const AdminProducts = () => {
     }
   };
 
-  // Instant status toggle — wait for real PocketBase response before updating UI/showing toast
+  // Instant status toggle — wait for real backend response before updating UI/showing toast
   const handleToggleLive = async (id, currentStatus) => {
     const product = products.find(p => p.id === id || p.pbId === id);
     if (!product) return;
@@ -552,7 +552,7 @@ const AdminProducts = () => {
       const errMsg = err?.response?.message || err?.message || 'Failed to update status';
       if (err?.status === 403 || errMsg.toLowerCase().includes('permission') || errMsg.toLowerCase().includes('superuser') || errMsg.toLowerCase().includes('admin')) {
         triggerToast('Permission Error: Superuser/Admin authentication required.');
-        alert('Permission Error: You are not authenticated as a PocketBase superuser/admin to modify products.');
+        alert('Permission Error: You are not authenticated as an admin to modify products.');
       } else {
         triggerToast(`Error updating status: ${errMsg}`);
         alert(`Error updating status: ${errMsg}`);
@@ -586,7 +586,7 @@ const AdminProducts = () => {
       const errMsg = err?.response?.message || err?.message || 'Unknown error';
       if (err?.status === 403 || errMsg.toLowerCase().includes('permission') || errMsg.toLowerCase().includes('superuser') || errMsg.toLowerCase().includes('admin')) {
         triggerToast('Permission Error: Superuser/Admin authentication required.');
-        alert('Permission Error: You are not authenticated as a PocketBase superuser/admin to delete products.');
+        alert('Permission Error: You are not authenticated as an admin to delete products.');
       } else {
         triggerToast(`Error deleting product: ${errMsg}`);
         alert(`Error deleting product: ${errMsg}`);
@@ -783,7 +783,7 @@ const AdminProducts = () => {
         payload.PRODUCT_TYPE = editForm.product_type;
       }
 
-      // 1. Identify raw filenames of original images in PocketBase
+      // 1. Identify raw filenames of original images in backend
       let originalFilenames = [];
       const rawVal = editingProduct?.prodimage || editingProduct?._rawImageName;
       if (Array.isArray(rawVal)) {
@@ -801,7 +801,7 @@ const AdminProducts = () => {
       }
       originalFilenames = originalFilenames.filter(Boolean);
 
-      // Helper to extract filename from PocketBase file URL
+      // Helper to extract filename from backend file URL
       const getFilenameFromUrl = (url) => {
         if (!url) return null;
         try {
@@ -833,9 +833,9 @@ const AdminProducts = () => {
       console.log('[DEBUG] updated payload before saving:', payload);
 
       const response = await pbUpdateProduct(pbId, payload, 'PRODUCT_DATAS');
-      console.log('[DEBUG] PocketBase update response:', response);
+      console.log('[DEBUG] Backend update response:', response);
 
-      // Explicitly refetch the updated product from PocketBase
+      // Explicitly refetch the updated product from backend
       let refetched = response;
       try {
         refetched = await fetchProductById(pbId, 'PRODUCT_DATAS');
@@ -845,7 +845,7 @@ const AdminProducts = () => {
       }
 
       if (refetched && refetched.isLive !== Boolean(editForm.isLive)) {
-        console.warn(`[PB] Warning: PocketBase did not update 'STATUS' to ${editForm.isLive ? 'live' : 'hidden'}. Please verify that the 'STATUS' field exists in the PRODUCT_DATAS schema.`);
+        console.warn(`[API] Warning: Backend did not update 'STATUS' to ${editForm.isLive ? 'live' : 'hidden'}. Please verify that the 'STATUS' field exists in the PRODUCT_DATAS schema.`);
       }
 
       // Update local state immediately after confirmed PB update so changes reflect in table instantly
@@ -862,7 +862,7 @@ const AdminProducts = () => {
       const errMsg = err?.response?.message || err?.message || 'Failed to update product';
       if (err?.status === 403 || errMsg.toLowerCase().includes('permission') || errMsg.toLowerCase().includes('superuser') || errMsg.toLowerCase().includes('admin')) {
         triggerToast('Permission Error: Superuser/Admin authentication required.');
-        alert('Permission Error: You are not authenticated as a PocketBase superuser/admin to modify this product.');
+        alert('Permission Error: You are not authenticated as an admin to modify this product.');
       } else {
         triggerToast(`Error saving product: ${errMsg}`);
         alert(`Error saving product: ${errMsg}`);
@@ -1023,10 +1023,10 @@ const AdminProducts = () => {
   return (
     <div className="admin-products-root font-body">
 
-      {/* PocketBase loading / error */}
+      {/* Backend loading / error */}
       {pbLoading && (
         <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-          Loading products from PocketBase…
+          Loading products from backend…
         </div>
       )}
       {!pbLoading && pbError && (
