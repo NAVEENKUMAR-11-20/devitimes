@@ -11,7 +11,11 @@ app.use(expressApp);
 
 // Serve static files from dist
 app.use(express.static(path.join(__dirname, 'dist')));
-app.get(/.*/, (req, res) => {
+// Fallback for React Router
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: 'API endpoint not found: ' + req.path });
+  }
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
