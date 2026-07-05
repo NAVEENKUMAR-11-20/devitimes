@@ -1,6 +1,6 @@
 import { apiGet, apiPost, apiPut, apiDelete, apiPatch } from './apiClient';
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+import pb from './pocketbase';
 
 export function getProductImageUrls(record) {
   if (!record) return [];
@@ -35,10 +35,6 @@ export function getProductImageUrls(record) {
   
   // If it is an array
   if (Array.isArray(prodimages)) {
-    const backendUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
-    const collectionName = record.collectionName || record.collectionId || 'PRODUCT_DATAS';
-    const recordId = record.id || record.pbId;
-    
     // Return URLs for elements that are valid strings (not empty, not placeholders)
     return prodimages
       .filter(item => typeof item === 'string' && item.trim().length > 0)
@@ -46,8 +42,8 @@ export function getProductImageUrls(record) {
         if (filename.startsWith('http://') || filename.startsWith('https://') || filename.startsWith('data:')) {
           return filename;
         }
-        // Build URL using backend API
-        return `${backendUrl}/api/files/${collectionName}/${recordId}/${filename}`;
+        // Build URL using PocketBase API correctly as per requirements
+        return pb.files.getUrl(record, filename);
       });
   }
   
