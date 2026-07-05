@@ -46,7 +46,7 @@ const Cart = () => {
     cart.forEach(item => {
       // Ensure image URL is absolute and public-facing for WhatsApp
       const baseUrl = (settings.websiteUrl || 'https://devi-times.com').replace(/\/$/, '');
-      let imgPath = item.image || `/images/clock-${item.modelNumber}.png`;
+      let imgPath = item.selectedImage || item.image || `/images/clock-${item.modelNumber}.png`;
       const absoluteImageUrl = imgPath.startsWith('http') ? imgPath : `${baseUrl}${imgPath.startsWith('/') ? '' : '/'}${imgPath}`;
 
       orderItemsText += `• Model: ${item.modelNumber}\n  Size: ${item.size}\n  Qty: ${item.quantity}\n  Price: ₹${item.unitPrice} × ${item.quantity} = ₹${item.unitPrice * item.quantity}\n  Product Image:\n  ${absoluteImageUrl}\n\n`;
@@ -89,7 +89,7 @@ const Cart = () => {
       size: String(item.size || ''),
       unitPrice: item.unitPrice,
       quantity: item.quantity,
-      image: item.image || null
+      image: item.selectedImage || item.image || null
     }));
 
     const customId = `dvt${todayStr}${String(nextSeq).padStart(4, '0')}`;
@@ -275,9 +275,9 @@ TOTAL: ₹${grandTotal}
                       
                       {/* Thumbnail Image */}
                       <div className="cart-thumbnail-wrapper">
-                        {item.image ? (
+                        {(item.selectedImage || item.image) ? (
                           <img 
-                            src={item.image} 
+                            src={item.selectedImage || item.image} 
                             alt={item.modelNumber} 
                             className="cart-item-thumbnail" 
                             onError={(e) => { e.target.onerror = null; e.target.src = "/placeholder.svg"; }}

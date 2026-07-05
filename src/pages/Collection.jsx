@@ -5,7 +5,7 @@ import ClockSvg from '../components/ClockSvg';
 import { getProductImageUrl, getProductImageUrls } from '../lib/productsService';
 
 const Collection = () => {
-  const { products: contextProducts, retailProducts: contextRetailProducts, currentUser, loginUser, logoutUser, addToCart } = useApp();
+  const { products: contextProducts, retailProducts: contextRetailProducts, currentUser, loginUser, logoutUser, addToCart, isProductsLoaded } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
   const isRetail = location.pathname === '/collection/retail';
@@ -47,20 +47,14 @@ const Collection = () => {
 
   // Local state for auto-refreshing products
   const [liveProducts, setLiveProducts] = useState(Array.isArray(productsSource) ? productsSource : []);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Sync with context on load
   useEffect(() => {
     setLiveProducts(Array.isArray(productsSource) ? productsSource : []);
   }, [productsSource]);
 
-  // Loading state timeout for first page load
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsInitialLoad(false);
-    }, 600);
-    return () => clearTimeout(timer);
-  }, []);
+  // Loading state based on AppContext global fetch
+  const isInitialLoad = !isProductsLoaded;
 
   // Auth Modal State
   const [showAuthModal, setShowAuthModal] = useState(false);

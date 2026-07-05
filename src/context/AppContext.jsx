@@ -25,6 +25,7 @@ export const AppProvider = ({ children }) => {
   // Products — fetched from PocketBase on mount
   const [products, setProducts] = useState([]);
   const [retailProducts, setRetailProducts] = useState([]);
+  const [isProductsLoaded, setIsProductsLoaded] = useState(false);
 
   const lastProductsFetchRef = useRef(0);
   const lastUsersFetchRef = useRef(0);
@@ -85,8 +86,10 @@ export const AppProvider = ({ children }) => {
           });
         }
       });
+      setIsProductsLoaded(true);
     } catch (err) {
       console.error('[AppContext] Failed to fetch products from PocketBase:', err);
+      setIsProductsLoaded(true);
       throw err;
     }
   };
@@ -531,13 +534,16 @@ export const AppProvider = ({ children }) => {
   }, []);
 
   // --- Cart Actions ---
-  const addToCart = (product, qty = 1) => {
+  const addToCart = (product, qty = 1, selectedImage = null) => {
     const existingIndex = cart.findIndex(item => item.productId === product.id);
     let newCart = [...cart];
 
     if (existingIndex > -1) {
       const newQty = newCart[existingIndex].quantity + qty;
       newCart[existingIndex].quantity = newQty;
+      if (selectedImage) {
+        newCart[existingIndex].selectedImage = selectedImage;
+      }
     } else {
       newCart.push({
         productId: product.id,
@@ -548,7 +554,8 @@ export const AppProvider = ({ children }) => {
         color: product.color,
         unitPrice: product.salePrice,
         quantity: qty,
-        image: product.images && product.images.length > 0 ? product.images[0] : null
+        image: product.images && product.images.length > 0 ? product.images[0] : null,
+        selectedImage: selectedImage || (product.images && product.images.length > 0 ? product.images[0] : null)
       });
     }
     saveCartForUser(newCart);
@@ -676,6 +683,7 @@ export const AppProvider = ({ children }) => {
       currentRetailUser,
       isAdminAuthenticated,
       cart,
+      isProductsLoaded,
       refreshProducts: loadProducts,
       refreshUsers: loadUserData,
       addProduct,

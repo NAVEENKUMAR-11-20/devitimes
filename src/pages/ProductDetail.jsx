@@ -52,7 +52,8 @@ const ProductDetail = () => {
     if (!currentUser) {
       setShowAuthModal(true);
     } else {
-      addToCart(product, quantity);
+      const currentSelectedImage = imagesList[activeImageIndex];
+      addToCart(product, quantity, currentSelectedImage);
       setAddedFeedback(true);
       setTimeout(() => setAddedFeedback(false), 2000);
     }
