@@ -79,7 +79,8 @@ export async function apiFetch(endpoint, options = {}) {
 }
 
 export async function apiGet(endpoint) {
-  return apiFetch(endpoint, { method: 'GET' });
+  const url = endpoint + (endpoint.includes('?') ? '&' : '?') + '_t=' + Date.now();
+  return apiFetch(url, { method: 'GET' });
 }
 
 export async function apiPost(endpoint, body) {

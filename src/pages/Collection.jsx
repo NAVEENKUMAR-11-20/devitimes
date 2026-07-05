@@ -315,7 +315,7 @@ const Collection = () => {
                     </div>
 
                     {/* Action Row */}
-                    <div className="card-button-row" style={{ gridTemplateColumns: isRetail ? '1fr' : '1fr 1fr' }}>
+                    <div className="card-button-row" style={isRetail ? { gridTemplateColumns: '1fr' } : {}}>
                       <Link to={`/product/${product.id}`} className="btn-secondary btn-text" style={{ padding: '10px 0', fontSize: '11px' }}>
                         DETAILS
                       </Link>
