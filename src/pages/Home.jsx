@@ -326,8 +326,9 @@ const Home = () => {
               <AnimatedHeroClock />
             </div>
             <div className="hero-cta-group" style={{ justifyContent: 'center', flexDirection: 'column' }}>
-              <Link to="/collection" className="btn-primary hero-cta-btn">
-                VIEW WHOLESALE COLLECTION &nbsp; →
+              <Link to="/collection" className="btn-primary hero-cta-btn mobile-hero-cta">
+                <span className="btn-text-main">VIEW WHOLESALE COLLECTION</span>
+                <span className="btn-icon-right">→</span>
               </Link>
               <Link to="/register" className="hero-secondary-cta">
                 REGISTER AS RETAILER
@@ -649,6 +650,7 @@ const Home = () => {
           font-size: 12px;
           letter-spacing: 0.12em;
         }
+        .btn-text-main { margin-right: 8px; }
 
         .hero-secondary-cta {
           font-size: 13px;
@@ -1037,8 +1039,19 @@ const Home = () => {
           .hero-heading .italic-accent { margin-top: 6px !important; }
           .hero-description { font-size: 14px; max-width: 100%; margin-bottom: 12px; line-height: 1.5; color: rgba(255, 255, 255, 0.7); }
           .hero-clock-frame { width: 200px; height: 200px; margin: 0 auto; }
-          .hero-cta-group { justify-content: center; align-items: center; gap: 8px !important; }
-          .hero-cta-btn { width: 100%; max-width: 320px; }
+          .hero-cta-group { justify-content: center; align-items: center; gap: 8px !important; z-index: 20; position: relative; }
+          .mobile-hero-cta { 
+            width: 100%; 
+            max-width: 320px;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            padding-left: 20px !important;
+            padding-right: 20px !important;
+            cursor: pointer !important;
+            pointer-events: auto !important;
+          }
+          .mobile-hero-cta .btn-text-main { margin-right: 0; }
 
           .hero-decorative-leaf {
             bottom: -5%;
