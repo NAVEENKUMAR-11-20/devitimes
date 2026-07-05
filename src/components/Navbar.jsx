@@ -223,6 +223,16 @@ const Navbar = () => {
             </Link>
           )}
           
+          {user && !isRetail && (
+            <Link 
+              to="/history" 
+              className={`mobile-nav-link-item ${location.pathname === '/history' ? 'active-link' : ''}`}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              ORDER HISTORY
+            </Link>
+          )}
+          
           {user ? (
             <div className="mobile-user-session">
               <div className="mobile-profile-header">
@@ -234,16 +244,6 @@ const Navbar = () => {
                   <div className="mobile-profile-role">{isRetail ? 'Retail Partner' : 'Wholesale Client'}</div>
                 </div>
               </div>
-              {!isRetail && (
-                <Link 
-                  to="/history" 
-                  className="mobile-nav-link-item"
-                  onClick={() => setMobileMenuOpen(false)}
-                  style={{ width: '100%' }}
-                >
-                  ORDER HISTORY
-                </Link>
-              )}
               <button 
                 onClick={() => {
                   setMobileMenuOpen(false);

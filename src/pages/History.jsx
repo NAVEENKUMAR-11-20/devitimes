@@ -15,6 +15,13 @@ const History = () => {
   const [searchVal, setSearchVal] = useState('');
   const [activeSearch, setActiveSearch] = useState('');
   const [mobileExpandedId, setMobileExpandedId] = useState(null);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const availableYears = useMemo(() => {
     const years = new Set();
@@ -88,7 +95,20 @@ const History = () => {
     }
 
     const loadOrders = async () => {
-      let userRecordId = currentUser?.id || '';
+      let userRecordId = currentUser?.id;
+      
+      // If session is old and missing 'id', fetch it from the server
+      if (!userRecordId && currentUser?.userId) {
+        try {
+          const statusRes = await apiGet(`/api/check-user-status?userId=${encodeURIComponent(currentUser.userId)}`);
+          if (statusRes && statusRes.id) {
+            userRecordId = statusRes.id;
+          }
+        } catch (e) {
+          console.warn("[History] Could not resolve user record ID:", e.message);
+        }
+      }
+
       if (userRecordId) {
         // --- Fetch all orders from backend API ---
         try {
@@ -460,8 +480,9 @@ const History = () => {
 
       <div className="container history-main-container animate-fade-in">
         
-        {/* === DESKTOP VIEW === */}
-        <div className="desktop-history-view hide-mobile">
+        {!isMobile ? (
+        /* === DESKTOP VIEW === */
+        <div className="desktop-history-view">
           <header className="history-header">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '16px' }}>
             <div>
@@ -686,10 +707,10 @@ const History = () => {
             ← Continue Shopping
           </Link>
         </div> {/* End of history-actions-row */}
-        </div> {/* End of desktop-history-view */}
-
-        {/* === MOBILE VIEW === */}
-        <div className="mobile-history-view show-mobile-only">
+        </div> /* End of desktop-history-view */
+        ) : (
+        /* === MOBILE VIEW === */
+        <div className="mobile-history-view">
           <div className="mobile-header">
             <h1 className="font-heading mobile-title">Order History</h1>
             <p className="font-body mobile-subtitle">Track and manage your wholesale orders</p>
@@ -853,7 +874,7 @@ const History = () => {
             </Link>
           </div>
         </div>
-
+        )}
       </div>
 
       <style>{`
