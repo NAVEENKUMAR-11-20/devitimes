@@ -53,7 +53,11 @@ export async function apiFetch(endpoint, options = {}) {
     headers['Content-Type'] = 'application/json';
   }
 
-  const baseUrl = (import.meta.env.VITE_API_URL || import.meta.env.VITE_POCKETBASE_URL || 'https://api.devitimes.in').replace(/\/$/, '');
+  let baseUrl = import.meta.env.VITE_API_URL || '';
+  if (baseUrl) {
+    baseUrl = baseUrl.replace(/\/$/, '');
+  }
+  
   const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
 
   const response = await fetch(url, {
