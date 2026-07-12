@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import ClockSvg from '../../components/ClockSvg';
+import Cropper from 'cropperjs';
+import 'cropperjs/dist/cropper.css';
 import {
   fetchAllProducts,
   updateProduct as pbUpdateProduct,
@@ -193,10 +195,9 @@ const AdminProducts = () => {
   const [showCropModal, setShowCropModal] = useState(false);
   const [cropTargetIndex, setCropTargetIndex] = useState(null); // index of target image in editForm.images
   const [cropImageSrc, setCropImageSrc] = useState('');
-  const [cropBox, setCropBox] = useState({ x: 50, y: 50, size: 200 });
-  const [imgDimensions, setImgDimensions] = useState({ width: 0, height: 0, naturalWidth: 0, naturalHeight: 0 });
-  const dragStartRef = useRef(null);
-  const previewCanvasRef = useRef(null);
+  const [cropAspect, setCropAspect] = useState('free');
+  const [originalImages, setOriginalImages] = useState([]); // pristine copy of images for lossless cropping
+  const cropperInstanceRef = useRef(null);
   const cropImageRef = useRef(null);
 
   // Delete Confirmation Modal State
@@ -214,182 +215,100 @@ const AdminProducts = () => {
     };
   }, [deletingProductId, showCropModal, editingProduct]);
 
-  // Handle image dimensions loaded
-  const handleImageLoad = (e) => {
-    const { width, height } = e.target.getBoundingClientRect();
-    const naturalWidth = e.target.naturalWidth;
-    const naturalHeight = e.target.naturalHeight;
-    setImgDimensions({ width, height, naturalWidth, naturalHeight });
-    
-    // Initialize crop box to be a square at the center of the image
-    const minDim = Math.min(width, height);
-    const boxSize = minDim * 0.7; // 70% of min dimension
-    const boxX = (width - boxSize) / 2;
-    const boxY = (height - boxSize) / 2;
-    setCropBox({ x: boxX, y: boxY, size: boxSize });
-  };
-
-  const handleStartAction = (e, action) => {
-    e.preventDefault();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    dragStartRef.current = {
-      mouseX: clientX,
-      mouseY: clientY,
-      boxX: cropBox.x,
-      boxY: cropBox.y,
-      boxSize: cropBox.size,
-      action
-    };
-  };
-
-  // Drag and resize mouse/touch window listeners
+  // Reset originalImages when editingProduct is closed
   useEffect(() => {
-    const handleMove = (e) => {
-      if (!dragStartRef.current) return;
-      if (e.cancelable) e.preventDefault();
-      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-      const start = dragStartRef.current;
-      const dx = clientX - start.mouseX;
-      const dy = clientY - start.mouseY;
-
-      if (start.action === 'dragging') {
-        let newX = start.boxX + dx;
-        let newY = start.boxY + dy;
-        newX = Math.max(0, Math.min(newX, imgDimensions.width - start.boxSize));
-        newY = Math.max(0, Math.min(newY, imgDimensions.height - start.boxSize));
-        setCropBox({ x: newX, y: newY, size: start.boxSize });
-      } else if (start.action === 'resizing-se') {
-        const diff = Math.max(dx, dy);
-        const newSize = Math.max(40, Math.min(start.boxSize + diff, imgDimensions.width - start.boxX, imgDimensions.height - start.boxY));
-        setCropBox(prev => ({ ...prev, size: newSize }));
-      } else if (start.action === 'resizing-sw') {
-        const diff = -dx;
-        const maxSize = Math.min(start.boxSize + start.boxX, imgDimensions.height - start.boxY);
-        const newSize = Math.max(40, Math.min(start.boxSize + diff, maxSize));
-        const newX = start.boxX - (newSize - start.boxSize);
-        setCropBox({ x: newX, y: start.boxY, size: newSize });
-      } else if (start.action === 'resizing-ne') {
-        const diff = dx;
-        const maxSize = Math.min(imgDimensions.width - start.boxX, start.boxSize + start.boxY);
-        const newSize = Math.max(40, Math.min(start.boxSize + diff, maxSize));
-        const newY = start.boxY - (newSize - start.boxSize);
-        setCropBox({ x: start.boxX, y: newY, size: newSize });
-      } else if (start.action === 'resizing-nw') {
-        const diff = -dx;
-        const maxSize = Math.min(start.boxSize + start.boxX, start.boxSize + start.boxY);
-        const newSize = Math.max(40, Math.min(start.boxSize + diff, maxSize));
-        const newX = start.boxX - (newSize - start.boxSize);
-        const newY = start.boxY - (newSize - start.boxSize);
-        setCropBox({ x: newX, y: newY, size: newSize });
-      }
-    };
-
-    const handleEnd = () => {
-      dragStartRef.current = null;
-    };
-
-    window.addEventListener('mousemove', handleMove);
-    window.addEventListener('mouseup', handleEnd);
-    window.addEventListener('touchmove', handleMove, { passive: false });
-    window.addEventListener('touchend', handleEnd);
-
-    return () => {
-      window.removeEventListener('mousemove', handleMove);
-      window.removeEventListener('mouseup', handleEnd);
-      window.removeEventListener('touchmove', handleMove);
-      window.removeEventListener('touchend', handleEnd);
-    };
-  }, [cropBox, imgDimensions]);
-
-  // Update preview canvas whenever cropBox or image loaded updates
-  useEffect(() => {
-    if (!showCropModal || !cropImageSrc || !imgDimensions.width || !imgDimensions.height) return;
-
-    const img = cropImageRef.current;
-    if (!img) return;
-
-    const prevCanvas = previewCanvasRef.current;
-    if (!prevCanvas) return;
-    const prevCtx = prevCanvas.getContext('2d');
-    if (!prevCtx) return;
-
-    const scaleX = imgDimensions.naturalWidth / imgDimensions.width;
-    const scaleY = imgDimensions.naturalHeight / imgDimensions.height;
-    const sourceX = cropBox.x * scaleX;
-    const sourceY = cropBox.y * scaleY;
-    const sourceSize = cropBox.size * scaleX;
-
-    prevCtx.fillStyle = '#FFFFFF';
-    prevCtx.fillRect(0, 0, prevCanvas.width, prevCanvas.height);
-    try {
-      prevCtx.drawImage(
-        img,
-        sourceX, sourceY, sourceSize, sourceSize,
-        0, 0, prevCanvas.width, prevCanvas.height
-      );
-    } catch (e) {
-      console.error('[ERROR] Failed to draw crop preview:', e);
+    if (!editingProduct) {
+      setOriginalImages([]);
     }
-  }, [showCropModal, cropImageSrc, cropBox, imgDimensions]);
+  }, [editingProduct]);
+
+  // CropperJS instance initialization
+  useEffect(() => {
+    if (showCropModal && cropTargetIndex !== null && cropImageRef.current && cropImageSrc) {
+      const imageElement = cropImageRef.current;
+      const cropper = new Cropper(imageElement, {
+        viewMode: 1,
+        dragMode: 'move',
+        autoCropArea: 1,
+        restore: false,
+        modal: true,
+        guides: true,
+        highlight: true,
+        cropBoxMovable: true,
+        cropBoxResizable: true,
+        toggleDragModeOnDblclick: false,
+        ready() {
+          // Keep track of current crop settings if any
+        }
+      });
+
+      cropperInstanceRef.current = cropper;
+
+      return () => {
+        if (cropperInstanceRef.current) {
+          cropperInstanceRef.current.destroy();
+          cropperInstanceRef.current = null;
+        }
+      };
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCropModal, cropTargetIndex, cropImageSrc]);
+
+  const setCropperAspect = (aspectType) => {
+    setCropAspect(aspectType);
+    if (!cropperInstanceRef.current) return;
+    const cropper = cropperInstanceRef.current;
+    if (aspectType === 'free') {
+      cropper.setAspectRatio(NaN);
+    } else if (aspectType === 'original') {
+      const imageData = cropper.getImageData();
+      cropper.setAspectRatio(imageData.naturalWidth / imageData.naturalHeight);
+    } else {
+      cropper.setAspectRatio(aspectType);
+    }
+  };
 
   const handleOpenCropper = (imgUrl, index) => {
     setCropTargetIndex(index);
-    let finalUrl = imgUrl;
-    if (imgUrl && (imgUrl.startsWith('http://') || imgUrl.startsWith('https://'))) {
-      finalUrl = imgUrl + (imgUrl.includes('?') ? '&' : '?') + 't=' + getCacheBuster();
+    const pristineUrl = originalImages[index] || imgUrl;
+    let finalUrl = pristineUrl;
+    if (pristineUrl && (pristineUrl.startsWith('http://') || pristineUrl.startsWith('https://'))) {
+      finalUrl = pristineUrl + (pristineUrl.includes('?') ? '&' : '?') + 't=' + getCacheBuster();
     }
     setCropImageSrc(finalUrl);
-    setImgDimensions({ width: 0, height: 0, naturalWidth: 0, naturalHeight: 0 });
+    setCropAspect('free');
     setShowCropModal(true);
   };
 
   const handleResetCrop = () => {
-    if (imgDimensions.width > 0 && imgDimensions.height > 0) {
-      const minDim = Math.min(imgDimensions.width, imgDimensions.height);
-      const boxSize = minDim * 0.7;
-      const boxX = (imgDimensions.width - boxSize) / 2;
-      const boxY = (imgDimensions.height - boxSize) / 2;
-      setCropBox({ x: boxX, y: boxY, size: boxSize });
-    }
+    if (!cropperInstanceRef.current) return;
+    cropperInstanceRef.current.reset();
+    setCropAspect('free');
   };
 
   const handleSaveCrop = () => {
-    const img = cropImageRef.current;
-    if (!img || !imgDimensions.width || !imgDimensions.height) return;
+    if (!cropperInstanceRef.current || cropTargetIndex === null) return;
+    const cropper = cropperInstanceRef.current;
 
-    // Calculate source coordinates in the original image's natural dimensions
-    const scaleX = imgDimensions.naturalWidth / imgDimensions.width;
-    const scaleY = imgDimensions.naturalHeight / imgDimensions.height;
-    const sourceX = cropBox.x * scaleX;
-    const sourceY = cropBox.y * scaleY;
-    const sourceSize = cropBox.size * scaleX;
+    const croppedCanvas = cropper.getCroppedCanvas({
+      imageSmoothingEnabled: true,
+      imageSmoothingQuality: 'high'
+    });
 
-    // Create an offscreen canvas matching the high-resolution crop dimensions
-    const exportCanvas = document.createElement('canvas');
-    exportCanvas.width = Math.round(sourceSize);
-    exportCanvas.height = Math.round(sourceSize);
+    if (!croppedCanvas) {
+      alert('Could not crop image.');
+      return;
+    }
 
-    const exportCtx = exportCanvas.getContext('2d');
-    if (!exportCtx) return;
+    const originalUrl = originalImages[cropTargetIndex] || '';
+    let mimeType = 'image/png';
+    if (originalUrl.includes('.jpg') || originalUrl.includes('.jpeg')) {
+      mimeType = 'image/jpeg';
+    } else if (originalUrl.includes('.webp')) {
+      mimeType = 'image/webp';
+    }
 
-    // Enable high-quality image smoothing
-    exportCtx.imageSmoothingEnabled = true;
-    exportCtx.imageSmoothingQuality = 'high';
-
-    // Draw the high-resolution crop portion
-    exportCtx.drawImage(
-      img,
-      sourceX, sourceY, sourceSize, sourceSize,
-      0, 0, exportCanvas.width, exportCanvas.height
-    );
-
-    // Enhance and upscale if the resulting crop is low resolution
-    const enhancedCanvas = enhanceAndUpscaleImage(exportCanvas, 1200);
-
-    // Export in lossless PNG format to prevent repeated compression
-    const croppedBase64 = enhancedCanvas.toDataURL('image/png', 1.0);
+    const croppedBase64 = croppedCanvas.toDataURL(mimeType, 1.0);
 
     setEditForm(prev => {
       const updatedImages = [...prev.images];
@@ -656,6 +575,7 @@ const AdminProducts = () => {
       console.log('[DEBUG] Optimistic load start for product:', product.modelNumber);
     }
     setEditingProduct(initialData);
+    setOriginalImages(initialData.images || []);
     const modelVal = initialData.MODEL_NO !== undefined && initialData.MODEL_NO !== null && initialData.MODEL_NO !== '' ? String(initialData.MODEL_NO) : (initialData.modelNumber || '');
     const sizeVal = initialData.SIZE_DM !== undefined && initialData.SIZE_DM !== null && initialData.SIZE_DM !== '' ? String(initialData.SIZE_DM) : (initialData.size || '300 × 300 MM');
     setEditForm({
@@ -722,6 +642,7 @@ const AdminProducts = () => {
                 // Not modified by user yet, overwrite safely
                 const resModelVal = resolvedProduct.MODEL_NO !== undefined && resolvedProduct.MODEL_NO !== null && resolvedProduct.MODEL_NO !== '' ? String(resolvedProduct.MODEL_NO) : (resolvedProduct.modelNumber || '');
                 const resSizeVal = resolvedProduct.SIZE_DM !== undefined && resolvedProduct.SIZE_DM !== null && resolvedProduct.SIZE_DM !== '' ? String(resolvedProduct.SIZE_DM) : (resolvedProduct.size || '300 × 300 MM');
+                setOriginalImages(productImages);
                 return {
                   ...resolvedProduct,
                   MODEL_NO: resModelVal,
@@ -732,6 +653,7 @@ const AdminProducts = () => {
                 };
               } else {
                 // User started editing, merge details but preserve their changes
+                setOriginalImages(productImages);
                 return {
                   ...resolvedProduct,
                   ...currentForm,
@@ -898,6 +820,7 @@ const AdminProducts = () => {
         ...prev,
         images: [...prev.images, ...compressedUrls]
       }));
+      setOriginalImages(prev => [...prev, ...compressedUrls]);
     } catch (err) {
       console.error('Error compressing/uploading images:', err);
     }
@@ -908,6 +831,7 @@ const AdminProducts = () => {
       ...prev,
       images: prev.images.filter((_, idx) => idx !== indexToRemove)
     }));
+    setOriginalImages(prev => prev.filter((_, idx) => idx !== indexToRemove));
   };
 
   // Filter and Sort Table rows
@@ -1685,95 +1609,47 @@ const AdminProducts = () => {
             >
               ✕
             </button>
-            <h3 className="modal-title font-heading" style={{ marginBottom: '4px' }}>Crop Product Image</h3>
+            <h3 className="modal-title font-heading" style={{ marginBottom: '4px' }}>Edit Product Image</h3>
             <p className="modal-desc font-body" style={{ marginBottom: '12px' }}>
-              Drag the crop selection box to move it, or drag its corner handles to resize. The live preview on the right shows exactly what will be saved.
+              Select an aspect ratio, rotate, or zoom. Drag the selection box to reposition the crop.
             </p>
 
             <div className="crop-modal-body">
               <div className="cropper-workspace">
-                {/* Left Column: Draggable Image Crop Area */}
+                {/* Left Column: Cropper Container */}
                 <div className="cropper-panel">
-                  <span className="cropper-label font-body">ORIGINAL IMAGE & CROP AREA</span>
+                  <span className="cropper-label font-body">CROP AREA</span>
                   <div className="crop-editor-container">
-                    <div 
-                      className="crop-container" 
-                      style={{
-                        position: 'relative',
-                        display: 'inline-block',
-                        backgroundColor: '#F8FAFC',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '6px',
-                        overflow: 'hidden',
-                        boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.02)',
-                        userSelect: 'none',
-                        WebkitUserSelect: 'none',
-                        maxWidth: '100%',
-                        maxHeight: '100%'
-                      }}
-                    >
-                      <img 
-                        ref={cropImageRef}
-                        src={cropImageSrc} 
-                        alt="To Crop" 
-                        crossOrigin="anonymous"
-                        onLoad={handleImageLoad}
-                        style={{
-                          display: 'block',
-                          maxWidth: '100%',
-                          maxHeight: '100%',
-                          objectFit: 'contain',
-                          pointerEvents: 'none',
-                          userSelect: 'none',
-                          WebkitUserSelect: 'none'
-                        }}
-                      />
-                      {imgDimensions.width > 0 && (
-                        <>
-                          {/* Dark Overlays Outside Crop Area */}
-                          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: cropBox.y, backgroundColor: 'rgba(0,0,0,0.5)', pointerEvents: 'none' }} />
-                          <div style={{ position: 'absolute', top: cropBox.y + cropBox.size, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', pointerEvents: 'none' }} />
-                          <div style={{ position: 'absolute', top: cropBox.y, left: 0, width: cropBox.x, height: cropBox.size, backgroundColor: 'rgba(0,0,0,0.5)', pointerEvents: 'none' }} />
-                          <div style={{ position: 'absolute', top: cropBox.y, left: cropBox.x + cropBox.size, right: 0, height: cropBox.size, backgroundColor: 'rgba(0,0,0,0.5)', pointerEvents: 'none' }} />
-
-                          {/* Draggable Crop Selection Box */}
-                          <div 
-                            className="crop-box" 
-                            style={{
-                              position: 'absolute',
-                              left: cropBox.x,
-                              top: cropBox.y,
-                              width: cropBox.size,
-                              height: cropBox.size,
-                              border: '2px dashed #3B82F6',
-                              cursor: 'move',
-                              boxSizing: 'border-box'
-                            }}
-                            onMouseDown={(e) => handleStartAction(e, 'dragging')}
-                            onTouchStart={(e) => handleStartAction(e, 'dragging')}
-                          >
-                            {/* Interactive Corner Resize Handles */}
-                            <div className="crop-handle nw" style={{ position: 'absolute', width: '12px', height: '12px', backgroundColor: '#FFFFFF', border: '2px solid #3B82F6', borderRadius: '50%', cursor: 'nwse-resize', top: '-6px', left: '-6px', zIndex: 10, boxSizing: 'border-box' }} onMouseDown={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-nw'); }} onTouchStart={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-nw'); }} />
-                            <div className="crop-handle ne" style={{ position: 'absolute', width: '12px', height: '12px', backgroundColor: '#FFFFFF', border: '2px solid #3B82F6', borderRadius: '50%', cursor: 'nesw-resize', top: '-6px', right: '-6px', zIndex: 10, boxSizing: 'border-box' }} onMouseDown={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-ne'); }} onTouchStart={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-ne'); }} />
-                            <div className="crop-handle sw" style={{ position: 'absolute', width: '12px', height: '12px', backgroundColor: '#FFFFFF', border: '2px solid #3B82F6', borderRadius: '50%', cursor: 'nesw-resize', bottom: '-6px', left: '-6px', zIndex: 10, boxSizing: 'border-box' }} onMouseDown={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-sw'); }} onTouchStart={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-sw'); }} />
-                            <div className="crop-handle se" style={{ position: 'absolute', width: '12px', height: '12px', backgroundColor: '#FFFFFF', border: '2px solid #3B82F6', borderRadius: '50%', cursor: 'nwse-resize', bottom: '-6px', right: '-6px', zIndex: 10, boxSizing: 'border-box' }} onMouseDown={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-se'); }} onTouchStart={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-se'); }} />
-                          </div>
-                        </>
-                      )}
-                    </div>
+                    <img 
+                      ref={cropImageRef}
+                      src={cropImageSrc} 
+                      alt="To Crop" 
+                      crossOrigin="anonymous"
+                      style={{ display: 'block', maxWidth: '100%' }}
+                    />
                   </div>
                 </div>
 
-                {/* Right Column: Live Cropped Preview */}
+                {/* Right Column: Ratio presets and zoom/rotate controls */}
                 <div className="cropper-panel">
-                  <span className="cropper-label font-body">LIVE CROPPED PREVIEW</span>
-                  <div className="canvas-container preview-container crop-preview">
-                    <canvas
-                      ref={previewCanvasRef}
-                      width={300}
-                      height={300}
-                      className="preview-canvas"
-                    />
+                  <span className="cropper-label font-body">CONTROLS & RATIOS</span>
+                  
+                  {/* Aspect Ratio Presets */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', width: '100%', marginBottom: '16px' }}>
+                    <button type="button" onClick={() => setCropperAspect('free')} className={`btn-secondary ${cropAspect === 'free' ? 'active-ratio' : ''}`} style={{ fontSize: '12px', padding: '6px' }}>Free</button>
+                    <button type="button" onClick={() => setCropperAspect('original')} className={`btn-secondary ${cropAspect === 'original' ? 'active-ratio' : ''}`} style={{ fontSize: '12px', padding: '6px' }}>Original</button>
+                    <button type="button" onClick={() => setCropperAspect(1)} className={`btn-secondary ${cropAspect === 1 ? 'active-ratio' : ''}`} style={{ fontSize: '12px', padding: '6px' }}>1:1</button>
+                    <button type="button" onClick={() => setCropperAspect(4/3)} className={`btn-secondary ${cropAspect === 4/3 ? 'active-ratio' : ''}`} style={{ fontSize: '12px', padding: '6px' }}>4:3</button>
+                    <button type="button" onClick={() => setCropperAspect(3/4)} className={`btn-secondary ${cropAspect === 3/4 ? 'active-ratio' : ''}`} style={{ fontSize: '12px', padding: '6px' }}>3:4</button>
+                    <button type="button" onClick={() => setCropperAspect(16/9)} className={`btn-secondary ${cropAspect === 16/9 ? 'active-ratio' : ''}`} style={{ fontSize: '12px', padding: '6px' }}>16:9</button>
+                  </div>
+
+                  {/* Zoom/Rotate Controls */}
+                  <div style={{ display: 'flex', gap: '8px', width: '100%', justifyContent: 'center', marginBottom: '16px' }}>
+                    <button type="button" onClick={() => cropperInstanceRef.current?.zoom(0.1)} className="btn-secondary" style={{ padding: '8px 12px' }} title="Zoom In">➕ Zoom In</button>
+                    <button type="button" onClick={() => cropperInstanceRef.current?.zoom(-0.1)} className="btn-secondary" style={{ padding: '8px 12px' }} title="Zoom Out">➖ Zoom Out</button>
+                    <button type="button" onClick={() => cropperInstanceRef.current?.rotate(-90)} className="btn-secondary" style={{ padding: '8px 12px' }} title="Rotate Left">↺ Rotate L</button>
+                    <button type="button" onClick={() => cropperInstanceRef.current?.rotate(90)} className="btn-secondary" style={{ padding: '8px 12px' }} title="Rotate Right">↻ Rotate R</button>
                   </div>
                 </div>
               </div>
@@ -1781,7 +1657,7 @@ const AdminProducts = () => {
 
             <div className="crop-modal-footer">
               <button onClick={handleSaveCrop} className="btn-primary modal-btn">
-                Apply & Save Crop
+                Save Crop
               </button>
               <button onClick={handleResetCrop} type="button" className="btn-secondary modal-btn">
                 Reset
@@ -2568,6 +2444,12 @@ const AdminProducts = () => {
           display: flex;
           justify-content: flex-end;
           gap: 8px;
+        }
+
+        .active-ratio {
+          background-color: var(--primary-color, #1E293B) !important;
+          color: #ffffff !important;
+          border-color: var(--primary-color, #1E293B) !important;
         }
 
         .cropper-workspace {
