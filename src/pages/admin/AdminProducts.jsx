@@ -202,9 +202,9 @@ const AdminProducts = () => {
   // Delete Confirmation Modal State
   const [deletingProductId, setDeletingProductId] = useState(null);
 
-  // Disable body scroll when delete modal or crop modal is open
+  // Disable body scroll when delete modal, crop modal, or edit modal is open
   useEffect(() => {
-    if (deletingProductId || showCropModal) {
+    if (deletingProductId || showCropModal || editingProduct) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'auto';
@@ -212,7 +212,7 @@ const AdminProducts = () => {
     return () => {
       document.body.style.overflow = 'auto';
     };
-  }, [deletingProductId, showCropModal]);
+  }, [deletingProductId, showCropModal, editingProduct]);
 
   // Handle image dimensions loaded
   const handleImageLoad = (e) => {
@@ -1364,192 +1364,197 @@ const AdminProducts = () => {
       {editingProduct && (
         <div className="modal-overlay">
           <div className="modal-card edit-product-modal animate-fade-in">
-            <h3 className="modal-title font-heading" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+            <h3 className="modal-title font-heading" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', marginBottom: '0' }}>
               Edit Product Details
             </h3>
 
             <form onSubmit={handleEditSubmit} className="admin-form edit-product-form">
-                            <div className="form-grid-3col">
-                <div className="form-group">
-                  <label className="form-label">MODEL NO *</label>
-                  <input 
-                    type="text" 
-                    className="form-input"
-                    value={editForm.MODEL_NO !== undefined && editForm.MODEL_NO !== null && editForm.MODEL_NO !== '' ? editForm.MODEL_NO : (editForm.modelNumber || '')}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, MODEL_NO: e.target.value, modelNumber: e.target.value }))}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">SIZE *</label>
-                  <div style={{ display: 'flex', gap: '16px' }}>
-                    <select 
+              
+              {/* Scrollable Modal Body */}
+              <div className="edit-product-modal-body" style={{ paddingRight: '4px' }}>
+                <div className="form-grid-3col" style={{ marginTop: '16px' }}>
+                  <div className="form-group">
+                    <label className="form-label">MODEL NO *</label>
+                    <input 
+                      type="text" 
                       className="form-input"
-                      value={editForm.sizeType !== undefined ? editForm.sizeType : (STANDARD_SIZES.includes(editForm.SIZE_DM || editForm.size) ? (editForm.SIZE_DM || editForm.size) : ((editForm.SIZE_DM || editForm.size) ? 'Custom' : ''))}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === 'Custom') {
-                          setEditForm(prev => ({
-                            ...prev,
-                            sizeType: 'Custom',
-                            customSize: prev.customSize || (STANDARD_SIZES.includes(prev.SIZE_DM || prev.size) ? '' : (prev.SIZE_DM || prev.size || '')),
-                            SIZE_DM: prev.customSize || (STANDARD_SIZES.includes(prev.SIZE_DM || prev.size) ? '' : (prev.SIZE_DM || prev.size || '')),
-                            size: prev.customSize || (STANDARD_SIZES.includes(prev.SIZE_DM || prev.size) ? '' : (prev.SIZE_DM || prev.size || ''))
-                          }));
-                        } else {
-                          setEditForm(prev => ({
-                            ...prev,
-                            sizeType: val,
-                            SIZE_DM: val,
-                            size: val
-                          }));
-                        }
-                      }}
-                      style={{ flex: 1 }}
-                    >
-                      <option value="">Select Size</option>
-                      <option value="200 × 200 MM">200 × 200 MM</option>
-                      <option value="250 × 250 MM">250 × 250 MM</option>
-                      <option value="300 × 300 MM">300 × 300 MM</option>
-                      <option value="350 × 350 MM">350 × 350 MM</option>
-                      <option value="400 × 400 MM">400 × 400 MM</option>
-                      <option value="450 × 450 MM">450 × 450 MM</option>
-                      <option value="500 × 500 MM">500 × 500 MM</option>
-                      <option value="Custom">Custom</option>
-                    </select>
+                      value={editForm.MODEL_NO !== undefined && editForm.MODEL_NO !== null && editForm.MODEL_NO !== '' ? editForm.MODEL_NO : (editForm.modelNumber || '')}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, MODEL_NO: e.target.value, modelNumber: e.target.value }))}
+                    />
+                  </div>
 
-                    {((editForm.sizeType === 'Custom') || (editForm.sizeType === undefined && (editForm.SIZE_DM || editForm.size) && !STANDARD_SIZES.includes(editForm.SIZE_DM || editForm.size))) && (
-                      <input 
-                        type="text" 
+                  <div className="form-group">
+                    <label className="form-label">SIZE *</label>
+                    <div style={{ display: 'flex', gap: '16px' }}>
+                      <select 
                         className="form-input"
-                        placeholder="e.g. 300 × 300 MM"
-                        value={editForm.customSize !== undefined ? editForm.customSize : (editForm.SIZE_DM || editForm.size || '')}
+                        value={editForm.sizeType !== undefined ? editForm.sizeType : (STANDARD_SIZES.includes(editForm.SIZE_DM || editForm.size) ? (editForm.SIZE_DM || editForm.size) : ((editForm.SIZE_DM || editForm.size) ? 'Custom' : ''))}
                         onChange={(e) => {
                           const val = e.target.value;
-                          setEditForm(prev => ({
-                            ...prev,
-                            customSize: val,
-                            SIZE_DM: val,
-                            size: val
-                          }));
+                          if (val === 'Custom') {
+                            setEditForm(prev => ({
+                              ...prev,
+                              sizeType: 'Custom',
+                              customSize: prev.customSize || (STANDARD_SIZES.includes(prev.SIZE_DM || prev.size) ? '' : (prev.SIZE_DM || prev.size || '')),
+                              SIZE_DM: prev.customSize || (STANDARD_SIZES.includes(prev.SIZE_DM || prev.size) ? '' : (prev.SIZE_DM || prev.size || '')),
+                              size: prev.customSize || (STANDARD_SIZES.includes(prev.SIZE_DM || prev.size) ? '' : (prev.SIZE_DM || prev.size || ''))
+                            }));
+                          } else {
+                            setEditForm(prev => ({
+                              ...prev,
+                              sizeType: val,
+                              SIZE_DM: val,
+                              size: val
+                            }));
+                          }
                         }}
                         style={{ flex: 1 }}
-                      />
-                    )}
+                      >
+                        <option value="">Select Size</option>
+                        <option value="200 × 200 MM">200 × 200 MM</option>
+                        <option value="250 × 250 MM">250 × 250 MM</option>
+                        <option value="300 × 300 MM">300 × 300 MM</option>
+                        <option value="350 × 350 MM">350 × 350 MM</option>
+                        <option value="400 × 400 MM">400 × 400 MM</option>
+                        <option value="450 × 450 MM">450 × 450 MM</option>
+                        <option value="500 × 500 MM">500 × 500 MM</option>
+                        <option value="Custom">Custom</option>
+                      </select>
+
+                      {((editForm.sizeType === 'Custom') || (editForm.sizeType === undefined && (editForm.SIZE_DM || editForm.size) && !STANDARD_SIZES.includes(editForm.SIZE_DM || editForm.size))) && (
+                        <input 
+                          type="text" 
+                          className="form-input"
+                          placeholder="e.g. 300 × 300 MM"
+                          value={editForm.customSize !== undefined ? editForm.customSize : (editForm.SIZE_DM || editForm.size || '')}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEditForm(prev => ({
+                              ...prev,
+                              customSize: val,
+                              SIZE_DM: val,
+                              size: val
+                            }));
+                          }}
+                          style={{ flex: 1 }}
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                </div>
+
+                <div className="form-grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div className="form-group">
+                    <label className="form-label">WHOLESALE PRICE (₹)</label>
+                    <input 
+                      type="number" 
+                      className="form-input"
+                      value={editForm.wholesalePrice !== undefined ? editForm.wholesalePrice : editForm.salePrice}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, wholesalePrice: Number(e.target.value) }))}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">RETAIL PRICE (₹)</label>
+                    <input 
+                      type="number" 
+                      className="form-input"
+                      value={editForm.retailPrice}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, retailPrice: Number(e.target.value) }))}
+                    />
                   </div>
                 </div>
 
-              </div>
-
-              <div className="form-grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <div className="form-group">
-                  <label className="form-label">WHOLESALE PRICE (₹)</label>
+                <div className="form-group" style={{ marginTop: '16px' }}>
+                  <label className="form-label">STOCK QUANTITY</label>
                   <input 
                     type="number" 
                     className="form-input"
-                    value={editForm.wholesalePrice !== undefined ? editForm.wholesalePrice : editForm.salePrice}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, wholesalePrice: Number(e.target.value) }))}
+                    value={editForm.stock !== undefined ? editForm.stock : 20}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, stock: Number(e.target.value) }))}
                   />
                 </div>
-                <div className="form-group">
-                  <label className="form-label">RETAIL PRICE (₹)</label>
-                  <input 
-                    type="number" 
-                    className="form-input"
-                    value={editForm.retailPrice}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, retailPrice: Number(e.target.value) }))}
-                  />
-                </div>
-              </div>
 
-              <div className="form-group" style={{ marginTop: '16px' }}>
-                <label className="form-label">STOCK QUANTITY</label>
-                <input 
-                  type="number" 
-                  className="form-input"
-                  value={editForm.stock !== undefined ? editForm.stock : 20}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, stock: Number(e.target.value) }))}
-                />
-              </div>
+                {/* Checkboxes */}
+                <div className="form-checkboxes-row font-body">
+                  <label className="checkbox-container">
+                    <input 
+                      type="checkbox" 
+                      checked={editForm.isOnSale}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, isOnSale: e.target.checked }))}
+                    />
+                    <span>Show "SALE" Badge</span>
+                  </label>
 
-              {/* Checkboxes */}
-              <div className="form-checkboxes-row font-body">
-                <label className="checkbox-container">
-                  <input 
-                    type="checkbox" 
-                    checked={editForm.isOnSale}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, isOnSale: e.target.checked }))}
-                  />
-                  <span>Show "SALE" Badge</span>
-                </label>
-
-                <label className="checkbox-container">
-                  <input 
-                    type="checkbox" 
-                    checked={editForm.isLive}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, isLive: e.target.checked }))}
-                  />
-                  <span>Make Product Live</span>
-                </label>
-              </div>
-
-              {/* Images uploads */}
-              <div className="form-group" style={{ marginTop: '16px' }}>
-                <label className="form-label">IMAGES GALLERY ({editForm.images.length})</label>
-                
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  multiple 
-                  id="modal-img-upload-input" 
-                  style={{ display: 'none' }} 
-                  onChange={handleImageUpload} 
-                />
-                
-                <div className="modal-gallery-row">
-                  {editForm.images.map((img, index) => (
-                    <div key={index} className="modal-gallery-thumb">
-                      <img 
-                        src={img} 
-                        alt="preview" 
-                        onClick={() => handleOpenCropper(img, index)}
-                        style={{ cursor: 'pointer' }}
-                        title="Click to Crop/Resize"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                      <button 
-                        type="button" 
-                        className="remove-thumb-x"
-                        onClick={() => removeEditImage(index)}
-                      >
-                        &times;
-                      </button>
-                      <button 
-                        type="button" 
-                        className="edit-thumb-pencil"
-                        onClick={() => handleOpenCropper(img, index)}
-                        title="Crop / Resize"
-                        style={{ border: 'none' }}
-                      >
-                        ✏️
-                      </button>
-                    </div>
-                  ))}
-                  
-                  {/* Shimmer skeleton for background loading */}
-                  {showSkeleton && (
-                    <div className="modal-gallery-thumb shimmer-skeleton" style={{ width: '80px', height: '80px', borderRadius: '8px' }}>
-                    </div>
-                  )}
-                  
-                  <label htmlFor="modal-img-upload-input" className="modal-add-thumb-btn">
-                    <span>+ Add</span>
+                  <label className="checkbox-container">
+                    <input 
+                      type="checkbox" 
+                      checked={editForm.isLive}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, isLive: e.target.checked }))}
+                    />
+                    <span>Make Product Live</span>
                   </label>
                 </div>
+
+                {/* Images uploads */}
+                <div className="form-group" style={{ marginTop: '16px', marginBottom: '16px' }}>
+                  <label className="form-label">IMAGES GALLERY ({editForm.images.length})</label>
+                  
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    multiple 
+                    id="modal-img-upload-input" 
+                    style={{ display: 'none' }} 
+                    onChange={handleImageUpload} 
+                  />
+                  
+                  <div className="modal-gallery-row">
+                    {editForm.images.map((img, index) => (
+                      <div key={index} className="modal-gallery-thumb">
+                        <img 
+                          src={img} 
+                          alt="preview" 
+                          onClick={() => handleOpenCropper(img, index)}
+                          style={{ cursor: 'pointer' }}
+                          title="Click to Crop/Resize"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                        <button 
+                          type="button" 
+                          className="remove-thumb-x"
+                          onClick={() => removeEditImage(index)}
+                        >
+                          &times;
+                        </button>
+                        <button 
+                          type="button" 
+                          className="edit-thumb-pencil"
+                          onClick={() => handleOpenCropper(img, index)}
+                          title="Crop / Resize"
+                          style={{ border: 'none' }}
+                        >
+                          ✏️
+                        </button>
+                      </div>
+                    ))}
+                    
+                    {/* Shimmer skeleton for background loading */}
+                    {showSkeleton && (
+                      <div className="modal-gallery-thumb shimmer-skeleton" style={{ width: '80px', height: '80px', borderRadius: '8px' }}>
+                      </div>
+                    )}
+                    
+                    <label htmlFor="modal-img-upload-input" className="modal-add-thumb-btn">
+                      <span>+ Add</span>
+                    </label>
+                  </div>
+                </div>
               </div>
 
-              <div className="modal-actions-row" style={{ marginTop: '24px' }}>
+              {/* Sticky modal actions */}
+              <div className="edit-product-modal-actions">
                 <button type="submit" className="btn-primary modal-btn" disabled={isSaving}>
                   {isSaving ? 'SAVING...' : 'SAVE CHANGES'}
                 </button>
@@ -2098,12 +2103,58 @@ const AdminProducts = () => {
 
         /* Edit Modal adjustments */
         .edit-product-modal {
+          width: min(94vw, 700px);
           max-width: 680px !important;
+          max-height: calc(100dvh - 24px);
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
           text-align: left;
         }
 
         .edit-product-form {
           margin-top: 20px;
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+          min-height: 0;
+          overflow: hidden;
+        }
+
+        .edit-product-modal-body {
+          flex: 1;
+          min-height: 0;
+          overflow-y: auto;
+          overflow-x: hidden;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        .edit-product-modal-actions {
+          position: sticky;
+          bottom: 0;
+          z-index: 20;
+          display: flex;
+          gap: 10px;
+          background: #ffffff;
+          border-top: 1px solid #e5e7eb;
+          padding: 14px 0 calc(14px + env(safe-area-inset-bottom));
+        }
+
+        @media (max-width: 480px) {
+          .edit-product-modal {
+            width: calc(100vw - 20px);
+            max-height: calc(100dvh - 20px);
+          }
+
+          .edit-product-modal-actions {
+            flex-direction: column;
+          }
+
+          .edit-product-modal-actions button {
+            width: 100% !important;
+            min-height: 44px;
+            margin: 0 !important;
+          }
         }
 
         .form-grid-2col {
