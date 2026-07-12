@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createProduct } from '../../lib/productsService';
 import { useApp } from '../../context/AppContext';
+import Cropper from 'cropperjs';
+import 'cropperjs/dist/cropper.css';
 
 // Helper to read file as base64 without losing quality (formerly compressImage)
 function compressImage(file) {
@@ -52,7 +54,15 @@ const AdminAddProduct = () => {
   const [packageNo, setPackageNo] = useState('');
   const [isLive, setIsLive] = useState(true);
   const [stockCount, setStockCount] = useState(20);
-  const [images, setImages] = useState([]); // array of { url: string, file: File }
+  const [images, setImages] = useState([]); // array of { url: string, file: File, originalFile: File, cropData: Object | null }
+
+  // Crop modal state
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [activeCropIdx, setActiveCropIdx] = useState(null);
+  const [cropAspect, setCropAspect] = useState('free'); // 'free' | 'original' | number
+  const [cropImageUrl, setCropImageUrl] = useState('');
+  const cropperInstanceRef = useRef(null);
+  const cropperImgRef = useRef(null);
 
   // Common sizes helper list
   const sizeOptions = [
@@ -64,7 +74,7 @@ const AdminAddProduct = () => {
     'Custom'
   ];
 
-  // Upload trigger — store both preview URL and original File
+  // Upload trigger — store preview URL, current file, original File, and cropData
   const handleImageFileChange = async (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
@@ -79,6 +89,8 @@ const AdminAddProduct = () => {
       const newEntries = files.map(file => ({
         url: URL.createObjectURL(file),
         file,
+        originalFile: file,
+        cropData: null
       }));
       setImages(prev => [...prev, ...newEntries]);
     } catch (err) {
@@ -89,6 +101,10 @@ const AdminAddProduct = () => {
   };
 
   const removeImage = (indexToRemove) => {
+    const imgToRemove = images[indexToRemove];
+    if (imgToRemove && imgToRemove.url) {
+      URL.revokeObjectURL(imgToRemove.url);
+    }
     setImages(prev => prev.filter((_, idx) => idx !== indexToRemove));
   };
 
@@ -108,6 +124,9 @@ const AdminAddProduct = () => {
 
   // Reset form to add another product
   const handleResetForm = () => {
+    images.forEach(img => {
+      if (img.url) URL.revokeObjectURL(img.url);
+    });
     setModelNumber('');
     setSizeType('300 × 300 MM');
     setCustomSize('');
@@ -120,6 +139,129 @@ const AdminAddProduct = () => {
     setErrors({});
     setIsSuccess(false);
   };
+
+  // Crop event handlers and hooks
+  const handleEditClick = (idx) => {
+    const img = images[idx];
+    if (!img) return;
+    const url = URL.createObjectURL(img.originalFile);
+    setCropImageUrl(url);
+    setActiveCropIdx(idx);
+    setCropAspect('free');
+    setShowCropModal(true);
+  };
+
+  const handleCloseCropModal = () => {
+    setShowCropModal(false);
+    setActiveCropIdx(null);
+    if (cropImageUrl) {
+      URL.revokeObjectURL(cropImageUrl);
+      setCropImageUrl('');
+    }
+  };
+
+  const setCropperAspect = (aspectType) => {
+    setCropAspect(aspectType);
+    if (!cropperInstanceRef.current) return;
+    const cropper = cropperInstanceRef.current;
+    if (aspectType === 'free') {
+      cropper.setAspectRatio(NaN);
+    } else if (aspectType === 'original') {
+      const imageData = cropper.getImageData();
+      cropper.setAspectRatio(imageData.naturalWidth / imageData.naturalHeight);
+    } else {
+      cropper.setAspectRatio(aspectType);
+    }
+  };
+
+  const handleResetCrop = () => {
+    if (!cropperInstanceRef.current) return;
+    cropperInstanceRef.current.reset();
+    setCropAspect('free');
+  };
+
+  const handleSaveCrop = () => {
+    if (!cropperInstanceRef.current || activeCropIdx === null) return;
+    const cropper = cropperInstanceRef.current;
+    const activeImg = images[activeCropIdx];
+
+    const croppedCanvas = cropper.getCroppedCanvas({
+      imageSmoothingEnabled: true,
+      imageSmoothingQuality: 'high'
+    });
+
+    if (!croppedCanvas) {
+      alert('Could not crop image.');
+      return;
+    }
+
+    const mimeType = activeImg.originalFile.type || 'image/jpeg';
+    
+    croppedCanvas.toBlob((blob) => {
+      if (!blob) {
+        alert('Could not export cropped image.');
+        return;
+      }
+      
+      const croppedFile = new File([blob], activeImg.originalFile.name, { type: mimeType });
+      const croppedUrl = URL.createObjectURL(croppedFile);
+
+      // Clean up previous URL to avoid memory leak
+      if (activeImg.url) {
+        URL.revokeObjectURL(activeImg.url);
+      }
+
+      setImages(prev => prev.map((img, idx) => {
+        if (idx === activeCropIdx) {
+          return {
+            ...img,
+            url: croppedUrl,
+            file: croppedFile,
+            cropData: cropper.getData()
+          };
+        }
+        return img;
+      }));
+
+      handleCloseCropModal();
+    }, mimeType, 1.0); // 1.0 maximum quality
+  };
+
+  useEffect(() => {
+    if (showCropModal && activeCropIdx !== null && cropperImgRef.current && cropImageUrl) {
+      const activeImg = images[activeCropIdx];
+      if (!activeImg) return;
+
+      const imageElement = cropperImgRef.current;
+      const cropper = new Cropper(imageElement, {
+        viewMode: 1,
+        dragMode: 'move',
+        autoCropArea: 1,
+        restore: false,
+        modal: true,
+        guides: true,
+        highlight: true,
+        cropBoxMovable: true,
+        cropBoxResizable: true,
+        toggleDragModeOnDblclick: false,
+        ready() {
+          if (activeImg.cropData) {
+            cropper.setData(activeImg.cropData);
+          }
+        }
+      });
+
+      cropperInstanceRef.current = cropper;
+
+      return () => {
+        if (cropperInstanceRef.current) {
+          cropperInstanceRef.current.destroy();
+          cropperInstanceRef.current = null;
+        }
+      };
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCropModal, activeCropIdx, cropImageUrl]);
 
   // Validate form fields — returns true if valid, sets errors otherwise
   const validateForm = () => {
@@ -243,6 +385,142 @@ const AdminAddProduct = () => {
           </div>
         </div>
       )}
+
+      {/* Image Crop & Edit Modal */}
+      {showCropModal && cropImageUrl && (
+        <div className="crop-modal-overlay">
+          <div className="crop-modal-box">
+            
+            <div className="crop-modal-header">
+              <h2 className="crop-modal-title font-heading">Edit Product Image</h2>
+              <button type="button" className="crop-modal-close-x" onClick={handleCloseCropModal}>&times;</button>
+            </div>
+
+            <div className="crop-modal-content">
+              <div className="crop-cropper-container">
+                <img 
+                  ref={cropperImgRef} 
+                  src={cropImageUrl} 
+                  alt="Source image to crop" 
+                />
+              </div>
+            </div>
+
+            <div className="crop-controls-panel">
+              {/* Aspect Ratio Toolbar */}
+              <div className="crop-aspect-row">
+                <button 
+                  type="button" 
+                  className={`crop-aspect-btn ${cropAspect === 'free' ? 'active' : ''}`} 
+                  onClick={() => setCropperAspect('free')}
+                >
+                  Free Crop
+                </button>
+                <button 
+                  type="button" 
+                  className={`crop-aspect-btn ${cropAspect === 'original' ? 'active' : ''}`} 
+                  onClick={() => setCropperAspect('original')}
+                >
+                  Original
+                </button>
+                <button 
+                  type="button" 
+                  className={`crop-aspect-btn ${cropAspect === 1 ? 'active' : ''}`} 
+                  onClick={() => setCropperAspect(1)}
+                >
+                  1:1
+                </button>
+                <button 
+                  type="button" 
+                  className={`crop-aspect-btn ${cropAspect === 4/3 ? 'active' : ''}`} 
+                  onClick={() => setCropperAspect(4/3)}
+                >
+                  4:3
+                </button>
+                <button 
+                  type="button" 
+                  className={`crop-aspect-btn ${cropAspect === 3/4 ? 'active' : ''}`} 
+                  onClick={() => setCropperAspect(3/4)}
+                >
+                  3:4
+                </button>
+                <button 
+                  type="button" 
+                  className={`crop-aspect-btn ${cropAspect === 16/9 ? 'active' : ''}`} 
+                  onClick={() => setCropperAspect(16/9)}
+                >
+                  16:9
+                </button>
+              </div>
+
+              {/* Manipulation / Action Buttons */}
+              <div className="crop-actions-row">
+                <div className="crop-tools-group">
+                  <button 
+                    type="button" 
+                    className="crop-tool-btn" 
+                    onClick={() => cropperInstanceRef.current?.zoom(0.1)} 
+                    title="Zoom In"
+                  >
+                    ➕
+                  </button>
+                  <button 
+                    type="button" 
+                    className="crop-tool-btn" 
+                    onClick={() => cropperInstanceRef.current?.zoom(-0.1)} 
+                    title="Zoom Out"
+                  >
+                    ➖
+                  </button>
+                  <button 
+                    type="button" 
+                    className="crop-tool-btn" 
+                    onClick={() => cropperInstanceRef.current?.rotate(-90)} 
+                    title="Rotate Left"
+                  >
+                    ↺
+                  </button>
+                  <button 
+                    type="button" 
+                    className="crop-tool-btn" 
+                    onClick={() => cropperInstanceRef.current?.rotate(90)} 
+                    title="Rotate Right"
+                  >
+                    ↻
+                  </button>
+                  <button 
+                    type="button" 
+                    className="crop-aspect-btn" 
+                    onClick={handleResetCrop}
+                    style={{ marginLeft: '8px' }}
+                  >
+                    Reset
+                  </button>
+                </div>
+
+                <div className="crop-submit-group">
+                  <button 
+                    type="button" 
+                    className="crop-cancel-btn" 
+                    onClick={handleCloseCropModal}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="button" 
+                    className="crop-save-btn" 
+                    onClick={handleSaveCrop}
+                  >
+                    Save Crop
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+      )}
       
       {/* 1. Success Screen View */}
       {isSuccess ? (
@@ -275,10 +553,10 @@ const AdminAddProduct = () => {
 
           <form className="admin-form product-create-form" onSubmit={handleSaveClick}>
             
-            {/* Left Block: Image Drag-n-Drop area */}
+             {/* Left Block: Image Drag-n-Drop area */}
             <div className="form-card-panel">
               <h3 className="panel-heading font-heading">Product Images</h3>
-              <p className="panel-subtext font-body">Large images are compressed automatically up to 800×800px to conserve browser memory.</p>
+              <p className="panel-subtext font-body">Upload high-resolution images. Crop and rotate images using the edit button on each thumbnail.</p>
 
               {/* Dash drop zone */}
               <input 
@@ -293,7 +571,7 @@ const AdminAddProduct = () => {
               <label htmlFor="main-drag-file-picker" className="drag-upload-zone">
                 <span className="drag-icon">📤</span>
                 <span className="drag-text font-body">
-                  {compressing ? 'Compressing images...' : 'Click to upload images or drag & drop'}
+                  {compressing ? 'Loading images...' : 'Click to upload images or drag & drop'}
                 </span>
                 <span className="drag-helper font-body">Supports JPG, PNG, WEBP. Max 10 images.</span>
               </label>
@@ -310,9 +588,29 @@ const AdminAddProduct = () => {
                         <div className="preview-image-wrapper">
                           <img src={img.url} alt={`Preview ${idx + 1}`} />
                           {isCover && <span className="cover-label uppercase-label">Cover</span>}
+
+                          {/* Red circular X button at top-right */}
+                          <button
+                            type="button"
+                            className="thumb-badge-btn thumb-remove-btn"
+                            onClick={() => removeImage(idx)}
+                            title="Remove Image"
+                          >
+                            &times;
+                          </button>
+
+                          {/* Blue circular pencil/edit button at bottom-right */}
+                          <button
+                            type="button"
+                            className="thumb-badge-btn thumb-edit-btn"
+                            onClick={() => handleEditClick(idx)}
+                            title="Edit / Crop Image"
+                          >
+                            ✏️
+                          </button>
                         </div>
 
-                        {/* Reordering and removal toolbar */}
+                        {/* Reordering toolbar */}
                         <div className="preview-toolbar">
                           <button 
                             type="button" 
@@ -322,14 +620,6 @@ const AdminAddProduct = () => {
                             title="Move Left"
                           >
                             ◀
-                          </button>
-                          <button 
-                            type="button" 
-                            className="toolbar-btn remove-image-x-btn" 
-                            onClick={() => removeImage(idx)}
-                            title="Delete Image"
-                          >
-                            &times;
                           </button>
                           <button 
                             type="button" 
@@ -345,6 +635,14 @@ const AdminAddProduct = () => {
                       </div>
                     );
                   })}
+
+                  {/* Dashed "+ Add" box inside grid */}
+                  {images.length < 10 && (
+                    <label htmlFor="main-drag-file-picker" className="add-thumb-card">
+                      <span className="add-thumb-icon">+</span>
+                      <span className="add-thumb-text">Add</span>
+                    </label>
+                  )}
                 </div>
               )}
             </div>
@@ -588,6 +886,269 @@ const AdminAddProduct = () => {
           font-size: 8px;
           text-align: center;
           padding: 2px 0;
+        }
+
+        /* Thumb badges (Red circular remove & Blue circular edit) */
+        .thumb-badge-btn {
+          position: absolute;
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          border: 1px solid #ffffff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+          font-size: 11px;
+          transition: transform 0.15s ease, background-color 0.15s ease;
+          z-index: 10;
+          padding: 0;
+        }
+
+        .thumb-badge-btn:hover {
+          transform: scale(1.1);
+        }
+
+        .thumb-remove-btn {
+          top: 4px;
+          right: 4px;
+          background-color: #ef4444;
+          color: #ffffff;
+          font-size: 14px;
+          line-height: 1;
+        }
+
+        .thumb-remove-btn:hover {
+          background-color: #dc2626;
+        }
+
+        .thumb-edit-btn {
+          bottom: 4px;
+          right: 4px;
+          background-color: #3b82f6;
+          color: #ffffff;
+        }
+
+        .thumb-edit-btn:hover {
+          background-color: #2563eb;
+        }
+
+        /* Dashed + Add Card */
+        .add-thumb-card {
+          aspect-ratio: 1/1;
+          border: 2px dashed var(--border-color);
+          border-radius: 4px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          background-color: #F8FAFC;
+          transition: border-color var(--transition-speed), background-color var(--transition-speed);
+        }
+
+        .add-thumb-card:hover {
+          border-color: var(--accent-blue);
+          background-color: #F1F5F9;
+        }
+
+        .add-thumb-icon {
+          font-size: 20px;
+          font-weight: bold;
+          color: var(--text-secondary);
+        }
+
+        .add-thumb-text {
+          font-size: 10px;
+          color: var(--text-muted);
+          margin-top: 2px;
+          font-weight: 500;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+
+        /* ── Crop Modal ─────────────────────────────── */
+        .crop-modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(15, 23, 42, 0.75);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9500;
+          padding: 20px;
+          animation: overlayFadeIn 0.18s ease;
+        }
+
+        .crop-modal-box {
+          background: #ffffff;
+          border-radius: 8px;
+          width: 100%;
+          max-width: 900px;
+          max-height: 90vh;
+          display: flex;
+          flex-direction: column;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+          animation: modalScaleIn 0.2s cubic-bezier(0.34,1.56,0.64,1);
+          overflow: hidden;
+        }
+
+        .crop-modal-header {
+          padding: 16px 24px;
+          border-bottom: 1px solid var(--border-color);
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          background-color: #ffffff;
+        }
+
+        .crop-modal-title {
+          font-size: 16px;
+          font-weight: 700;
+          color: var(--text-primary);
+          margin: 0;
+        }
+
+        .crop-modal-close-x {
+          background: none;
+          border: none;
+          font-size: 20px;
+          cursor: pointer;
+          color: var(--text-muted);
+        }
+
+        .crop-modal-close-x:hover {
+          color: var(--text-primary);
+        }
+
+        .crop-modal-content {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          background-color: #000000;
+          min-height: 300px;
+        }
+
+        .crop-cropper-container {
+          flex: 1;
+          max-height: 55vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+        }
+
+        .crop-cropper-container img {
+          max-width: 100%;
+          max-height: 100%;
+          display: block;
+        }
+
+        .crop-controls-panel {
+          background: #ffffff;
+          border-top: 1px solid var(--border-color);
+          padding: 16px 24px;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+
+        .crop-aspect-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          justify-content: center;
+        }
+
+        .crop-aspect-btn {
+          border: 1px solid var(--border-color);
+          background: #ffffff;
+          padding: 6px 12px;
+          font-size: 12px;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          color: var(--text-secondary);
+        }
+
+        .crop-aspect-btn:hover {
+          background-color: #f1f5f9;
+          border-color: var(--text-muted);
+        }
+
+        .crop-aspect-btn.active {
+          background-color: var(--accent-blue);
+          color: #ffffff;
+          border-color: var(--accent-blue);
+        }
+
+        .crop-actions-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 16px;
+        }
+
+        .crop-tools-group {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+        }
+
+        .crop-tool-btn {
+          width: 36px;
+          height: 36px;
+          border: 1px solid var(--border-color);
+          background: #ffffff;
+          border-radius: 4px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          font-size: 14px;
+        }
+
+        .crop-tool-btn:hover {
+          background-color: #f1f5f9;
+        }
+
+        .crop-submit-group {
+          display: flex;
+          gap: 12px;
+        }
+
+        .crop-save-btn {
+          background-color: var(--accent-blue);
+          color: #ffffff;
+          border: none;
+          padding: 8px 20px;
+          font-size: 13px;
+          font-weight: 600;
+          border-radius: 4px;
+          cursor: pointer;
+        }
+
+        .crop-save-btn:hover {
+          background-color: #2563eb;
+        }
+
+        .crop-cancel-btn {
+          background-color: #ffffff;
+          color: var(--text-secondary);
+          border: 1px solid var(--border-color);
+          padding: 8px 20px;
+          font-size: 13px;
+          font-weight: 600;
+          border-radius: 4px;
+          cursor: pointer;
+        }
+
+        .crop-cancel-btn:hover {
+          background-color: #f1f5f9;
         }
 
         .preview-toolbar {
