@@ -345,6 +345,16 @@ const AdminProducts = () => {
     setShowCropModal(true);
   };
 
+  const handleResetCrop = () => {
+    if (imgDimensions.width > 0 && imgDimensions.height > 0) {
+      const minDim = Math.min(imgDimensions.width, imgDimensions.height);
+      const boxSize = minDim * 0.7;
+      const boxX = (imgDimensions.width - boxSize) / 2;
+      const boxY = (imgDimensions.height - boxSize) / 2;
+      setCropBox({ x: boxX, y: boxY, size: boxSize });
+    }
+  };
+
   const handleSaveCrop = () => {
     const img = cropImageRef.current;
     if (!img || !imgDimensions.width || !imgDimensions.height) return;
@@ -1663,7 +1673,7 @@ const AdminProducts = () => {
       {/* --- CROP MODAL OVERLAY --- */}
       {showCropModal && (
         <div className="modal-overlay">
-          <div className="modal-card animate-fade-in" style={{ maxWidth: '800px', width: '95%' }}>
+          <div className="modal-card crop-modal animate-fade-in">
             <button 
               className="modal-close-btn" 
               onClick={() => {
@@ -1675,98 +1685,106 @@ const AdminProducts = () => {
             >
               ✕
             </button>
-            <h3 className="modal-title font-heading">Crop Product Image</h3>
-            <p className="modal-desc font-body" style={{ marginBottom: '16px' }}>
+            <h3 className="modal-title font-heading" style={{ marginBottom: '4px' }}>Crop Product Image</h3>
+            <p className="modal-desc font-body" style={{ marginBottom: '12px' }}>
               Drag the crop selection box to move it, or drag its corner handles to resize. The live preview on the right shows exactly what will be saved.
             </p>
 
-            <div className="cropper-workspace">
-              {/* Left Column: Draggable Image Crop Area */}
-              <div className="cropper-panel">
-                <span className="cropper-label font-body">ORIGINAL IMAGE & CROP AREA</span>
-                <div 
-                  className="crop-container" 
-                  style={{
-                    position: 'relative',
-                    display: 'inline-block',
-                    backgroundColor: '#F8FAFC',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '6px',
-                    overflow: 'hidden',
-                    boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.02)',
-                    userSelect: 'none',
-                    WebkitUserSelect: 'none',
-                    maxWidth: '100%'
-                  }}
-                >
-                  <img 
-                    ref={cropImageRef}
-                    src={cropImageSrc} 
-                    alt="To Crop" 
-                    crossOrigin="anonymous"
-                    onLoad={handleImageLoad}
-                    style={{
-                      display: 'block',
-                      maxWidth: '100%',
-                      maxHeight: '380px',
-                      objectFit: 'contain',
-                      pointerEvents: 'none',
-                      userSelect: 'none',
-                      WebkitUserSelect: 'none'
-                    }}
-                  />
-                  {imgDimensions.width > 0 && (
-                    <>
-                      {/* Dark Overlays Outside Crop Area */}
-                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: cropBox.y, backgroundColor: 'rgba(0,0,0,0.5)', pointerEvents: 'none' }} />
-                      <div style={{ position: 'absolute', top: cropBox.y + cropBox.size, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', pointerEvents: 'none' }} />
-                      <div style={{ position: 'absolute', top: cropBox.y, left: 0, width: cropBox.x, height: cropBox.size, backgroundColor: 'rgba(0,0,0,0.5)', pointerEvents: 'none' }} />
-                      <div style={{ position: 'absolute', top: cropBox.y, left: cropBox.x + cropBox.size, right: 0, height: cropBox.size, backgroundColor: 'rgba(0,0,0,0.5)', pointerEvents: 'none' }} />
-
-                      {/* Draggable Crop Selection Box */}
-                      <div 
-                        className="crop-box" 
+            <div className="crop-modal-body">
+              <div className="cropper-workspace">
+                {/* Left Column: Draggable Image Crop Area */}
+                <div className="cropper-panel">
+                  <span className="cropper-label font-body">ORIGINAL IMAGE & CROP AREA</span>
+                  <div className="crop-editor-container">
+                    <div 
+                      className="crop-container" 
+                      style={{
+                        position: 'relative',
+                        display: 'inline-block',
+                        backgroundColor: '#F8FAFC',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '6px',
+                        overflow: 'hidden',
+                        boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.02)',
+                        userSelect: 'none',
+                        WebkitUserSelect: 'none',
+                        maxWidth: '100%',
+                        maxHeight: '100%'
+                      }}
+                    >
+                      <img 
+                        ref={cropImageRef}
+                        src={cropImageSrc} 
+                        alt="To Crop" 
+                        crossOrigin="anonymous"
+                        onLoad={handleImageLoad}
                         style={{
-                          position: 'absolute',
-                          left: cropBox.x,
-                          top: cropBox.y,
-                          width: cropBox.size,
-                          height: cropBox.size,
-                          border: '2px dashed #3B82F6',
-                          cursor: 'move',
-                          boxSizing: 'border-box'
+                          display: 'block',
+                          maxWidth: '100%',
+                          maxHeight: '100%',
+                          objectFit: 'contain',
+                          pointerEvents: 'none',
+                          userSelect: 'none',
+                          WebkitUserSelect: 'none'
                         }}
-                        onMouseDown={(e) => handleStartAction(e, 'dragging')}
-                        onTouchStart={(e) => handleStartAction(e, 'dragging')}
-                      >
-                        {/* Interactive Corner Resize Handles */}
-                        <div className="crop-handle nw" style={{ position: 'absolute', width: '12px', height: '12px', backgroundColor: '#FFFFFF', border: '2px solid #3B82F6', borderRadius: '50%', cursor: 'nwse-resize', top: '-6px', left: '-6px', zIndex: 10, boxSizing: 'border-box' }} onMouseDown={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-nw'); }} onTouchStart={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-nw'); }} />
-                        <div className="crop-handle ne" style={{ position: 'absolute', width: '12px', height: '12px', backgroundColor: '#FFFFFF', border: '2px solid #3B82F6', borderRadius: '50%', cursor: 'nesw-resize', top: '-6px', right: '-6px', zIndex: 10, boxSizing: 'border-box' }} onMouseDown={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-ne'); }} onTouchStart={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-ne'); }} />
-                        <div className="crop-handle sw" style={{ position: 'absolute', width: '12px', height: '12px', backgroundColor: '#FFFFFF', border: '2px solid #3B82F6', borderRadius: '50%', cursor: 'nesw-resize', bottom: '-6px', left: '-6px', zIndex: 10, boxSizing: 'border-box' }} onMouseDown={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-sw'); }} onTouchStart={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-sw'); }} />
-                        <div className="crop-handle se" style={{ position: 'absolute', width: '12px', height: '12px', backgroundColor: '#FFFFFF', border: '2px solid #3B82F6', borderRadius: '50%', cursor: 'nwse-resize', bottom: '-6px', right: '-6px', zIndex: 10, boxSizing: 'border-box' }} onMouseDown={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-se'); }} onTouchStart={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-se'); }} />
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
+                      />
+                      {imgDimensions.width > 0 && (
+                        <>
+                          {/* Dark Overlays Outside Crop Area */}
+                          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: cropBox.y, backgroundColor: 'rgba(0,0,0,0.5)', pointerEvents: 'none' }} />
+                          <div style={{ position: 'absolute', top: cropBox.y + cropBox.size, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', pointerEvents: 'none' }} />
+                          <div style={{ position: 'absolute', top: cropBox.y, left: 0, width: cropBox.x, height: cropBox.size, backgroundColor: 'rgba(0,0,0,0.5)', pointerEvents: 'none' }} />
+                          <div style={{ position: 'absolute', top: cropBox.y, left: cropBox.x + cropBox.size, right: 0, height: cropBox.size, backgroundColor: 'rgba(0,0,0,0.5)', pointerEvents: 'none' }} />
 
-              {/* Right Column: Live Cropped Preview */}
-              <div className="cropper-panel">
-                <span className="cropper-label font-body">LIVE CROPPED PREVIEW</span>
-                <div className="canvas-container preview-container">
-                  <canvas
-                    ref={previewCanvasRef}
-                    width={300}
-                    height={300}
-                    className="preview-canvas"
-                  />
+                          {/* Draggable Crop Selection Box */}
+                          <div 
+                            className="crop-box" 
+                            style={{
+                              position: 'absolute',
+                              left: cropBox.x,
+                              top: cropBox.y,
+                              width: cropBox.size,
+                              height: cropBox.size,
+                              border: '2px dashed #3B82F6',
+                              cursor: 'move',
+                              boxSizing: 'border-box'
+                            }}
+                            onMouseDown={(e) => handleStartAction(e, 'dragging')}
+                            onTouchStart={(e) => handleStartAction(e, 'dragging')}
+                          >
+                            {/* Interactive Corner Resize Handles */}
+                            <div className="crop-handle nw" style={{ position: 'absolute', width: '12px', height: '12px', backgroundColor: '#FFFFFF', border: '2px solid #3B82F6', borderRadius: '50%', cursor: 'nwse-resize', top: '-6px', left: '-6px', zIndex: 10, boxSizing: 'border-box' }} onMouseDown={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-nw'); }} onTouchStart={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-nw'); }} />
+                            <div className="crop-handle ne" style={{ position: 'absolute', width: '12px', height: '12px', backgroundColor: '#FFFFFF', border: '2px solid #3B82F6', borderRadius: '50%', cursor: 'nesw-resize', top: '-6px', right: '-6px', zIndex: 10, boxSizing: 'border-box' }} onMouseDown={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-ne'); }} onTouchStart={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-ne'); }} />
+                            <div className="crop-handle sw" style={{ position: 'absolute', width: '12px', height: '12px', backgroundColor: '#FFFFFF', border: '2px solid #3B82F6', borderRadius: '50%', cursor: 'nesw-resize', bottom: '-6px', left: '-6px', zIndex: 10, boxSizing: 'border-box' }} onMouseDown={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-sw'); }} onTouchStart={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-sw'); }} />
+                            <div className="crop-handle se" style={{ position: 'absolute', width: '12px', height: '12px', backgroundColor: '#FFFFFF', border: '2px solid #3B82F6', borderRadius: '50%', cursor: 'nwse-resize', bottom: '-6px', right: '-6px', zIndex: 10, boxSizing: 'border-box' }} onMouseDown={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-se'); }} onTouchStart={(e) => { e.stopPropagation(); handleStartAction(e, 'resizing-se'); }} />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column: Live Cropped Preview */}
+                <div className="cropper-panel">
+                  <span className="cropper-label font-body">LIVE CROPPED PREVIEW</span>
+                  <div className="canvas-container preview-container crop-preview">
+                    <canvas
+                      ref={previewCanvasRef}
+                      width={300}
+                      height={300}
+                      className="preview-canvas"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="modal-actions-row" style={{ marginTop: '24px' }}>
+            <div className="crop-modal-footer">
               <button onClick={handleSaveCrop} className="btn-primary modal-btn">
                 Apply & Save Crop
+              </button>
+              <button onClick={handleResetCrop} type="button" className="btn-secondary modal-btn">
+                Reset
               </button>
               <button
                 type="button"
@@ -2492,6 +2510,66 @@ const AdminProducts = () => {
         }
 
         /* ── Image Cropper Modal ── */
+        .crop-modal {
+          width: min(96vw, 760px);
+          max-height: calc(100dvh - 16px);
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+
+        .crop-modal-body {
+          flex: 1;
+          min-height: 0;
+          overflow-y: auto;
+          overflow-x: hidden;
+          padding: 12px;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        .crop-editor-container {
+          width: 100%;
+          max-width: 520px;
+          aspect-ratio: 1 / 1;
+          max-height: min(65vw, 420px);
+          margin: 0 auto;
+          overflow: hidden;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .crop-preview {
+          width: 100%;
+          max-width: 280px;
+          aspect-ratio: 1 / 1;
+          margin: 0 auto;
+          overflow: hidden;
+          padding: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .crop-preview img,
+        .crop-preview canvas {
+          width: 100% !important;
+          height: 100% !important;
+          object-fit: contain !important;
+        }
+
+        .crop-modal-footer {
+          position: sticky;
+          bottom: 0;
+          z-index: 30;
+          background: #ffffff;
+          border-top: 1px solid #e5e7eb;
+          padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+          display: flex;
+          justify-content: flex-end;
+          gap: 8px;
+        }
+
         .cropper-workspace {
           display: grid;
           grid-template-columns: 1fr 1fr;
@@ -2502,6 +2580,33 @@ const AdminProducts = () => {
         @media (max-width: 640px) {
           .cropper-workspace {
             grid-template-columns: 1fr;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .crop-modal {
+            width: calc(100vw - 12px);
+            max-height: calc(100dvh - 12px);
+          }
+
+          .crop-editor-container {
+            max-height: 340px;
+          }
+
+          .crop-preview {
+            max-width: 240px;
+          }
+
+          .crop-modal-footer {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+          }
+
+          .crop-modal-footer button {
+            width: 100% !important;
+            min-height: 44px;
+            margin: 0 !important;
           }
         }
 
