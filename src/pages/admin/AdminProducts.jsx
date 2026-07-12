@@ -301,11 +301,19 @@ const AdminProducts = () => {
     }
 
     const originalUrl = originalImages[cropTargetIndex] || '';
-    let mimeType = 'image/png';
-    if (originalUrl.includes('.jpg') || originalUrl.includes('.jpeg')) {
-      mimeType = 'image/jpeg';
-    } else if (originalUrl.includes('.webp')) {
-      mimeType = 'image/webp';
+    let mimeType = 'image/jpeg'; // default to jpeg instead of png to optimize size
+    if (originalUrl.startsWith('data:')) {
+      const parsed = originalUrl.split(';')[0].split(':')[1];
+      if (parsed) mimeType = parsed;
+    } else {
+      const lower = originalUrl.toLowerCase();
+      if (lower.includes('.png')) {
+        mimeType = 'image/png';
+      } else if (lower.includes('.webp')) {
+        mimeType = 'image/webp';
+      } else if (lower.includes('.gif')) {
+        mimeType = 'image/gif';
+      }
     }
 
     const croppedBase64 = croppedCanvas.toDataURL(mimeType, 1.0);
@@ -1490,7 +1498,11 @@ const AdminProducts = () => {
               {/* Sticky modal actions */}
               <div className="edit-product-modal-actions">
                 <button type="submit" className="btn-primary modal-btn" disabled={isSaving}>
-                  {isSaving ? 'SAVING...' : 'SAVE CHANGES'}
+                  {isSaving ? (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+                      <span className="upload-spinner" /> UPLOADING...
+                    </span>
+                  ) : 'SAVE CHANGES'}
                 </button>
                 <button 
                   type="button" 
@@ -2450,6 +2462,19 @@ const AdminProducts = () => {
           background-color: var(--primary-color, #1E293B) !important;
           color: #ffffff !important;
           border-color: var(--primary-color, #1E293B) !important;
+        }
+
+        @keyframes spinner-rotate {
+          to { transform: rotate(360deg); }
+        }
+        .upload-spinner {
+          width: 14px;
+          height: 14px;
+          border: 2px solid rgba(255, 255, 255, 0.3);
+          border-radius: 50%;
+          border-top-color: #ffffff;
+          animation: spinner-rotate 0.6s linear infinite;
+          display: inline-block;
         }
 
         .cropper-workspace {
